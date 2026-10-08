@@ -49,7 +49,8 @@ def u_of(z, w):
 
 
 def dist(z, w):
-    return np.arccosh(1 + u_of(z, w))
+    # stability fix vs item 03 original (final review I1): 2 asinh(sqrt(u/2)) == arccosh(1 + u), no cancellation
+    return 2 * np.arcsinh(np.sqrt(u_of(z, w) / 2))
 
 
 @provenance("NUMERICAL", "closed form -(1/2pi) ln tanh(d/2) in float64", "float64 rounding")

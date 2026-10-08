@@ -70,6 +70,34 @@ def test_green_coincident_points(g):
         g.G(0.1 + 0.1j, 0.1 + 0.1j)
 
 
+def test_green_coincident_on_surface_via_word(g):
+    # final review I1: z and gamma z are the same point of the surface; the local distance is < 1e-9, so G raises
+    z = 0.1 + 0.1j
+    gam = G.word([0, 1, 2])                    # GENS[0] GENS[1] GENS[2], word length 3
+    zt = G.act(gam, z)
+    assert abs(zt - z) > 0.1                   # far apart in the disk
+    with pytest.raises(ValueError, match=r"points coincide on the surface \(distance < 1e-09\)"):
+        g.G(z, zt)
+
+
+def test_green_near_coincident_asymptote(g):
+    # final review I1: d0 = 2 asinh(|z-w|/sqrt(...)) has no cancellation; G -> -(1/2pi) ln d + m(z) as w -> z.
+    # (The old acosh(1 + u) form was off by 1.8e-4 here.)
+    z = 0.1 + 0.1j
+    w = z + 1e-7
+    d = 2 * math.asinh(abs(z - w) / math.sqrt((1 - abs(z) ** 2) * (1 - abs(w) ** 2)))
+    val = g.G(z, w)
+    assert math.isfinite(val)
+    assert abs(val - (-math.log(d) / (2 * math.pi) + g.robin_mass(z))) < 1e-8
+
+
+def test_green_values_unchanged_by_asinh_fix(g):
+    # final review I1: values at the test points are unchanged (to <= 1e-13) by the asinh distance
+    assert abs(g.G(0.1 + 0j, 0.2j) - 0.10413472900046106) < 1e-13
+    assert abs(g.robin_mass(0j) - (-0.027989475435609812)) < 1e-13
+    assert abs(g.G(0.2 + 0.1j, 0.1 + 0.05j) - 0.20677301517303134) < 1e-13
+
+
 def test_green_overlapping_charts(g):
     # The 0.45-discs about adjacent Weierstrass points overlap (distance 1.5286 < 2*2 atanh 0.45).  z is nearer the
     # centre, but both z and w lie within 0.45 of the edge-midpoint Weierstrass point at -MIDPOINT_RADIUS: valid.

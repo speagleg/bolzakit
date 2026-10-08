@@ -17,6 +17,22 @@ from ._common import ball, A_AREA, G1, mobius
 from . import heat as H
 
 
+COINCIDE_TOL = 1e-9
+
+
+def _pdist(z, w):
+    """Poincaré distance, array version: d = 2 asinh(|z-w| / sqrt((1-|z|^2)(1-|w|^2))).
+
+    Algebraically identical to acosh(1 + 2|z-w|^2/((1-|z|^2)(1-|w|^2))) (cosh d = 1 + 2 sinh^2(d/2)), but without the
+    cancellation in 1 + u for nearby points (final review I1)."""
+    return 2 * np.arcsinh(np.abs(z - w) / np.sqrt((1 - np.abs(z) ** 2) * (1 - np.abs(w) ** 2)))
+
+
+def _pdist1(z, w) -> float:
+    """Scalar version of _pdist."""
+    return 2 * math.asinh(abs(z - w) / math.sqrt((1 - abs(z) ** 2) * (1 - abs(w) ** 2)))
+
+
 class BolzaGreen:
     def __init__(self, T=2.6, D_ball=15.0, zmax=0.45):
         self.T = T
@@ -49,12 +65,17 @@ class BolzaGreen:
     def R(self, z, w):
         """Regular part R(z, w) (Tail omitted) for scalar z, w."""
         gw = mobius(self.a, self.b, w)
-        d = np.arccosh(1 + 2 * np.abs(z - gw) ** 2 / ((1 - abs(z) ** 2) * (1 - np.abs(gw) ** 2)))
-        d0 = math.acosh(1 + 2 * abs(z - w) ** 2 / ((1 - abs(z) ** 2) * (1 - abs(w) ** 2)))
+        # stability fix vs item 03 original (final review I1): 2 asinh(|z-w|/sqrt(...)) instead of acosh(1 + 2|z-w|^2/...)
+        d = _pdist(z, gw)
+        d0 = _pdist1(z, w)
         return float(self.Ftab(d).sum() - self.Etab(np.array([d0]))[0] - self.T / A_AREA)
 
     def G(self, z, w):
-        d0 = math.acosh(1 + 2 * abs(z - w) ** 2 / ((1 - abs(z) ** 2) * (1 - abs(w) ** 2)))
+        # stability fix vs item 03 original (final review I1)
+        d0 = _pdist1(z, w)
+        if d0 < COINCIDE_TOL:
+            raise ValueError(f"points coincide on the surface (distance < {COINCIDE_TOL:g}); use robin_mass(z) or "
+                             "regular(z, z)")
         return float(G1(d0)) + self.R(z, w)
 
     def robin_mass(self, z):
@@ -69,12 +90,10 @@ class BolzaGreen:
         tot = 0.0
         for i in range(n):
             zi = zs[i]
-            num = 2 * np.abs(zi - gw[:, i:]) ** 2
-            den = (1 - abs(zi) ** 2) * (1 - np.abs(gw[:, i:]) ** 2)
-            d = np.arccosh(1 + num / den)
+            d = _pdist(zi, gw[:, i:])        # stability fix vs item 03 original (final review I1)
             vals = self.Ftab(d.ravel()).reshape(d.shape).sum(axis=0)   # per j >= i
             for jj, j in enumerate(range(i, n)):
-                d0 = math.acosh(1 + 2 * abs(zi - zs[j]) ** 2 / ((1 - abs(zi) ** 2) * (1 - abs(zs[j]) ** 2))) if j != i else 0.0
+                d0 = _pdist1(zi, zs[j]) if j != i else 0.0      # stability fix vs item 03 original (final review I1)
                 r = vals[jj] - self.Etab(np.array([d0]))[0] - self.T / A_AREA
                 tot += r if j != i else r / 2
         return tot
@@ -155,9 +174,7 @@ class SurfaceGreen:
     @provenance("NUMERICAL", "heat-kernel splitting (item 03) in a Weierstrass chart", _ERR)
     def G(self, z: complex, w: complex) -> float:
         zl, wl = self._local_pair(z, w)
-        if abs(zl - wl) < 1e-14:
-            raise ValueError("G(z, z) is singular; use robin_mass(z) or regular(z, z)")
-        return self._core.G(zl, wl)
+        return self._core.G(zl, wl)       # raises ValueError if d(zl, wl) < COINCIDE_TOL (coincident on the surface)
 
     @provenance("NUMERICAL", "heat-kernel splitting (item 03) in a Weierstrass chart", _ERR)
     def regular(self, z: complex, w: complex) -> float:

@@ -31,7 +31,9 @@ centred there. `G`, `regular` and `robin_mass` pick the chart that minimises max
   tail (T = 2.0: −3.1e-5 in G, −3.9e-5 in the Robin mass, so it is not accepted), and larger T needs a larger image
   ball; un-validated pairs can be off by up to 25% (T = 10 at D_ball = 15).
 - A pair of points with no common chart raises `OutOfValidityRange`.
-- `G(z, z)` raises `ValueError`; use `robin_mass(z)` or `regular(z, z)` instead.
+- `G(z, w)` raises `ValueError` when z and w coincide on the surface (local Poincaré distance < 1e-9, e.g. w = z or
+  w = γz for γ ∈ Γ); use `robin_mass(z)` or `regular(z, z)` instead. Distances are computed as
+  d = 2 asinh(|z − w| / √((1 − |z|²)(1 − |w|²))), which is exact for nearby points (no cancellation in 1 + u).
 - The six charts cover the surface: the covering radius is ρ = 0.4056164 < 0.45 (Poincaré distance 0.8607). The worst
   point is at argument π/8 mod π/4 in the octagon, equidistant from the centre chart and two edge-midpoint charts. So
   every *single* point is valid, and `robin_mass(z)` works everywhere.
