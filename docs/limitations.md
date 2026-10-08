@@ -26,7 +26,9 @@ most physics users build. bolzakit gives the continuum data such a layer would b
 `green().G(z, w)` and `regular(z, w)` are validated only when both points lie within Poincaré radius 0.45 of the same
 Weierstrass point, in a chart centred there. Other pairs raise `OutOfValidityRange`; a general-position G_Σ is not in
 v0.1. The charts cover the surface (covering radius 0.4056), so every single point is valid and `robin_mass` works
-everywhere. The omitted heat-kernel tail limits accuracy to about 4e-6 in value at T = 2.6.
+everywhere. The omitted heat-kernel tail limits accuracy to about 4e-6 in value at T = 2.6. Only the validated
+parameter pairs (T, D_ball) = (2.6, 15) and (2.6, 13) are accepted; other pairs raise `OutOfValidityRange` (un-validated
+pairs can be off by up to 25%).
 
 ## Vortex results are model-conditional
 

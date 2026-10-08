@@ -32,6 +32,7 @@ First release.
   2e-4 relative error. The Strohmaier-Uski data is not bundled.
 - There is no tight-binding layer (adjacency or graph-Laplacian Hamiltonians, lattice patches, Bloch phases).
 - The Green's function G(z, w) is valid only within Poincare radius 0.45 of the same Weierstrass point; other pairs
-  raise `OutOfValidityRange`. `robin_mass(z)` works everywhere.
+  raise `OutOfValidityRange`. `robin_mass(z)` works everywhere. Only (T, D_ball) = (2.6, 15) or (2.6, 13) is accepted.
+- `selberg_check(t)` is validated for about 0.03 ≤ t ≤ 1 (bundled data, T_max = 80) and raises outside it.
 - The lambda_3 series holds only for N = 7 in the SO(2)-invariant degree-7 truncation of the Boatto-Koiller model.
 - No human or peer review yet (see `VERIFICATION.md`).
