@@ -5,22 +5,23 @@
 First release.
 
 - `bolzakit.exact`: exact arithmetic in Z[zeta_8] (`zeta8`), the Bolza Fuchsian group with generators, relator,
-  enumeration and traces (`group`), the automorphism group of order 48 (`automorphisms`) and the length spectrum
-  (`lengths`).
-- `bolzakit.geometry`: the regular hyperbolic octagon, its side pairings and Weierstrass points (`octagon`).
+  enumeration and traces (`group`), the automorphism group of order 48 and the Weierstrass points (`automorphisms`) and
+  the length spectrum (`lengths`).
+- `bolzakit.geometry`: the regular hyperbolic octagon and its side pairings (`octagon`).
 - `bolzakit.spectral`: Laplace eigenvalues (bundled FEM cross-check clusters; Strohmaier-Uski data downloaded on demand,
-  sha256-checked), Selberg trace check, spectral zeta functions and the tau data.
+  sha256-checked), Selberg trace check, ζ_Δ(0) and the tau data.
 - `bolzakit.green`: Green's function, regular part and Robin mass in Weierstrass charts, Bergman-kernel data, heat
-  kernel and the bundled Green's-function constants.
-- `bolzakit.vortex`: vortex-ring relative equilibria, ring stability and ring-mode data, and the vortex dynamics for the
-  Boatto-Koiller model.
-- `bolzakit.arith`: the arithmetic facts: curve data (`curve`, optional cypari2), the golden-geodesic criterion
-  (`golden`) and the Salem-norm identity (`salem`).
+  kernel and the Green's-function constants, computed in closed form (`data/green_constants.json` is a reference copy,
+  checked against the closed form by a regression test).
+- `bolzakit.vortex`: linearised ring-mode stability of regular vortex rings (flat, sinh, tanh and Bolza models) and the
+  λ₃ series for the Boatto-Koiller model.
+- `bolzakit.arith`: the arithmetic facts: curve data (`curve`, optional cypari2), the arithmetic core of the
+  golden-geodesic criterion (`golden`) and the Salem-norm identity (`salem`).
 - `bolzakit.provenance` and `bolzakit.errors`: provenance labels (EXACT, PROVED, CERTIFIED, NUMERICAL, QUOTED), available
   with `with_provenance=True`, and the package exceptions.
 - Bundled data: `data/*.json` with a `MANIFEST.json`.
-- Lean 4: three proofs under `lean/` (the group relation, the golden-geodesic criterion and the Salem-norm identity),
-  with no `sorry`, `admit` or `native_decide`.
+- Lean 4: three proofs under `lean/` (the group relation, the arithmetic core of the golden-geodesic criterion and the
+  Salem-norm identity), with no `sorry`, `admit`, `native_decide` or `axiom` declarations.
 - Docs: README, per-module pages, provenance table, `CITATIONS_CHECK.md`, `limitations.md`, `VERIFICATION.md`,
   `CITATION.cff`.
 

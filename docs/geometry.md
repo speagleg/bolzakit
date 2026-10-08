@@ -8,7 +8,7 @@ float64 rounding.
 |---|---|
 | `mobius(M, z)` | (a z + b)/(c z + d) for a 2×2 matrix M |
 | `dist(z, w)`, `cosh_dist(z, w)` | hyperbolic distance and its cosh |
-| `reduce_point(z)` | `(z_reduced, word, M)`: z_reduced = M(z) lies in the octagon F; `word` lists the generator indices used |
+| `reduce_point(z)` | `(z_reduced, word, M)`: z_reduced = M(z) lies in the octagon F; `word` lists the generator indices used; `ValueError` unless \|z\| < 1 |
 | `in_F(z, tol=1e-12)` | whether z lies in the closed octagon |
 | `disk_to_upper(z)`, `upper_to_disk(w)` | Cayley maps between the disk and the upper half-plane (0 ↦ i) |
 | `poincare_to_klein(z)`, `klein_to_poincare(k)` | maps between the Poincaré and Klein disk models |

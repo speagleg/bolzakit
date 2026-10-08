@@ -30,6 +30,15 @@ def test_green_callable_module(monkeypatch):
     assert bk.green.VALIDITY_RADIUS == 0.45
 
 
+def test_green_module_info_and_signature():
+    # final review M2
+    import inspect
+    from bolzakit.provenance import info
+    assert info(bk.green) == info(bk.green.green) and info(bk.green).label == "NUMERICAL"
+    sig = inspect.signature(bk.green)
+    assert list(sig.parameters) == ["T", "D_ball"] and sig == inspect.signature(bk.green.green)
+
+
 def test_every_public_function_labelled():
     import inspect
     import bolzakit.arith.curve as curve

@@ -61,9 +61,11 @@ def in_F(z, tol=1e-12):
 
 @provenance("NUMERICAL", "closed-form hyperbolic geometry in float64 (item 02 geometry.py)", "float64 rounding")
 def reduce_point(z, max_steps=10_000):
-    """Return (z', word) with z' = g z in F, g = product recorded in `word` (list of generator indices,
-    applied left-to-right as z -> g_{w1}^{...}).  Implemented as: while some g_k 0 is closer to z than 0,
-    replace z by g_k^{-1} z.  Returns the matrix of the total map too."""
+    """Return (z', word, M): z' = M(z) lies in the octagon F, M is the matrix of the total map, and `word` lists the
+    generator indices used (applied left-to-right as z -> g_{w1}^{...}).  Implemented as: while some g_k 0 is closer
+    to z than 0, replace z by g_k^{-1} z.  Raises ValueError unless z lies in the open unit disk (|z| < 1)."""
+    if not abs(z) < 1:
+        raise ValueError(f"reduce_point needs a point of the open unit disk, got |z| = {abs(z)!r}")
     M = np.eye(2, dtype=complex)
     word = []
     for _ in range(max_steps):

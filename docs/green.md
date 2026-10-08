@@ -1,6 +1,8 @@
 # Green's function, Robin mass and Bergman constants
 
-Module: `bolzakit.green`. `bk.green` is both a module and a callable.
+Module: `bolzakit.green`. `bk.green` is both a module and a callable: `bk.green(...)` is `bk.green.green(...)`, and
+`info(bk.green)` and `inspect.signature(bk.green)` describe that function. Static type checkers see `bk.green` as a
+module, so `bk.green.green(T, D_ball)` is the type-checker-friendly spelling.
 
 ## API
 

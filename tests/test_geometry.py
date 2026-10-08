@@ -2,6 +2,7 @@ import cmath
 import math
 
 import numpy as np
+import pytest
 
 from bolzakit import geometry
 from bolzakit.exact import group as G
@@ -38,3 +39,10 @@ def test_reduce_point_lands_in_F_and_preserves_orbit():
         zr, word, M = geometry.reduce_point(z)
         assert geometry.in_F(zr)
         assert abs(geometry.mobius(M, z) - zr) < 1e-9
+
+
+@pytest.mark.parametrize("z", [1.0, 1j, 0.6 + 0.8j, 2.0, -1.5j])
+def test_reduce_point_rejects_outside_disk(z):
+    # final review M4
+    with pytest.raises(ValueError, match="open unit disk"):
+        geometry.reduce_point(z)

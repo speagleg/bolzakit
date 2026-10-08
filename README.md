@@ -20,8 +20,10 @@ natural minimal, maximally symmetric test case.
 
 bolzakit gives you the exact Fuchsian group (matrix entries in ℤ[ζ₈]), the automorphism group, the length spectrum,
 Laplace eigenvalues, Green's-function and Bergman-kernel data at the Weierstrass points, vortex-ring stability data and a
-few arithmetic facts. It ships with tests and three Lean 4 proofs (the group relation, the golden-geodesic criterion and
-the Salem-norm identity). Every public function listed in [docs/provenance.md](docs/provenance.md) carries a provenance label (EXACT, PROVED, CERTIFIED, NUMERICAL or QUOTED) — ask for it with `with_provenance=True`.
+few arithmetic facts. It ships with tests and three Lean 4 proofs (the group relation, the arithmetic core of the
+golden-geodesic criterion and the Salem-norm identity). Every public function listed in
+[docs/provenance.md](docs/provenance.md) carries a provenance label (EXACT, PROVED, CERTIFIED, NUMERICAL or QUOTED) —
+ask for it with `with_provenance=True`.
 
 ## Contents
 
@@ -165,7 +167,8 @@ from fractions import Fraction
 import bolzakit as bk
 
 L = bk.lengths()                                          # all lengths with half-trace <= 120
-print(len(L), L[-1]["length"])                          # 42 distinct lengths, longest 10.934
+print(len(L), L[-1]["length"])                          # 42 half-traces, longest 10.934
+assert sum(e["n_oriented"] == 0 for e in L) == 2          # 5+4√2 and 33+24√2: no primitive geodesic
 assert bk.spectral.zeta_zero() == Fraction(-4, 3)         # chi/6 - 1
 tb = bk.spectral.tau_bounds("systole_shell")
 print(tb["lower"], tb["upper"])                           # certified interval for tau(P_-(h))

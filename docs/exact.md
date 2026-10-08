@@ -57,8 +57,10 @@ The element orders alone show Aut⁺ ≇ S₄×ℤ₂; see [results-and-correcti
   uses);
 - `n_unoriented`: `n_oriented / 2`.
 
-The data up to half-trace 120 is bundled (42 distinct lengths). Asking for more raises `OutOfValidityRange` unless you
-pass `compute=True`, which enumerates afresh; the cost grows like e^ℓ.
+The data up to half-trace 120 is bundled (42 distinct half-traces). Two of them, 5+4√2 and 33+24√2, have no primitive
+geodesic (`n_oriented = 0`: every element with that half-trace is a proper power), so 40 lengths carry primitive
+geodesics. Asking for more raises `OutOfValidityRange` unless you pass `compute=True`, which enumerates afresh (the cost
+grows like e^ℓ) and raises `BolzakitError` if any integrality residual exceeds 1e-3.
 
 **Method.** For each exact half-trace t, bolzakit sums the length of axis(γ) ∩ F over all γ with |half-trace| = t. That
 sum equals Σ ℓ(primitive root) over the oriented classes with that trace. Subtracting the contributions of powers and

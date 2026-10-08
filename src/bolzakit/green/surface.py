@@ -1,5 +1,5 @@
-"""G_Sigma, regular part R and Robin mass on the Bolza surface -- item 03's implementation of the stubs in
-item 02's bolza/green.py (item 02 is NOT edited; this module supersedes the stubs for item 03's use).
+"""G_Sigma, regular part R and Robin mass on the Bolza surface (heat-kernel splitting, ported from math-pursuits
+item 03).
 
 Method (heat-kernel splitting, heat.py):  for points z, w in a neighbourhood of the Weierstrass point 0,
     R(z, w)      = G_Sigma(z, w) - G1(d(z, w))

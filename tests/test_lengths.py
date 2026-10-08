@@ -54,3 +54,22 @@ def test_length_spectrum(lspec):
     # 5+4sqrt2 = T_2(1+sqrt2): only squares of systoles
     assert lspec[3]["power_of"] == [((1, 1), 2)]
     assert LS.cheb_T(2, (1, 1)) == (5, 4)
+
+
+def test_compute_rejects_bad_integrality(monkeypatch):
+    # final review M1: compute=True raises if any multiplicity residual > 1e-3 (stubbed; no enumeration)
+    from bolzakit.errors import BolzakitError
+    rows = [dict(halftrace=(121, 0), length=1.0, n_oriented=24, residual=1e-9),
+            dict(halftrace=(100, 20), length=2.0, n_oriented=48, residual=0.02)]
+    monkeypatch.setattr(LS, "length_spectrum", lambda T: rows)
+    with pytest.raises(BolzakitError, match=r"residual 0.02 > 1e-3 at half-trace 100\+20\*sqrt2"):
+        LS.lengths(max_half_trace=130, compute=True)
+    rows[1]["residual"] = 1e-6
+    assert [e["n_unoriented"] for e in LS.lengths(max_half_trace=130, compute=True)] == [12, 24]
+
+
+def test_two_halftraces_without_primitive_geodesic():
+    # final review M6: of the 42 bundled half-traces, 5+4√2 and 33+24√2 have n_oriented = 0
+    L = LS.lengths()
+    assert len(L) == 42
+    assert [e["halftrace"] for e in L if e["n_oriented"] == 0] == [(5, 4), (33, 24)]

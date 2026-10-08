@@ -27,3 +27,15 @@ def test_constants_provenance_cites_derivation():
     from bolzakit.provenance import info
     src = info(green.constants).source
     assert "review_1" in src and "docs/green.md" in src
+
+
+def test_constants_match_reference_json():
+    # final review M7: data/green_constants.json is a reference copy of the closed form, not a source of values
+    from bolzakit import data
+    ref = data.load("green_constants")
+    c = green.constants(dps=30)
+    assert set(ref) == set(c)
+    with mp.workdps(40):
+        for k in c:
+            assert abs(mp.mpf(ref[k]["value"]) - c[k]["value"]) < mp.mpf("1e-25"), k
+            assert ref[k]["closed_form"] == c[k]["closed_form"] and ref[k]["label"] == c[k]["label"]

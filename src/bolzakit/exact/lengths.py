@@ -105,7 +105,7 @@ def classes_by_counting_check(T_max: float):
 
 
 from .. import data as _data  # noqa: E402
-from ..errors import OutOfValidityRange  # noqa: E402
+from ..errors import BolzakitError, OutOfValidityRange  # noqa: E402
 from ..provenance import provenance  # noqa: E402
 
 
@@ -113,7 +113,13 @@ from ..provenance import provenance  # noqa: E402
             "Selberg trace formula (item 02)",
             "integrality residual <= 1.1e-8 (max 1.09e-8 at half-trace 59+42*sqrt2)")
 def lengths(max_half_trace: float = 120.0, compute: bool = False) -> list[dict]:
-    """Primitive length spectrum: entries with half-trace p+q√2 <= max_half_trace, sorted by length."""
+    """Primitive length spectrum: entries with half-trace p+q√2 <= max_half_trace, sorted by length.
+
+    Every half-trace that occurs in Γ is listed, including those with no primitive geodesic: of the 42 half-traces up
+    to 120, two (5+4√2 and 33+24√2) have n_oriented = 0 (all their elements are proper powers).
+
+    With compute=True (beyond the bundled bound) the multiplicities are recomputed; if any integrality residual
+    exceeds 1e-3 the rounding cannot be trusted and BolzakitError is raised."""
     bundle = _data.load("lengths")
     bound = bundle["max_half_trace"]
     if max_half_trace > bound:
@@ -122,6 +128,12 @@ def lengths(max_half_trace: float = 120.0, compute: bool = False) -> list[dict]:
                 f"lengths are bundled up to half-trace {bound:g}; pass compute=True to enumerate further "
                 f"(cost grows like exp(length); ~minutes at 120)")
         rows = length_spectrum(max_half_trace)
+        bad = [r for r in rows if r["residual"] > 1e-3]
+        if bad:
+            worst = max(bad, key=lambda r: r["residual"])
+            raise BolzakitError(
+                f"integrality check failed: multiplicity residual {worst['residual']:.3g} > 1e-3 at half-trace "
+                f"{worst['halftrace'][0]}+{worst['halftrace'][1]}*sqrt2 ({len(bad)} half-trace(s) affected)")
         return [{"halftrace": tuple(r["halftrace"]), "length": r["length"], "n_oriented": r["n_oriented"],
                  "n_unoriented": r["n_oriented"] // 2} for r in rows]
     s2 = math.sqrt(2)

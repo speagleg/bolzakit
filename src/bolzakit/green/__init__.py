@@ -14,3 +14,9 @@ class _CallableModule(_types.ModuleType):
 
 
 _sys.modules[__name__].__class__ = _CallableModule
+
+# so that info(bk.green) and inspect.signature(bk.green) describe the callable (final review M2);
+# bk.green.green(...) is the same function, spelled for type checkers
+import inspect as _inspect  # noqa: E402
+_sys.modules[__name__].__provenance__ = green.__provenance__
+_sys.modules[__name__].__signature__ = _inspect.signature(green)

@@ -1,4 +1,4 @@
-"""Shared helpers for item 03.  Imports item 02's exact Bolza group read-only (sys.path), never edits it.
+"""Shared helpers for the Green's-function code (ported from math-pursuits item 03); uses bolzakit.exact.group.
 
 Conventions (fixed for all of item 03):
   * Poincare disk, curvature -1, area form dA = 4 dx dy/(1-|z|^2)^2, Delta = (1-|z|^2)^2/4 * 4 d_z d_zbar.
