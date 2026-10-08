@@ -4,4 +4,4 @@ __pycache__/
 build/
 dist/
 .pytest_cache/
-lean/.lake/
+lean/.lake
