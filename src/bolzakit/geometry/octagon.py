@@ -11,6 +11,7 @@ import math
 import numpy as np
 
 from ..exact import group as G
+from ..provenance import provenance
 
 ZETA16 = [cmath.exp(1j * (2 * k + 1) * math.pi / 8) for k in range(8)]
 VERTICES = [G.VERTEX_RADIUS * w for w in ZETA16]                       # angles (2k+1) pi/8
@@ -19,10 +20,12 @@ GEN_MATS = [G.to_matrix(g) for g in G.GENS]
 GEN_INV_MATS = [G.to_matrix(G.inv(g)) for g in G.GENS]
 
 
+@provenance("NUMERICAL", "closed-form hyperbolic geometry in float64 (item 02 geometry.py)", "float64 rounding")
 def mobius(M, z):
     return (M[0, 0] * z + M[0, 1]) / (M[1, 0] * z + M[1, 1])
 
 
+@provenance("NUMERICAL", "closed-form hyperbolic geometry in float64 (item 02 geometry.py)", "float64 rounding")
 def dist(z, w):
     """Hyperbolic distance in the Poincare disk (curvature -1)."""
     num = abs(z - w) ** 2
@@ -30,14 +33,17 @@ def dist(z, w):
     return math.acosh(1 + 2 * num / den)
 
 
+@provenance("NUMERICAL", "closed-form hyperbolic geometry in float64 (item 02 geometry.py)", "float64 rounding")
 def cosh_dist(z, w):
     return 1 + 2 * abs(z - w) ** 2 / ((1 - abs(z) ** 2) * (1 - abs(w) ** 2))
 
 
+@provenance("NUMERICAL", "closed-form hyperbolic geometry in float64 (item 02 geometry.py)", "float64 rounding")
 def poincare_to_klein(z):
     return 2 * z / (1 + abs(z) ** 2)
 
 
+@provenance("NUMERICAL", "closed-form hyperbolic geometry in float64 (item 02 geometry.py)", "float64 rounding")
 def klein_to_poincare(k):
     r2 = abs(k) ** 2
     return k / (1 + math.sqrt(max(0.0, 1 - r2)))
@@ -46,12 +52,14 @@ def klein_to_poincare(k):
 GEN_IMAGES_OF_0 = [mobius(M, 0) for M in GEN_MATS]    # g_k(0), the 8 neighbour centres
 
 
+@provenance("NUMERICAL", "closed-form hyperbolic geometry in float64 (item 02 geometry.py)", "float64 rounding")
 def in_F(z, tol=1e-12):
     """z in the closed Dirichlet octagon: d(z,0) <= d(z, g_k 0) for all k (with tolerance)."""
     c0 = cosh_dist(z, 0)
     return all(c0 <= cosh_dist(z, w) * (1 + tol) for w in GEN_IMAGES_OF_0)
 
 
+@provenance("NUMERICAL", "closed-form hyperbolic geometry in float64 (item 02 geometry.py)", "float64 rounding")
 def reduce_point(z, max_steps=10_000):
     """Return (z', word) with z' = g z in F, g = product recorded in `word` (list of generator indices,
     applied left-to-right as z -> g_{w1}^{...}).  Implemented as: while some g_k 0 is closer to z than 0,
@@ -153,11 +161,13 @@ def axis_length_in_F(M, edge_tol=1e-9):
     return L * w
 
 
+@provenance("NUMERICAL", "closed-form hyperbolic geometry in float64 (item 02 geometry.py)", "float64 rounding")
 def disk_to_upper(z: complex) -> complex:
     """Cayley map from the Poincaré disk to the upper half-plane, w = i(1+z)/(1-z)."""
     return 1j * (1 + z) / (1 - z)
 
 
+@provenance("NUMERICAL", "closed-form hyperbolic geometry in float64 (item 02 geometry.py)", "float64 rounding")
 def upper_to_disk(w: complex) -> complex:
     """Inverse Cayley map, z = (w - i)/(w + i)."""
     return (w - 1j) / (w + 1j)

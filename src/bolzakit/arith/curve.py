@@ -10,16 +10,20 @@ def _pari():
 
 @provenance("EXACT", "PARI hyperellcharpoly")
 def euler_factor(p: int) -> list[int]:
+    p = _check_good_prime(p)
     pari = _pari()
     P = pari(f"hyperellcharpoly(Mod(1,{p})*(x^5-x))")
     return [int(c) for c in pari.Vec(P)]
 
 
 def _check_good_prime(p) -> int:
+    from .golden import _is_prime
     if isinstance(p, bool) or not isinstance(p, int) or p <= 0:
-        raise ValueError(f"prime must be a positive int, got {p!r}")
-    if p == 1 or 256 % p == 0:
-        raise ValueError(f"p={p}: bad reduction (or not prime); poldisc(x^5-x) = -2^8, so only odd primes are good")
+        raise ValueError(f"p must be a positive int, got {p!r}")
+    if not _is_prime(p):
+        raise ValueError(f"p={p} is not prime")
+    if p == 2:
+        raise ValueError("p=2 is a prime of bad reduction: poldisc(x^5-x) = -2^8")
     return p
 
 
@@ -28,8 +32,8 @@ def _check_good_prime(p) -> int:
 def jacobian_is_Q_simple(primes=(3,)) -> bool:
     """True if for some prime in `primes` the Frobenius char. poly of y^2=x^5-x is irreducible over Q.
 
-    3 is a prime of good reduction (disc(x^5-x) = -2^8); p=2 and other primes dividing 256 (bad
-    reduction) raise ValueError, as do non-positive or non-int p."""
+    3 is a prime of good reduction (disc(x^5-x) = -2^8); p=2 (bad reduction) raises ValueError, as do
+    non-prime, non-positive or non-int p."""
     primes = [_check_good_prime(p) for p in primes]
     pari = _pari()
     return any(bool(pari(f"polisirreducible(hyperellcharpoly(Mod(1,{p})*(x^5-x)))")) for p in primes)

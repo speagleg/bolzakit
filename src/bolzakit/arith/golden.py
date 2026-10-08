@@ -6,6 +6,7 @@ import math
 from ..provenance import provenance
 
 
+@provenance("EXACT", "integer recurrence L_0=2, L_1=1, L_{n+1}=L_n+L_{n-1}")
 def lucas(n: int) -> int:
     a, b = 2, 1
     for _ in range(n):

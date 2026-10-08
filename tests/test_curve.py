@@ -21,13 +21,13 @@ def test_jacobian_Q_simple():
     assert curve.jacobian_is_Q_simple() is True
 
 
-def test_jacobian_bad_prime_raises():
-    pytest.importorskip("cypari2")
-    with pytest.raises(ValueError, match="bad reduction"):
-        curve.jacobian_is_Q_simple(primes=(2,))
-
-
-@pytest.mark.parametrize("bad", [0, -3, 3.0, "3", True])
+@pytest.mark.parametrize("bad", [2, 0, -3, 1, 4, 9, 15, 3.0, "3", True])
 def test_jacobian_invalid_prime_raises(bad):
     with pytest.raises(ValueError):
         curve.jacobian_is_Q_simple(primes=(bad,))
+
+
+@pytest.mark.parametrize("bad", [2, 1, 4, 9, 15, True])
+def test_euler_factor_invalid_prime_raises(bad):
+    with pytest.raises(ValueError):
+        curve.euler_factor(bad)

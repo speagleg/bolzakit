@@ -11,6 +11,7 @@ import math
 import numpy as np
 
 from ..exact import group as BG          # exact group (ported from item 02)
+from ..provenance import provenance
 
 A_AREA = 4 * math.pi
 SQ2 = math.sqrt(2.0)
@@ -51,5 +52,6 @@ def dist(z, w):
     return np.arccosh(1 + u_of(z, w))
 
 
+@provenance("NUMERICAL", "closed form -(1/2pi) ln tanh(d/2) in float64", "float64 rounding")
 def G1(d):
     return -np.log(np.tanh(d / 2)) / (2 * np.pi)

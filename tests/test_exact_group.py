@@ -123,3 +123,9 @@ def test_relator_is_identity():
 
 def test_every_generator_det_one():
     assert all(G.det(g) == (1, 0) for g in G.GENS)
+
+
+def test_elements_counts():
+    assert [len(G.elements(L)) for L in (0, 1, 2)] == [1, 9, 65]       # 1, 1+8, 1+8+56
+    els = G.elements(2)
+    assert len(set(els)) == 65 and G.IDENTITY in els

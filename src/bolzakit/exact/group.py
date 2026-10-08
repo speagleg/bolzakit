@@ -303,3 +303,9 @@ from ..provenance import provenance  # noqa: E402
 def systole() -> float:
     """Length of the shortest closed geodesic of the Bolza surface, 2·arccosh(1+√2) = 3.05714183896..."""
     return L_SYS
+
+
+@provenance("EXACT", "exact enumeration by word length in Z[zeta8] (item 02)")
+def elements(max_word_length: int) -> list:
+    """All distinct group elements of word length <= max_word_length, as Elt objects."""
+    return [elt(r) for S in spheres_by_word_length(max_word_length) for r in S]

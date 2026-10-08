@@ -89,6 +89,7 @@ def eigenvalues(source: str = "fem", n: int | None = None) -> list[tuple[float, 
     return cl[:n] if n is not None else cl
 
 
+@provenance("NUMERICAL", "Weyl law leading term N(lam) ~ A lam/4pi (asymptotic only, not a count)", "asymptotic; float rounding")
 def weyl_counting(lam: float) -> float:
     """Weyl law leading term N(λ) ≈ A λ / 4π = λ for the Bolza surface (A = 4π)."""
     return float(AREA * lam / (4 * mp.pi))
