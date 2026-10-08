@@ -19,3 +19,15 @@ def test_euler_factor_p3():
 def test_jacobian_Q_simple():
     pytest.importorskip("cypari2")
     assert curve.jacobian_is_Q_simple() is True
+
+
+def test_jacobian_bad_prime_raises():
+    pytest.importorskip("cypari2")
+    with pytest.raises(ValueError, match="bad reduction"):
+        curve.jacobian_is_Q_simple(primes=(2,))
+
+
+@pytest.mark.parametrize("bad", [0, -3, 3.0, "3", True])
+def test_jacobian_invalid_prime_raises(bad):
+    with pytest.raises(ValueError):
+        curve.jacobian_is_Q_simple(primes=(bad,))
