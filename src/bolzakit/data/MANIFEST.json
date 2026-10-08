@@ -6,6 +6,13 @@
   "bolzakit_version": "0.1.0.dev0",
   "date": "2026-10-08"
  },
+ "eigenvalues_fem.json": {
+  "sha256": "f6d0e35bbedc281335efa93361d50f87142ec8f7a603a1ed15c09a63346d2f7e",
+  "script": "scripts/regen_fem.py",
+  "command": "python scripts/regen_fem.py",
+  "bolzakit_version": "0.1.0.dev0",
+  "date": "2026-10-08"
+ },
  "group.json": {
   "sha256": "0713068491d6b90eff90af6a7cc92d9ff94d63a6ab155b3ae312df8d859d890d",
   "script": "scripts/regen_group.py",

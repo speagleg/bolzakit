@@ -1,0 +1,43 @@
+{
+ "schema": 1,
+ "method": "P1 FEM on meshes n=40,80, h^2 Richardson on cluster means (item 02 checks/fem_extrapolate.py)",
+ "rel_error_vs_SU2013": 0.0002,
+ "clusters": [
+  {
+   "value": 3.8388921111111105,
+   "multiplicity": 3
+  },
+  {
+   "value": 5.3536019999999995,
+   "multiplicity": 4
+  },
+  {
+   "value": 8.249571,
+   "multiplicity": 2
+  },
+  {
+   "value": 14.72638,
+   "multiplicity": 4
+  },
+  {
+   "value": 15.049076666666672,
+   "multiplicity": 3
+  },
+  {
+   "value": 18.65905888888889,
+   "multiplicity": 3
+  },
+  {
+   "value": 20.51984666666667,
+   "multiplicity": 4
+  },
+  {
+   "value": 23.07787,
+   "multiplicity": 1
+  },
+  {
+   "value": 28.080343333333335,
+   "multiplicity": 3
+  }
+ ]
+}
