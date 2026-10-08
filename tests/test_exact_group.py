@@ -111,11 +111,6 @@ def test_halftraces_small():
 
 # ------------------------------------------------------------------ length spectrum
 
-@pytest.fixture(scope="module")
-def lspec():
-    return LS.length_spectrum(80.0)
-
-
 def test_systole_value_and_label():
     from bolzakit.provenance import info
     assert abs(G.systole() - 2 * math.acosh(1 + math.sqrt(2))) < 1e-15
