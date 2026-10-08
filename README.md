@@ -72,8 +72,9 @@ print(bk.systole(with_provenance=True).label)   # NUMERICAL (float64 of the exac
 ## Use cases
 
 Every snippet below runs as written: `tests/test_readme_snippets.py` executes each one. Blocks marked
-`# requires: network` need the Strohmaier–Uski file (downloaded once). Blocks marked `# requires: slow` take from
-seconds to a few minutes. Blocks marked `# requires: pari` need `bolzakit[pari]`.
+`# requires: network` need the Strohmaier–Uski file (downloaded once); the test suite runs them only when that file is
+already cached or with `pytest --runnetwork`. Blocks marked `# requires: slow` take from seconds to a few minutes
+(`pytest --runslow`). Blocks marked `# requires: pari` need `bolzakit[pari]`.
 
 ### (a) Hyperbolic band theory
 

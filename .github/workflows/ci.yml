@@ -1,7 +1,14 @@
 name: ci
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 7 * * 1'
 jobs:
   test:
+    # Fast suite. Never downloads: network tests run only if the Strohmaier–Uski file is already cached.
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     strategy:
       matrix: {python: ["3.10", "3.11", "3.12", "3.13"]}
@@ -11,3 +18,14 @@ jobs:
         with: {python-version: "${{ matrix.python }}"}
       - run: pip install -e ".[dev]"
       - run: pytest -q
+  slow-network:
+    # Weekly (and on demand): slow tests plus the Strohmaier–Uski download and network tests.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -e ".[dev,pari]"
+      - run: pytest -q --runslow --runnetwork

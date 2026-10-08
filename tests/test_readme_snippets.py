@@ -2,11 +2,10 @@
 
 Blocks may start with requirement markers:
   # requires: pari     skipped unless cypari2 is importable
-  # requires: network  skipped unless the Strohmaier–Uski file is already in the cache with the right sha256
-                       (so the suite never downloads anything by itself)
+  # requires: network  skipped unless the Strohmaier–Uski file is already in the cache with the right sha256, or
+                       pytest is run with --runnetwork (so plain `pytest` never downloads anything)
   # requires: slow     skipped unless pytest is run with --runslow
 """
-import hashlib
 import importlib.util
 import pathlib
 import re
@@ -18,9 +17,8 @@ BLOCKS = re.findall(r"```python\n(.*?)```", README.read_text(encoding="utf-8"), 
 
 
 def _su_cached() -> bool:
-    from bolzakit.spectral import eigen as E
-    p = E.cache_dir() / E.SU_NAME
-    return p.exists() and hashlib.sha256(p.read_bytes()).hexdigest() == E.SU_SHA256
+    from conftest import su_cached
+    return su_cached()
 
 
 def test_readme_has_blocks():
@@ -36,8 +34,8 @@ def test_readme_blocks_assert_values():
 def test_readme_block(code, request):
     if "# requires: pari" in code and importlib.util.find_spec("cypari2") is None:
         pytest.skip("needs cypari2 (pip install 'bolzakit[pari]')")
-    if "# requires: network" in code and not _su_cached():
-        pytest.skip("needs network (Strohmaier–Uski file not cached)")
+    if "# requires: network" in code and not (_su_cached() or request.config.getoption("--runnetwork")):
+        pytest.skip("needs --runnetwork (Strohmaier–Uski file not cached)")
     if "# requires: slow" in code and not request.config.getoption("--runslow"):
         pytest.skip("slow (run with --runslow)")
     exec(compile(code, "README", "exec"), {})
