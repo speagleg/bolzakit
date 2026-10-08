@@ -6,14 +6,7 @@ import numpy as np
 from bolzakit import geometry
 from bolzakit.exact import group as G
 from bolzakit.geometry import octagon as Geo
-
-
-def _same_point_mod_gamma(z, w, tol=1e-7):
-    """Local copy of item-02 automorphisms.same_point_mod_gamma (exact.automorphisms is a later task)."""
-    for r in G.ball_by_displacement(2 * G.R_C + 0.5):
-        if abs(G.act(G.elt(r), z) - w) < tol:
-            return True
-    return False
+from bolzakit.exact.automorphisms import same_point_mod_gamma
 
 
 def test_octagon_geometry():
@@ -29,7 +22,7 @@ def test_octagon_geometry():
     # all 8 vertices are identified (single vertex cycle, angle sum 8 * pi/4 = 2 pi)
     v0 = V[0]
     for v in V:
-        assert _same_point_mod_gamma(v0, v)
+        assert same_point_mod_gamma(v0, v)
 
 
 def test_cayley_roundtrip():
