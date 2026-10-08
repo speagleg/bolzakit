@@ -45,10 +45,13 @@ def golden_geodesic_is_systole(p: int) -> bool:
 
     Theorem (item 05): let k be the rank of apparition of p (least k >= 1 with p | F_k) and
     n(p) = k if k is even, else 2k. Then the geodesic is a systole iff L_{n(p)} = p^2 - 2,
-    equivalently p is a prime Lucas number L_{2^j} (3, 7, 47, 2207, ...). Non-primes and p = 2 give False.
+    equivalently p is a prime Lucas number L_{2^j} (3, 7, 47, 2207, ...).
+
+    Raises ValueError for p = 2, non-primes and non-int input (including bool): these are outside the theorem's
+    scope, which covers odd primes only.
     """
-    if p == 2 or not _is_prime(p):
-        return False
+    if isinstance(p, bool) or not isinstance(p, int) or p == 2 or not _is_prime(p):
+        raise ValueError("criterion proved for odd primes only (item 05 theorem)")
     phi = (1 + 5 ** 0.5) / 2
     n = _n_of_p(p, int(2 * math.log(p, phi)) + 4)
     return n is not None and lucas(n) == p * p - 2

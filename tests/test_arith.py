@@ -1,4 +1,5 @@
 import mpmath as mp
+import pytest
 from bolzakit import arith
 from bolzakit.exact import group as G
 
@@ -9,15 +10,18 @@ def test_golden_geodesic_primes():
     assert hits == [3, 7, 47]
 
 
-def test_golden_rejects_nonprime():
-    assert not arith.golden_geodesic_is_systole(9) and not arith.golden_geodesic_is_systole(2)
+@pytest.mark.parametrize("bad", [9, 15, 18, 49, 4, 1, 0, -3, 2, True, 2.0, "7"])
+def test_golden_rejects_nonprime(bad):
+    with pytest.raises(ValueError, match="odd primes only"):
+        arith.golden_geodesic_is_systole(bad)
 
 
 def test_golden_adversarial():
-    for n in (9, 15, 49, 4, 1, 0):
-        assert not arith.golden_geodesic_is_systole(n)
-    assert arith.golden_geodesic_is_systole(2207)
-    assert not arith.golden_geodesic_is_systole(2203)
+    for n in (9, 15, 18, 49, 1, 0, 2, True, 2.0):
+        with pytest.raises(ValueError):
+            arith.golden_geodesic_is_systole(n)
+    assert arith.golden_geodesic_is_systole(2207) is True
+    assert arith.golden_geodesic_is_systole(2203) is False
 
 
 def test_lucas():

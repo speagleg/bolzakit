@@ -142,13 +142,15 @@ print(bk.systole())                                       # 2*arccosh(1+sqrt2)
 for e in bk.lengths(10):                                  # half-trace p + q*sqrt2 <= 10
     print(e["halftrace"], round(e["length"], 6), e["n_unoriented"])
 print(bk.automorphisms().order)                           # 48
-hits = [p for p in range(2, 100) if bk.arith.golden_geodesic_is_systole(p)]
+odd_primes = [p for p in range(3, 100) if all(p % d for d in range(2, int(p ** 0.5) + 1))]
+hits = [p for p in odd_primes if bk.arith.golden_geodesic_is_systole(p)]
 assert hits == [3, 7, 47]                                 # prime Lucas numbers L_{2^j}
 ```
 
 Outputs: `systole` is EXACT. `lengths` is NUMERICAL: the half-traces are exact and the multiplicities are rounded
 from sums with integrality residual ≤ 1.1e-8. `automorphisms` is PROVED. `golden_geodesic_is_systole` is PROVED: the arithmetic
-step (L_{n(p)} = p²−2 ⇔ p = L_{2^j}) is a Lean theorem; the geometric part is item 05's written proof.
+step (L_{n(p)} = p²−2 ⇔ p = L_{2^j}) is a Lean theorem; the geometric part is item 05's written proof. It accepts odd
+primes only and raises `ValueError` otherwise (other p are outside the theorem's scope).
 
 ### (d) Spectral geometry and quantum chaos
 
@@ -230,11 +232,12 @@ print(s, abs(float(s) - math.exp(bk.systole() / 2)))      # largest root = e^{l_
 import bolzakit as bk
 
 assert bk.arith.curve.euler_factor(3) == [1, 0, -2, 0, 9]  # x^4 - 2x^2 + 9
-print(bk.arith.curve.jacobian_is_Q_simple())              # True
+print(bk.arith.curve.jacobian_is_Q_simple())              # True (proved by L_3 irreducible)
+assert bk.arith.curve.jacobian_is_Q_simple(primes=(5,)) is None   # inconclusive: L_5 is reducible
 ```
 
 Outputs: `bolza_quartic` is EXACT, `salem_number` is PROVED, `euler_factor` is EXACT and `jacobian_is_Q_simple` is
-PROVED.
+PROVED when it returns True; it returns None (inconclusive) when L_p is reducible at every given prime.
 
 ### (g) Teaching
 

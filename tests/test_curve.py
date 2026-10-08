@@ -21,6 +21,13 @@ def test_jacobian_Q_simple():
     assert curve.jacobian_is_Q_simple() is True
 
 
+@pytest.mark.parametrize("primes,expected", [((5,), None), ((3,), True), ((5, 3), True), ((5, 7, 13, 17, 23), None)])
+def test_jacobian_Q_simple_one_sided(primes, expected):
+    # irreducible L_p at one good prime proves Q-simplicity; reducible L_p is inconclusive (never False)
+    pytest.importorskip("cypari2")
+    assert curve.jacobian_is_Q_simple(primes=primes) is expected
+
+
 @pytest.mark.parametrize("bad", [2, 0, -3, 1, 4, 9, 15, 3.0, "3", True])
 def test_jacobian_invalid_prime_raises(bad):
     with pytest.raises(ValueError):

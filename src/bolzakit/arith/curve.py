@@ -28,12 +28,19 @@ def _check_good_prime(p) -> int:
 
 
 @provenance("PROVED", "item 15c: an abelian surface whose Frobenius char. poly at a good prime is irreducible over Q "
-            "is Q-simple; L_3 = x^4-2x^2+9 is irreducible (PARI polisirreducible)")
-def jacobian_is_Q_simple(primes=(3,)) -> bool:
-    """True if for some prime in `primes` the Frobenius char. poly of y^2=x^5-x is irreducible over Q.
+            "is Q-simple; L_3 = x^4-2x^2+9 is irreducible (PARI polisirreducible). True is proved; None means "
+            "inconclusive at the given primes")
+def jacobian_is_Q_simple(primes=(3,)) -> bool | None:
+    """True if for some prime in `primes` the Frobenius char. poly of y^2=x^5-x is irreducible over Q; else None.
+
+    The criterion is one-sided: irreducibility of L_p at one good prime proves Q-simplicity, but a reducible L_p
+    proves nothing (e.g. L_5, L_7, L_13, L_17, L_23 are reducible although the Jacobian is Q-simple). So the result
+    is True (proved) or None (inconclusive at the given primes); it is never False.
 
     3 is a prime of good reduction (disc(x^5-x) = -2^8); p=2 (bad reduction) raises ValueError, as do
     non-prime, non-positive or non-int p."""
     primes = [_check_good_prime(p) for p in primes]
     pari = _pari()
-    return any(bool(pari(f"polisirreducible(hyperellcharpoly(Mod(1,{p})*(x^5-x)))")) for p in primes)
+    if any(bool(pari(f"polisirreducible(hyperellcharpoly(Mod(1,{p})*(x^5-x)))")) for p in primes):
+        return True
+    return None
