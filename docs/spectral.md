@@ -60,6 +60,16 @@ finite elements on meshes n = 40 and 80, with h² Richardson extrapolation of th
 The sum runs over *oriented* primitive geodesics. With unoriented counts the residual is O(1e-2), which confirms the
 convention. Typical residuals are ~1e-16 at t = 0.25 and 0.5, and ~5e-11 at t = 1. A call takes a few seconds.
 
+**Validity window.** `selberg_check` raises `OutOfValidityRange` unless both truncation errors are ≤ 1e-10: the Weyl
+bound e^{−λ₁₀₀₀t}/t on the spectral tail beyond the 1000 eigenvalues, and the prime-geodesic estimate of the
+geometric tail beyond half-trace `T_max`. With the bundled data at T_max = 80 the window is about **0.03 ≤ t ≤ 1**:
+
+| t | 0.02 | 0.025 | 0.03 | 0.04 | 0.5 | 1.0 | 1.2 | 2.0 |
+|---|---|---|---|---|---|---|---|---|
+| spectral tail bound | 1.1e-7 | 5.8e-10 | 3.3e-12 | 1.2e-16 | ~0 | 0 | 0 | 0 |
+| geometric tail estimate | 0 | 0 | 0 | ~0 | 4.9e-22 | 9.8e-11 | 7.6e-9 | 4.6e-5 |
+| residual | 9.9e-8 | 5.3e-10 | 3.6e-12 | 2.5e-14 | 6.6e-17 | 5.3e-11 | 4.1e-9 | 2.4e-5 |
+
 ## ζ_Δ(0)
 
 The heat trace has constant term χ/6 = −1/3. This is the identity term of the Selberg formula. Removing the zero mode

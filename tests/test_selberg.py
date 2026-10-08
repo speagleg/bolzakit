@@ -40,3 +40,16 @@ def test_heat_constant_term():
 def test_selberg_check_small_residual():
     from bolzakit.spectral.selberg import selberg_check
     assert selberg_check(0.5) < 1e-12
+
+
+@pytest.mark.parametrize("t", [0.005, 0.02, 10.0, 1.5])
+def test_selberg_check_outside_window_raises(t):
+    from bolzakit.errors import OutOfValidityRange
+    from bolzakit.spectral.selberg import selberg_check
+    with pytest.raises(OutOfValidityRange, match=r"0\.03 <= t <= 1"):
+        selberg_check(t)
+
+
+def test_selberg_check_window_edges():
+    from bolzakit.spectral.selberg import selberg_check
+    assert selberg_check(0.04) < 1e-12 and selberg_check(1.0) < 1e-10

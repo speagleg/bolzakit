@@ -177,7 +177,7 @@ for t in (0.25, 0.5, 1.0):
     print(t, bk.spectral.selberg_check(t))                # residual: ~1e-16 at t = 0.25, 0.5; ~5e-11 at t = 1
 ```
 
-Outputs: `lengths` is NUMERICAL, `zeta_zero` is PROVED, `tau_bounds` is CERTIFIED and `selberg_check` is NUMERICAL.
+Outputs: `lengths` is NUMERICAL, `zeta_zero` is PROVED, `tau_bounds` is CERTIFIED and `selberg_check` is NUMERICAL; it raises `OutOfValidityRange` outside its tested window, about 0.03 ≤ t ≤ 1.
 
 ### (e) Vortex dynamics
 

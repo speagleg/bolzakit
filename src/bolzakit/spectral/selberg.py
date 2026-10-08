@@ -106,6 +106,21 @@ from ..provenance import provenance  # noqa: E402
 @provenance("NUMERICAL", "Selberg trace formula, heat-kernel test function (Strohmaier–Uski eq. (18)); geometric side "
             "from bolzakit lengths, spectral side from Strohmaier–Uski eigenvalues")
 def selberg_check(t: float, T_max: float = 80.0) -> float:
-    """|geometric side − spectral side| of the heat-trace Selberg formula at time t (should be ≲ 1e-12)."""
+    """|geometric side − spectral side| of the heat-trace Selberg formula at time t.
+
+    Validity window: both truncation errors reported by balance() -- the Weyl bound on the spectral tail beyond the
+    1000 Strohmaier–Uski eigenvalues, e^{-λ_1000 t}/t, and the prime-geodesic estimate of the geometric tail beyond
+    the enumerated lengths -- must be <= 1e-10, otherwise OutOfValidityRange is raised. With the bundled data at
+    T_max = 80 this is about 0.03 <= t <= 1 (the spectral tail is 3e-12 at t = 0.03 and 6e-10 at t = 0.025; the
+    geometric tail is 1e-10 at t = 1 and 8e-9 at t = 1.2). Inside the window the residual is <= max(1e-12, tail);
+    in the middle (0.05 <= t <= 0.5) it is ~1e-16."""
+    from ..errors import OutOfValidityRange
     rows = balance([t], T_max=T_max)
-    return float(abs(rows[0]["residual"]))
+    r = rows[0]
+    tail = max(float(r["spectral_tail_bound"]), float(r["geometric_tail_estimate"]))
+    if tail > 1e-10:
+        raise OutOfValidityRange(
+            f"selberg_check(t={t!r}, T_max={T_max!r}): truncation tail {tail:.2e} > 1e-10 (spectral tail bound "
+            f"{float(r['spectral_tail_bound']):.2e}, geometric tail estimate {float(r['geometric_tail_estimate']):.2e}); "
+            "the tested window is about 0.03 <= t <= 1 with the bundled data at T_max=80")
+    return float(abs(r["residual"]))
