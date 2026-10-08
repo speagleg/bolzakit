@@ -32,19 +32,28 @@ def _verified(path: pathlib.Path) -> bool:
 def su2013(path: str | None = None, dps: int = 50) -> list:
     """The 1000 non-zero eigenvalues of Strohmaier–Uski (2013), downloaded on first use and sha256-checked."""
     p = pathlib.Path(path) if path else cache_dir() / SU_NAME
-    if path is None and (not p.exists() or not _verified(p)):
+    ok = p.exists() and _verified(p)
+    if not ok and path is None:
         if p.exists():
             p.unlink()
         try:
             _download(p)
         except Exception as e:  # network or filesystem
             raise DataUnavailable(f"could not download {SU_URL} ({e}); download it manually and pass path=") from e
-    if not _verified(p):
-        if path is None:
+        ok = _verified(p)
+        if not ok:
             p.unlink()
+            raise DataUnavailable(f"checksum mismatch for downloaded {SU_NAME} (expected sha256 {SU_SHA256[:12]}…)")
+    if not p.exists():
+        raise DataUnavailable(f"file not found: {p}")
+    if not ok:
         raise DataUnavailable(f"checksum mismatch for {p} (expected sha256 {SU_SHA256[:12]}…)")
     with mp.workdps(dps):
         return [mp.mpf(s) for s in p.read_text().split()]
+
+
+def su_eigenvalues(prec_dps=50):
+    return su2013(dps=prec_dps)
 
 
 def _clusters(vals, rel=1e-9):
@@ -65,6 +74,8 @@ def eigenvalues(source: str = "fem", n: int | None = None) -> list[tuple[float, 
     The decorator labels this function NUMERICAL as a whole; ``source="su2013"`` values are QUOTED
     (see :func:`su2013`).
     """
+    if n is not None and n < 1:
+        raise ValueError("n must be >= 1")
     if source == "fem":
         cl = [(c["value"], c["multiplicity"]) for c in _data.load("eigenvalues_fem")["clusters"]]
         if n is not None and n > len(cl):

@@ -53,3 +53,25 @@ def test_su_real_download_and_agreement_with_fem():
 
 def test_spectral_eigenvalues_is_callable():
     assert callable(spectral.eigenvalues) and spectral.eigenvalues("fem")[0][1] == 3
+
+
+def test_su_explicit_bad_path_kept(tmp_path):
+    bad = tmp_path / "mine.txt"
+    bad.write_text("3.0\n")
+    with pytest.raises(DataUnavailable, match="checksum"):
+        E.su2013(path=str(bad))
+    assert bad.exists()
+
+
+def test_su_explicit_missing_path(tmp_path):
+    with pytest.raises(DataUnavailable):
+        E.su2013(path=str(tmp_path / "nope.txt"))
+
+
+def test_eigenvalues_n_zero():
+    with pytest.raises(ValueError):
+        E.eigenvalues("fem", n=0)
+
+
+def test_su_eigenvalues_alias():
+    assert callable(E.su_eigenvalues)
