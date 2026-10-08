@@ -1,7 +1,6 @@
 import math
 import random
 import numpy as np
-import pytest
 from bolzakit.exact import zeta8 as Z, group as G
 
 S2 = math.sqrt(2)

@@ -1,0 +1,429 @@
+{
+ "schema": 1,
+ "max_half_trace": 120.0,
+ "generated": "2026-10-08",
+ "convention": "n_oriented = oriented primitive closed geodesics with this half-trace; n_unoriented = n_oriented/2",
+ "entries": [
+  {
+   "halftrace": [
+    1,
+    1
+   ],
+   "length": 3.057141838961996,
+   "n_oriented": 24,
+   "n_unoriented": 12,
+   "residual": 3.552713678800501e-15
+  },
+  {
+   "halftrace": [
+    3,
+    2
+   ],
+   "length": 4.896904895356152,
+   "n_oriented": 24,
+   "n_unoriented": 12,
+   "residual": 3.552713678800501e-15
+  },
+  {
+   "halftrace": [
+    5,
+    3
+   ],
+   "length": 5.828070775441807,
+   "n_oriented": 48,
+   "n_unoriented": 24,
+   "residual": 3.552713678800501e-14
+  },
+  {
+   "halftrace": [
+    5,
+    4
+   ],
+   "length": 6.114283677923993,
+   "n_oriented": 0,
+   "n_unoriented": 0,
+   "residual": 2.3242059845066057e-15
+  },
+  {
+   "halftrace": [
+    7,
+    5
+   ],
+   "length": 6.672005769911159,
+   "n_oriented": 96,
+   "n_unoriented": 48,
+   "residual": 0.0
+  },
+  {
+   "halftrace": [
+    9,
+    6
+   ],
+   "length": 7.107375874112205,
+   "n_oriented": 48,
+   "n_unoriented": 24,
+   "residual": 1.4210854715202004e-14
+  },
+  {
+   "halftrace": [
+    9,
+    7
+   ],
+   "length": 7.263163475118675,
+   "n_oriented": 48,
+   "n_unoriented": 24,
+   "residual": 7.105427357601002e-14
+  },
+  {
+   "halftrace": [
+    11,
+    8
+   ],
+   "length": 7.595691830411369,
+   "n_oriented": 8,
+   "n_unoriented": 4,
+   "residual": 1.7763568394002505e-15
+  },
+  {
+   "halftrace": [
+    13,
+    9
+   ],
+   "length": 7.880692288665159,
+   "n_oriented": 96,
+   "n_unoriented": 48,
+   "residual": 5.684341886080802e-14
+  },
+  {
+   "halftrace": [
+    15,
+    10
+   ],
+   "length": 8.130075528900083,
+   "n_oriented": 48,
+   "n_unoriented": 24,
+   "residual": 2.842170943040401e-14
+  },
+  {
+   "halftrace": [
+    15,
+    11
+   ],
+   "length": 8.22490362325526,
+   "n_oriented": 192,
+   "n_unoriented": 96,
+   "residual": 3.694822225952521e-13
+  },
+  {
+   "halftrace": [
+    17,
+    12
+   ],
+   "length": 8.436849640523807,
+   "n_oriented": 48,
+   "n_unoriented": 24,
+   "residual": 9.947598300641403e-14
+  },
+  {
+   "halftrace": [
+    19,
+    13
+   ],
+   "length": 8.628463656524405,
+   "n_oriented": 96,
+   "n_unoriented": 48,
+   "residual": 1.4210854715202004e-13
+  },
+  {
+   "halftrace": [
+    19,
+    14
+   ],
+   "length": 8.702750556431752,
+   "n_oriented": 48,
+   "n_unoriented": 24,
+   "residual": 3.552713678800501e-14
+  },
+  {
+   "halftrace": [
+    21,
+    15
+   ],
+   "length": 8.87147981073527,
+   "n_oriented": 288,
+   "n_unoriented": 144,
+   "residual": 1.0800249583553523e-12
+  },
+  {
+   "halftrace": [
+    23,
+    16
+   ],
+   "length": 9.027071719730408,
+   "n_oriented": 12,
+   "n_unoriented": 6,
+   "residual": 3.552713678800501e-15
+  },
+  {
+   "halftrace": [
+    25,
+    17
+   ],
+   "length": 9.17142551688599,
+   "n_oriented": 48,
+   "n_unoriented": 24,
+   "residual": 1.3500311979441904e-13
+  },
+  {
+   "halftrace": [
+    25,
+    18
+   ],
+   "length": 9.228295089636857,
+   "n_oriented": 96,
+   "n_unoriented": 48,
+   "residual": 1.4210854715202004e-14
+  },
+  {
+   "halftrace": [
+    27,
+    19
+   ],
+   "length": 9.359271657904037,
+   "n_oriented": 192,
+   "n_unoriented": 96,
+   "residual": 6.252776074688882e-13
+  },
+  {
+   "halftrace": [
+    29,
+    20
+   ],
+   "length": 9.48219414927168,
+   "n_oriented": 48,
+   "n_unoriented": 24,
+   "residual": 7.105427357601002e-15
+  },
+  {
+   "halftrace": [
+    29,
+    21
+   ],
+   "length": 9.530977057138623,
+   "n_oriented": 192,
+   "n_unoriented": 96,
+   "residual": 0.0
+  },
+  {
+   "halftrace": [
+    31,
+    22
+   ],
+   "length": 9.644065648624526,
+   "n_oriented": 96,
+   "n_unoriented": 48,
+   "residual": 9.947598300641403e-14
+  },
+  {
+   "halftrace": [
+    33,
+    23
+   ],
+   "length": 9.751099758308309,
+   "n_oriented": 336,
+   "n_unoriented": 168,
+   "residual": 9.663381206337363e-13
+  },
+  {
+   "halftrace": [
+    33,
+    24
+   ],
+   "length": 9.793809790712302,
+   "n_oriented": 0,
+   "n_unoriented": 0,
+   "residual": 4.353011244514414e-15
+  },
+  {
+   "halftrace": [
+    35,
+    25
+   ],
+   "length": 9.893310687774152,
+   "n_oriented": 192,
+   "n_unoriented": 96,
+   "residual": 1.9895196601282805e-13
+  },
+  {
+   "halftrace": [
+    37,
+    26
+   ],
+   "length": 9.988094636657305,
+   "n_oriented": 192,
+   "n_unoriented": 96,
+   "residual": 5.968558980384842e-13
+  },
+  {
+   "halftrace": [
+    39,
+    27
+   ],
+   "length": 10.07858873032919,
+   "n_oriented": 192,
+   "n_unoriented": 96,
+   "residual": 1.7053025658242404e-13
+  },
+  {
+   "halftrace": [
+    39,
+    28
+   ],
+   "length": 10.11490541144802,
+   "n_oriented": 96,
+   "n_unoriented": 48,
+   "residual": 2.842170943040401e-14
+  },
+  {
+   "halftrace": [
+    41,
+    29
+   ],
+   "length": 10.199955888780345,
+   "n_oriented": 384,
+   "n_unoriented": 192,
+   "residual": 1.7621459846850485e-12
+  },
+  {
+   "halftrace": [
+    43,
+    30
+   ],
+   "length": 10.281536376481295,
+   "n_oriented": 96,
+   "n_unoriented": 48,
+   "residual": 5.79713343995536e-09
+  },
+  {
+   "halftrace": [
+    43,
+    31
+   ],
+   "length": 10.31437703528685,
+   "n_oriented": 192,
+   "n_unoriented": 96,
+   "residual": 8.526512829121202e-13
+  },
+  {
+   "halftrace": [
+    45,
+    32
+   ],
+   "length": 10.39150729410731,
+   "n_oriented": 32,
+   "n_unoriented": 16,
+   "residual": 2.842170943040401e-14
+  },
+  {
+   "halftrace": [
+    47,
+    33
+   ],
+   "length": 10.465772969650706,
+   "n_oriented": 384,
+   "n_unoriented": 192,
+   "residual": 8.242295734817162e-12
+  },
+  {
+   "halftrace": [
+    49,
+    34
+   ],
+   "length": 10.537379254289979,
+   "n_oriented": 96,
+   "n_unoriented": 48,
+   "residual": 1.4210854715202004e-14
+  },
+  {
+   "halftrace": [
+    49,
+    35
+   ],
+   "length": 10.566304642275165,
+   "n_oriented": 288,
+   "n_unoriented": 144,
+   "residual": 1.8758328224066645e-12
+  },
+  {
+   "halftrace": [
+    51,
+    36
+   ],
+   "length": 10.63445949110874,
+   "n_oriented": 96,
+   "n_unoriented": 48,
+   "residual": 2.842170943040401e-14
+  },
+  {
+   "halftrace": [
+    53,
+    37
+   ],
+   "length": 10.70036802828787,
+   "n_oriented": 288,
+   "n_unoriented": 144,
+   "residual": 2.5579538487363607e-12
+  },
+  {
+   "halftrace": [
+    53,
+    38
+   ],
+   "length": 10.727044578335413,
+   "n_oriented": 96,
+   "n_unoriented": 48,
+   "residual": 5.684341886080801e-13
+  },
+  {
+   "halftrace": [
+    55,
+    39
+   ],
+   "length": 10.790017898872385,
+   "n_oriented": 576,
+   "n_unoriented": 288,
+   "residual": 6.934897101018578e-12
+  },
+  {
+   "halftrace": [
+    57,
+    40
+   ],
+   "length": 10.8510687002966,
+   "n_oriented": 48,
+   "n_unoriented": 24,
+   "residual": 2.746340044268436e-09
+  },
+  {
+   "halftrace": [
+    57,
+    41
+   ],
+   "length": 10.875820881107423,
+   "n_oriented": 96,
+   "n_unoriented": 48,
+   "residual": 2.7402364821682568e-09
+  },
+  {
+   "halftrace": [
+    59,
+    42
+   ],
+   "length": 10.934344946726169,
+   "n_oriented": 288,
+   "n_unoriented": 144,
+   "residual": 1.0903534075623611e-08
+  }
+ ],
+ "max_residual": 1.0903534075623611e-08
+}
