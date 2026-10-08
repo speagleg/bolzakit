@@ -11,5 +11,7 @@ out = {"schema": 1, "max_half_trace": T, "generated": datetime.date.today().isof
 out["max_residual"] = max(e["residual"] for e in out["entries"])
 assert out["max_residual"] < 1e-7
 path = "src/bolzakit/data/lengths.json" if len(sys.argv) < 3 else sys.argv[2]
-json.dump(out, open(path, "w"), indent=1)
+with open(path, "w", encoding="utf-8", newline="\n") as fh:
+    json.dump(out, fh, indent=1)
+    fh.write("\n")
 print(len(out["entries"]), "entries ->", path)

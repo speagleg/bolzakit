@@ -14,7 +14,7 @@ out = {
     "gl23": {str(i): [list(r) for r in m] for i, m in A.isomorphism_to_GL23().items()},
 }
 path = sys.argv[1] if len(sys.argv) > 1 else "src/bolzakit/data/automorphisms.json"
-with open(path, "w", encoding="utf-8") as fh:
+with open(path, "w", encoding="utf-8", newline="\n") as fh:
     json.dump(out, fh, indent=1)
     fh.write("\n")
 print(len(out["gl23"]), "elements ->", path)

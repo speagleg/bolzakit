@@ -1,0 +1,23 @@
+{
+ "automorphisms.json": {
+  "sha256": "406919c622c0cd360ad826bd25f4aaac523d4a175554e5f92fa095942eeedb54",
+  "script": "scripts/regen_automorphisms.py",
+  "command": "python scripts/regen_automorphisms.py",
+  "bolzakit_version": "0.1.0.dev0",
+  "date": "2026-10-08"
+ },
+ "group.json": {
+  "sha256": "0713068491d6b90eff90af6a7cc92d9ff94d63a6ab155b3ae312df8d859d890d",
+  "script": "scripts/regen_group.py",
+  "command": "python scripts/regen_group.py",
+  "bolzakit_version": "0.1.0.dev0",
+  "date": "2026-10-08"
+ },
+ "lengths.json": {
+  "sha256": "d6f0ff333a1477306b750fa763dd06a060591bac5c063860443566018eb22264",
+  "script": "scripts/regen_lengths.py",
+  "command": "python scripts/regen_lengths.py",
+  "bolzakit_version": "0.1.0.dev0",
+  "date": "2026-10-08"
+ }
+}

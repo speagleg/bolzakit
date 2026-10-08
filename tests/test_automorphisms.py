@@ -70,10 +70,12 @@ def test_six_weierstrass_points_one_orbit(A):
     assert len(W) == 6
     orbit = AU.orbit_on_surface(A.elements, 0j)
     assert len(orbit) == 6          # Aut+ acts transitively on the Weierstrass points
+    # the orbit of 0 equals the Weierstrass set modulo Gamma, in both directions
+    assert all(any(AU.same_point_mod_gamma(o, w) for w in W) for o in orbit)
+    assert all(any(AU.same_point_mod_gamma(w, o) for o in orbit) for w in W)
 
 
 def test_chart_to_sends_point_to_origin(A):
     for p in A.weierstrass_points():
         M = A.chart_to(p)
-        q, _, _ = Geo.reduce_point(Geo.mobius(M, p))
-        assert abs(q) < 1e-9
+        assert abs(Geo.mobius(M, p)) < 1e-9
