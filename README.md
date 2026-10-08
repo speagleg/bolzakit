@@ -21,7 +21,7 @@ natural minimal, maximally symmetric test case.
 bolzakit gives you the exact Fuchsian group (matrix entries in ℤ[ζ₈]), the automorphism group, the length spectrum,
 Laplace eigenvalues, Green's-function and Bergman-kernel data at the Weierstrass points, vortex-ring stability data and a
 few arithmetic facts. It ships with tests and three Lean 4 proofs (the group relation, the golden-geodesic criterion and
-the Salem-norm identity). Every value bolzakit returns carries a provenance label (EXACT, PROVED, CERTIFIED, NUMERICAL or QUOTED) — ask for it with `with_provenance=True`.
+the Salem-norm identity). Every public function listed in [docs/provenance.md](docs/provenance.md) carries a provenance label (EXACT, PROVED, CERTIFIED, NUMERICAL or QUOTED) — ask for it with `with_provenance=True`.
 
 ## Contents
 
