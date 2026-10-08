@@ -38,13 +38,32 @@ def test_bad_model_and_N():
         vortex.ring(1, 0.01, model="flat")
 
 
+@pytest.mark.parametrize("xi", [-0.1, 0, 1.5])
+def test_xi_out_of_unit_interval(xi):
+    with pytest.raises(ValueError):
+        vortex.ring(7, xi, model="tanh")
+
+
+def test_xi_validation_complex_and_bolza_before_green():
+    with pytest.raises(ValueError):
+        vortex.ring(7, mp.mpc(0.01, 0.1), model="tanh")
+    with pytest.raises(ValueError):
+        vortex.ring(7, -0.1, model="bolza")
+    r = vortex.ring(7, mp.mpc(0.01, 0), model="flat")
+    assert r.xi == mp.mpf(0.01) and r.split(3) == 0.0
+
+
 @pytest.mark.slow
 def test_bolza_ring_matches_series():
     xi = 0.01
-    lam = vortex.ring(7, xi, model="bolza").modes()
+    r = vortex.ring(7, xi, model="bolza", D_ball=13.0)           # item 03's setting; lambda3 moves 3.7e-9 vs 15
+    lam = r.modes()
     s = vortex.lambda3_series()["coefficients"]
     pred = sum(float(c) * xi ** k for k, c in enumerate(s))
-    assert abs(lam[3] - pred) < 5e-6
+    print(f"lam3 (symmetrised) = {lam[3]!r}  series = {pred!r}  diff = {lam[3] - pred:+.4e}  "
+          f"split(3) = {r.split(3):+.4e}  split/xi^4 = {r.split(3) / xi ** 4:.2f}")
+    assert abs(lam[3] - pred) < 5e-6                                # (a)
+    assert 900 < r.split(3) / xi ** 4 < 1100                        # (b) C8-vs-C7 symmetry breaking
 
 
 class _FakeGreen:
@@ -61,4 +80,6 @@ def test_bolza_lam_sigma_equals_item03_analyse():
     g, xi = _FakeGreen(), 0.02
     fast = D.lam_sigma(g, xi, (1, 3), dps=15)
     for m in (1, 3):
-        assert abs(fast[m] - D.analyse(g, xi, m=m, dps=15)["lam_sigma"]) < 1e-12
+        ref = D.analyse(g, xi, m=m, dps=15)
+        assert abs(fast[m][0] - ref["lam_sigma"]) < 1e-12
+        assert abs(fast[m][1] - ref["lam_sigma_sin"]) < 1e-12

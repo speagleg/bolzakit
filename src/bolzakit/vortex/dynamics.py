@@ -8,8 +8,8 @@ Restricted to the 4-dim mode-m subspace {s cos, s sin, theta cos, theta sin}(m t
 
 bolzakit edits relative to item 03 (porting rule): imports; N is a parameter (item 03 hard-codes the module constant
 N = 7); `mp.mp.dps = 30` (global side effect) became `mp.workdps(dps)`; main() dropped; `lam_sigma` added -- it
-evaluates only the (0,0) entry of the same restricted Hessian (the cos-copy eigenvalue `lam_sigma` of `analyse`),
-which needs 2 S-evaluations per mode instead of 33. Formulas are unchanged.
+evaluates only the (0,0) and (1,1) entries of the same restricted Hessian (the cos and sin copies `lam_sigma`,
+`lam_sigma_sin` of `analyse`), which needs 4 S-evaluations per mode instead of 33. Formulas are unchanged.
 """
 from __future__ import annotations
 import math
@@ -82,8 +82,10 @@ def analyse(g, xi, m=3, h=2e-3, N=7, dps=30):
 
 
 def lam_sigma(g, xi, ms, h=2e-3, N=7, dps=30):
-    """{m: lam_sigma} for m in ms: exactly `analyse(g, xi, m, h, N, dps)['lam_sigma']` (Hsig[0,0] / CN, cos copy),
-    computing only the (0,0) entries. Cost: 3 + 2 len(ms) S-evaluations (f0 shared, dilation pair shared)."""
+    """{m: (lam_sigma, lam_sigma_sin)} for m in ms: exactly `analyse(g, xi, m, h, N, dps)['lam_sigma']` and
+    `['lam_sigma_sin']` (Hsig[0,0] / CN cos copy, Hsig[1,1] / CN sin copy), computing only those diagonal entries.
+    When 2m = N the sin vector vanishes and the cos value is returned for both.
+    Cost: 3 + 4 len(ms) S-evaluations (f0 shared, dilation pair shared)."""
     s0 = 0.5 * math.log(xi)
     X0 = np.r_[np.full(N, s0), 2 * np.pi * np.arange(N) / N]
     fS = lambda X: g.S_ring(zs_of(X, N))
@@ -95,10 +97,17 @@ def lam_sigma(g, xi, ms, h=2e-3, N=7, dps=30):
     j1, j2 = jmom_derivs(s0)
     dOmega = dS / j1
     f0 = fS(X0)
+    th = 2 * np.pi * np.arange(N) / N
+
+    def diag(v):                                   # = Hsig[i,i] / CN for the normalised radial vector v
+        b = np.r_[v, np.zeros(N)]
+        b = b / np.linalg.norm(b)
+        HS = (fS(X0 + h * b) - 2 * f0 + fS(X0 - h * b)) / h ** 2
+        return (b @ Ht @ b + HS - dOmega * j2) / CN
+
     out = {}
     for m in ms:
-        b0 = np.r_[np.cos(m * 2 * np.pi * np.arange(N) / N), np.zeros(N)]     # = mode_basis(m, N)[0]
-        b0 = b0 / np.linalg.norm(b0)
-        HS00 = (fS(X0 + h * b0) - 2 * f0 + fS(X0 - h * b0)) / h ** 2
-        out[m] = (b0 @ Ht @ b0 + HS00 - dOmega * j2) / CN
+        c = diag(np.cos(m * th))                   # = mode_basis(m, N)[0]
+        sn = np.sin(m * th)
+        out[m] = (c, diag(sn) if np.linalg.norm(sn) > 1e-12 else c)    # = mode_basis(m, N)[1]
     return out
