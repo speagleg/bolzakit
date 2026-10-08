@@ -12,7 +12,6 @@ def g():
     return green.green()          # T=2.6, D=15 (setup may take ~1 min; cached)
 
 
-@pytest.mark.slow                            # 15 G evaluations, ~27 s
 def test_laplacian_off_diagonal(g):          # -Δ_z G = -1/A away from w, i.e. Δ_z G = 1/A
     w = 0.1 + 0.05j
     for z in (0.3 + 0.1j, -0.2 + 0.25j, 0.05 - 0.3j):
@@ -30,6 +29,8 @@ def test_symmetry_and_c8(g):
 
 
 def test_robin_mass_expansion(g):
+    # The residual (~3.85e-5) is dominated by the omitted spectral tail (~3.1e-5): it is deterministic, so the 5e-5
+    # tolerance must not be loosened.
     # m(r) - m(0) = c2 r^2 + O(r^4) along the real axis; Richardson on f(r) = (m(r) - m(0))/r^2 removes the r^2 term of f
     beta1 = -0.0945730196647619
     m0 = g.robin_mass(0.0)
@@ -76,3 +77,12 @@ def test_green_overlapping_charts(g):
     w = -math.tanh(1.20 / 2)            # d(0, w) = 1.20 (> 2 atanh 0.45), d(w, p) = 0.33
     assert g.chart(z)[0] == 0 and abs(g.chart(w)[1]) < 0.45 and abs(w) > green.VALIDITY_RADIUS
     assert abs(g.G(z, w) - g.G(w, z)) < 1e-14
+
+    # Same-point-in-two-charts consistency: this pair is within 0.45 of the same point in >= 2 charts (0 and 3); the
+    # core G must agree between charts (the image sum runs over all of Gamma), here to 4e-11.
+    z2, w2 = 0.07191337862080915 + 0.3738994124692343j, -0.1551718461079472 - 0.36792601406121417j
+    zs, ws = g._locals(z2), g._locals(w2)
+    ok = [i for i in range(len(zs)) if abs(zs[i]) < 0.45 and abs(ws[i]) < 0.45]
+    assert len(ok) >= 2
+    vals = [g._core.G(zs[i], ws[i]) for i in ok]
+    assert max(vals) - min(vals) < 1e-9

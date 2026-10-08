@@ -1,0 +1,22 @@
+{
+ "B_Sigma_00": {
+  "value": "0.696601964842838429592123130163",
+  "closed_form": "2|a|^2/I0",
+  "label": "PROVED"
+ },
+ "beta1": {
+  "value": "-0.0945730196647619395135889008544",
+  "closed_form": "(1/pi - B)/4",
+  "label": "PROVED"
+ },
+ "beta2": {
+  "value": "0.0397887357729738339422209408431",
+  "closed_form": "1/(8 pi)",
+  "label": "PROVED"
+ },
+ "beta3": {
+  "value": "-0.162483812886850440736036229683",
+  "closed_form": "-(4|a|^6/(2 I0) - 3/pi)/36",
+  "label": "PROVED"
+ }
+}

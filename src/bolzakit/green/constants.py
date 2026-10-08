@@ -1,0 +1,37 @@
+"""Closed-form Green/Bergman constants at a Bolza Weierstrass point (item 03, review 1).
+
+I0 = ∫_C d²x/|x⁵−x| = (π/4) g(1/8) g(1/2) g(3/8), with g(x) = Γ(x)/Γ(1−x)  (complex beta integral, w = x⁴).
+B_Σ(0,0) = 2|a|²/I0, |a| = s(1)/(tanh(c/2)·108^{1/8}), s(1) by Gauss's ₂F₁(1) formula.
+β1 = (1/π − B)/4,  β2 = 1/(8π),  β3 = −(4|a|⁶/(2 I0) − 3/π)/36.
+"""
+from __future__ import annotations
+import mpmath as mp
+from ..provenance import provenance
+
+
+def _core(dps):
+    with mp.workdps(dps + 10):
+        g = lambda x: mp.gamma(x) / mp.gamma(1 - x)
+        I0 = mp.pi / 4 * g(mp.mpf(1) / 8) * g(mp.mpf(1) / 2) * g(mp.mpf(3) / 8)
+        a, b = mp.mpf(17) / 48, mp.mpf(1) / 48
+        F1 = lambda A, B, C: mp.gamma(C) * mp.gamma(C - A - B) / (mp.gamma(C - A) * mp.gamma(C - B))
+        s1 = F1(a + mp.mpf(1) / 8, b + mp.mpf(1) / 8, mp.mpf(9) / 8) / F1(a, b, mp.mpf(7) / 8)
+        ch = 1 / (2 * mp.sin(mp.pi / 8))
+        th = mp.sqrt((ch - 1) / (ch + 1))
+        aa = s1 / (th * mp.power(108, mp.mpf(1) / 8))
+        B = 2 * aa ** 2 / I0
+        return I0, aa, B
+
+
+@provenance("PROVED", "(2,3,8) Schwarz map + complex beta integral (item 03 review 1); agrees with the Hejhal "
+            "1-form computation and the heat-kernel image sum to 8e-12")
+def constants(dps: int = 30) -> dict:
+    I0, aa, B = _core(dps)
+    with mp.workdps(dps):
+        return {
+            "B_Sigma_00": {"value": +B, "closed_form": "2|a|^2/I0", "label": "PROVED"},
+            "beta1": {"value": (1 / mp.pi - B) / 4, "closed_form": "(1/pi - B)/4", "label": "PROVED"},
+            "beta2": {"value": 1 / (8 * mp.pi), "closed_form": "1/(8 pi)", "label": "PROVED"},
+            "beta3": {"value": -(4 * aa ** 6 / (2 * I0) - 3 / mp.pi) / 36, "closed_form": "-(4|a|^6/(2 I0) - 3/pi)/36",
+                      "label": "PROVED"},
+        }

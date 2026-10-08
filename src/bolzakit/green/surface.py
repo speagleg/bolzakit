@@ -90,7 +90,8 @@ from ..provenance import provenance  # noqa: E402
 
 VALIDITY_RADIUS = 0.45
 # Covering radius of the 6 Weierstrass charts: rho = max_z min_i |z_local,i| = 0.4056164 (Poincare distance 0.8607),
-# attained at z = -0.155223+0.374741j (|z| = rho, arg 5pi/8: equidistant from the centre and the vertex class).
+# attained at z = -0.155223+0.374741j (|z| = rho, arg 5pi/8): equidistant (0.40562) from the centre chart and the two
+# adjacent edge-midpoint charts; it is not equidistant from the vertex class.
 # rho < VALIDITY_RADIUS, so every single point is valid; only a pair with no common chart raises.
 _ERR = "omitted tail <= 4e-6 in value at T=2.6; ΔG = 1/A to 2e-5"
 

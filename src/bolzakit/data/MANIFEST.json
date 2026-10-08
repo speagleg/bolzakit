@@ -13,6 +13,13 @@
   "bolzakit_version": "0.1.0.dev0",
   "date": "2026-10-08"
  },
+ "green_constants.json": {
+  "sha256": "89e08d1c9edf9bf9983fe88cc8db866bc184f810d71f4ba4b3d9327eef3bcbaf",
+  "script": "scripts/regen_green_constants.py",
+  "command": "python scripts/regen_green_constants.py",
+  "bolzakit_version": "0.1.0.dev0",
+  "date": "2026-10-08"
+ },
  "group.json": {
   "sha256": "0713068491d6b90eff90af6a7cc92d9ff94d63a6ab155b3ae312df8d859d890d",
   "script": "scripts/regen_group.py",
