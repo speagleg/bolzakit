@@ -1,4 +1,3 @@
-import math
 import mpmath as mp
 from bolzakit import arith
 from bolzakit.exact import group as G
@@ -35,3 +34,12 @@ def test_salem():
     assert abs(float(mp.log(s)) - G.systole() / 2) < 1e-14
     roots = mp.polyroots([1, -4, -2, -4, 1], extraprec=60)
     assert sum(1 for r in roots if abs(abs(r) - 1) < 1e-30) == 2
+    with mp.workdps(50):
+        assert abs(mp.polyval([1, -4, -2, -4, 1], s)) < mp.mpf(10) ** -40
+    with mp.workdps(50):
+        r50 = mp.polyroots([1, -4, -2, -4, 1], maxsteps=200, extraprec=200)
+        assert mp.almosteq(s, max(r.real for r in r50 if abs(r.imag) < mp.mpf(10) ** -30), mp.mpf(10) ** -40)
+        assert sum(1 for r in r50 if abs(r) >= s * (1 - mp.mpf(10) ** -40)) == 1
+    import sympy
+    x = sympy.symbols("x")
+    assert sympy.Poly(x**4 - 4*x**3 - 2*x**2 - 4*x + 1).is_irreducible

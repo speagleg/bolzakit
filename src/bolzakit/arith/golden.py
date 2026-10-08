@@ -14,6 +14,7 @@ def lucas(n: int) -> int:
 
 
 def _is_prime(n: int) -> bool:
+    """Trial division by odd numbers: O(sqrt(n)) time. Fine for the small primes used here, not for large n."""
     if n < 2:
         return False
     if n % 2 == 0:
@@ -39,6 +40,12 @@ def _n_of_p(p: int, cap: int):
 
 @provenance("PROVED", "item 05 proof + Lean theorem golden_systolic_iff (no sorry)")
 def golden_geodesic_is_systole(p: int) -> bool:
+    """True iff the golden geodesic is a systole of Gamma(p)\\H, for p prime.
+
+    Theorem (item 05): let k be the rank of apparition of p (least k >= 1 with p | F_k) and
+    n(p) = k if k is even, else 2k. Then the geodesic is a systole iff L_{n(p)} = p^2 - 2,
+    equivalently p is a prime Lucas number L_{2^j} (3, 7, 47, 2207, ...). Non-primes and p = 2 give False.
+    """
     if p == 2 or not _is_prime(p):
         return False
     phi = (1 + 5 ** 0.5) / 2
