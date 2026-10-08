@@ -30,9 +30,12 @@ def test_symmetry_and_c8(g):
 
 
 def test_robin_mass_expansion(g):
+    # m(r) - m(0) = c2 r^2 + O(r^4) along the real axis; Richardson on f(r) = (m(r) - m(0))/r^2 removes the r^2 term of f
     beta1 = -0.0945730196647619
-    pred = 2 * (1 / (4 * math.pi) + beta1) * 0.01
-    assert abs((g.robin_mass(0.1) - g.robin_mass(0.0)) - pred) < 1e-4 * abs(pred) + 1e-7
+    m0 = g.robin_mass(0.0)
+    f = lambda r: (g.robin_mass(r) - m0) / r ** 2
+    c2 = (4 * f(0.05) - f(0.1)) / 3
+    assert abs(c2 - 2 * (1 / (4 * math.pi) + beta1)) < 5e-5
 
 
 def test_green_gamma_invariance(g):
@@ -53,8 +56,10 @@ def test_green_other_weierstrass_chart(g):
     assert abs(g.G(Geo.mobius(M, z), Geo.mobius(M, w)) - g.G(z, w)) < 1e-10
 
 
-def test_green_out_of_range(g):
-    zfar = 0.5 * Geo.VERTICES[0] + 0.5 * Geo.MIDPOINTS[0]     # between charts
+def test_green_pair_without_common_chart(g):
+    """Every single point is valid (covering radius 0.4056 < 0.45), so the only failure is a pair with no common
+    chart: zfar is valid in chart 1 (|z_local| = 0.315, also 0.425 in chart 5) but shares no chart with w = 0."""
+    zfar = 0.5 * Geo.VERTICES[0] + 0.5 * Geo.MIDPOINTS[0]
     with pytest.raises(OutOfValidityRange, match="0.45"):
         g.G(zfar, 0.0)
 
