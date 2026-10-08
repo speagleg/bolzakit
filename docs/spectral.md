@@ -87,6 +87,11 @@ The method has two parts:
   round-off budget;
 - self-certifying polynomial bounds, checked on all of [−‖h‖, ‖h‖].
 
+The CERTIFIED label here rests on a rigorous a-priori floating-point error analysis, not on interval or ball
+arithmetic: the moment round-off is bounded by δ_k = 4·(k(S + 2) + N + 10)·u with u = 2⁻⁵³, where the factor 4 is a
+safety factor (see the `bolzakit.spectral.tau` module docstring). These float error constants have not been
+independently re-derived.
+
 The bundled numbers can be regenerated with `python scripts/regen_tau.py` (about 30 min and 8 GB of RAM). The
 strict-fractionality theorem in [results-and-corrections.md](results-and-corrections.md) shows that the true value lies
 strictly between 0 and 1.

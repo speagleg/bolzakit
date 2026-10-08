@@ -20,7 +20,7 @@ bk.green.constants()["B_Sigma_00"]["value"]   # 0.6966019648428384...
 
 ```python
 r = bk.systole(with_provenance=True)          # Result(value, label, source, error)
-r.label                                       # 'EXACT'
+r.label                                       # 'NUMERICAL' (float64 of the exact closed form)
 from bolzakit.provenance import info
 info(bk.lengths)                              # Info(label='NUMERICAL', source=..., error='integrality residual <= 1.1e-8 ...')
 ```

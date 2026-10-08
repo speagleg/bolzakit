@@ -66,7 +66,7 @@ print(len(G.GENS))                          # 8 side-pairing generators
 assert bk.automorphisms().order == 48       # = |GL(2,3)|
 print(bk.lengths(max_half_trace=5)[0])      # the systole class: half-trace 1+√2, 24 oriented geodesics
 print(bk.systole())                         # 3.057141838961996
-print(bk.systole(with_provenance=True).label)   # EXACT
+print(bk.systole(with_provenance=True).label)   # NUMERICAL (float64 of the exact closed form 2·arccosh(1+√2))
 ```
 
 ## Use cases
@@ -95,8 +95,8 @@ print(A.order, A.full_order, A.element_order_counts())   # 48 96 {1: 1, 2: 13, 3
 assert A.element_order_counts()[8] == 12    # 12 elements of order 8: GL(2,3), not S4 x Z2
 ```
 
-Outputs: the `group()` arithmetic is exact in ℤ[ζ₈] (its helper functions carry no label of their own; `elements` and
-`systole` are EXACT). `automorphisms()` is PROVED.
+Outputs: the `group()` arithmetic is exact in ℤ[ζ₈] (its helper functions carry no label of their own; `elements` is EXACT;
+`systole` is NUMERICAL, the float64 evaluation of the exact closed form 2·arccosh(1+√2)). `automorphisms()` is PROVED.
 
 ### (b) Circuit-QED and electric-circuit lattices
 
@@ -147,10 +147,11 @@ hits = [p for p in odd_primes if bk.arith.golden_geodesic_is_systole(p)]
 assert hits == [3, 7, 47]                                 # prime Lucas numbers L_{2^j}
 ```
 
-Outputs: `systole` is EXACT. `lengths` is NUMERICAL: the half-traces are exact and the multiplicities are rounded
-from sums with integrality residual ≤ 1.1e-8. `automorphisms` is PROVED. `golden_geodesic_is_systole` is PROVED: the arithmetic
-step (L_{n(p)} = p²−2 ⇔ p = L_{2^j}) is a Lean theorem; the geometric part is item 05's written proof. It accepts odd
-primes only and raises `ValueError` otherwise (other p are outside the theorem's scope).
+Outputs: `systole` is NUMERICAL (float64 of the exact closed form). `lengths` is NUMERICAL: the half-traces are exact
+and the multiplicities are rounded from sums with integrality residual ≤ 1.1e-8. `automorphisms` is PROVED.
+`golden_geodesic_is_systole` is PROVED: the arithmetic step (L_{n(p)} = p²−2 ⇔ p = L_{2^j}) is a Lean theorem; the
+geometric part is item 05's written proof. It accepts odd primes only and raises `ValueError` otherwise (other p are
+outside the theorem's scope).
 
 ### (d) Spectral geometry and quantum chaos
 
@@ -177,7 +178,8 @@ for t in (0.25, 0.5, 1.0):
     print(t, bk.spectral.selberg_check(t))                # residual: ~1e-16 at t = 0.25, 0.5; ~5e-11 at t = 1
 ```
 
-Outputs: `lengths` is NUMERICAL, `zeta_zero` is PROVED, `tau_bounds` is CERTIFIED and `selberg_check` is NUMERICAL; it raises `OutOfValidityRange` outside its tested window, about 0.03 ≤ t ≤ 1.
+Outputs: `lengths` is NUMERICAL, `zeta_zero` is PROVED, `tau_bounds` is CERTIFIED and `selberg_check` is NUMERICAL;
+`selberg_check` raises `OutOfValidityRange` outside its tested window, about 0.03 ≤ t ≤ 1.
 
 ### (e) Vortex dynamics
 
@@ -267,8 +269,8 @@ in [docs/provenance.md](docs/provenance.md).
 | label | meaning |
 |---|---|
 | EXACT | integer or algebraic arithmetic, with no rounding |
-| PROVED | an exact computation plus a written argument, or a Lean theorem |
-| CERTIFIED | a rigorous enclosure (interval or ball arithmetic, or exact tail bounds) |
+| PROVED | an exact computation plus a written argument, or a Lean theorem; arguments may be AI-written and cited (see [AI-assisted development](#ai-assisted-development)) |
+| CERTIFIED | a rigorous enclosure (interval/ball arithmetic, or a rigorous a-priori floating-point error analysis) |
 | NUMERICAL | floating point with a stated error estimate |
 | QUOTED | taken from the literature, with a reference |
 
@@ -291,8 +293,9 @@ Details and sources are in [docs/results-and-corrections.md](docs/results-and-co
 
 - **Aut⁺(Bolza) ≅ GL(2,3), not S₄×ℤ₂.** Strohmaier–Uski 2013 §7.1 say the Bolza surface "has symmetry group S4 ×Z2" of
   order 48 [SU13]. The two groups have the same order but are not isomorphic: GL(2,3) has 12 elements of order 8, and
-  S₄×ℤ₂ has none. bolzakit computes the group exactly, as the quotient of the (2,3,8) triangle group by Γ, and gives an
-  explicit isomorphism to GL(2,3).
+  S₄×ℤ₂ has none. bolzakit computes the group as the quotient of the (2,3,8) triangle group by Γ and gives an explicit
+  isomorphism to GL(2,3): the normaliser check is exact; the 48 cosets and their multiplication table are enumerated
+  with floating-point Möbius maps (keyed by rounding), and the index 48 agrees with the area formula 4π/(π/12).
 - **Strict fractionality (math-pursuits item 04).** Let Γ be a torsion-free cocompact Fuchsian group, such as the
   Bolza group, and let h = h* ∈ C*_r(Γ) be nonzero with τ(h) = 0 (in particular, any such h in ℂΓ). Then
   0 < τ(P₋(h)) < 1, P₋(h) ∉ C*_r(Γ), and spec(h) = [a, b] with a < 0 < b. The first statement holds for every discrete
@@ -370,7 +373,8 @@ bolzakit's code was ported from the math-pursuits research project. The derivati
 second-reader reviews, were produced by AI agents (Claude) working under Gordon Speagle's direction. No human specialist
 or peer review has checked them yet. The provenance labels, including PROVED, reflect machine-checked computation, Lean
 proofs where stated, and AI-written arguments that are cited. Treat PROVED claims that rest on such arguments
-accordingly.
+accordingly. bolzakit's code, tests, documentation and Lean files were also written and reviewed by AI agents (Claude)
+under Gordon Speagle's direction; Gordon directed and approved the work.
 
 What is in place:
 - every labelled function (the public factories and the functions listed in [docs/provenance.md](docs/provenance.md))

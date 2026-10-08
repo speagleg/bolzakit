@@ -1,5 +1,7 @@
 # Citation checks
 
+Citations were checked by an AI agent (Claude) by opening each source and quoting it.
+
 Every external reference in `README.md` and `docs/` was opened from its source on 2026-10-08. For each one we confirmed
 the authors, title, venue and year, and that the source says what we cite it for. For each reference the table gives:
 - the URL read;

@@ -114,7 +114,8 @@ def test_systole_value_and_label():
     from bolzakit.provenance import info
     assert abs(G.systole() - 2 * math.acosh(1 + math.sqrt(2))) < 1e-15
     assert abs(G.systole() - 3.0571418389619960) < 1e-13
-    assert info(G.systole).label == "EXACT"
+    assert info(G.systole).label == "NUMERICAL"          # float64 of the exact closed form (final review I7)
+    assert "2·arccosh(1+√2)" in info(G.systole).source
 
 
 def test_relator_is_identity():

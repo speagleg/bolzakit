@@ -24,7 +24,7 @@ products stay in this form. Half-traces Re A lie in ℤ[√2] and are returned a
 | `to_matrix(g)`, `act(g, z)` | complex float matrix; Möbius action on the disk | float (unlabelled helpers) |
 | `elements(max_word_length)` | all distinct elements of word length ≤ L | EXACT |
 | `ball_by_displacement(Rmax)` | all elements with d(0, γ0) ≤ Rmax, as integer rows | exact enumeration (unlabelled) |
-| `L_SYS`, `systole()` | 3.0571418389619960 | EXACT |
+| `L_SYS`, `systole()` | 3.0571418389619960 = 2·arccosh(1+√2) | NUMERICAL (float64 evaluation of the exact closed form) |
 
 The relation is also proved in Lean (`lean/BolzaKit/Group.lean`, theorem `bolza_relation`) by kernel evaluation.
 

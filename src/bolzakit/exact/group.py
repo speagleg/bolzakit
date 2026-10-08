@@ -299,9 +299,12 @@ INT64_SAFE = 2 ** 28  # products of two coordinates (and short sums) stay far be
 from ..provenance import provenance  # noqa: E402
 
 
-@provenance("EXACT", "2·arccosh(1+√2): half-trace of the generators is 1+√2 (exact, item 02)")
+@provenance("NUMERICAL", "float64 evaluation of the exact closed form 2·arccosh(1+√2) (the half-trace of the generators "
+            "is 1+√2, exact, item 02)", "float64 rounding (≤ 1e-15)")
 def systole() -> float:
-    """Length of the shortest closed geodesic of the Bolza surface, 2·arccosh(1+√2) = 3.05714183896..."""
+    """Length of the shortest closed geodesic of the Bolza surface, 2·arccosh(1+√2) = 3.05714183896...
+
+    The closed form is exact; the returned float64 is labelled NUMERICAL (use mpmath for more digits)."""
     return L_SYS
 
 
