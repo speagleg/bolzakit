@@ -1,7 +1,8 @@
 import hashlib, os, pathlib
 from fractions import Fraction
 import pytest
-from bolzakit.spectral import eigenvalues as E, zeta
+from bolzakit import spectral
+from bolzakit.spectral import eigen as E, zeta
 from bolzakit.errors import DataUnavailable
 from bolzakit.provenance import info
 
@@ -48,3 +49,7 @@ def test_su_real_download_and_agreement_with_fem():
     su = E.eigenvalues("su2013")
     for (vf, mf), (vs, ms) in zip(E.eigenvalues("fem")[:5], su[:5]):
         assert mf == ms and abs(vf - vs) / vs < 2e-4
+
+
+def test_spectral_eigenvalues_is_callable():
+    assert callable(spectral.eigenvalues) and spectral.eigenvalues("fem")[0][1] == 3

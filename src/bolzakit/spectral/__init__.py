@@ -1,3 +1,3 @@
 """Spectral data: eigenvalues, Selberg trace formula, zeta, τ bounds."""
-from .eigenvalues import su2013, weyl_counting  # noqa: F401  (NOT the eigenvalues function: it would shadow the submodule)
+from .eigen import eigenvalues, su2013, weyl_counting, cache_dir, SU_URL, SU_SHA256  # noqa: F401
 from .zeta import zeta_zero  # noqa: F401
