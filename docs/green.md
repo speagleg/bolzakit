@@ -41,10 +41,11 @@ g.G(0.1 + 0j, 0.2j)               # 0.104134729...
 ## Closed form of the Bergman constants (the PROVED label)
 
 `constants()` is labelled PROVED, and its source field cites this page. The derivation below reproduces the source.
-It is due to the independent reviewer of math-pursuits item 03:
+It is due to an independent AI second reader (Claude) in math-pursuits item 03. No human specialist has checked it yet.
+Sources:
 - `items/03-compact-surface-n7-stability/work/review_1.md` §3.A;
 - `note.tex`: Proposition "structure through degree 7" in §2 and the paragraph "Closed form" in §5;
-- the reviewer's scripts `review_1_scripts/schwarz_bergman.py` and `closed_form.py`.
+- the second reader's scripts `review_1_scripts/schwarz_bergman.py` and `closed_form.py`.
 
 Steps that the source does not spell out are marked *see source*. bolzakit adds nothing to the argument.
 
@@ -128,7 +129,7 @@ and so
 - β₃ = −(4|a|⁶/(2I₀) − 3/π)/36 = −0.16248381288685044074…
 - the cubic coefficient of the λ₃ series, −61/2 + 126πβ₃ = −94.8177020644660778…
 
-`bolzakit.green.constants._core` evaluates exactly these formulas in mpmath. They match the reviewer's
+`bolzakit.green.constants._core` evaluates exactly these formulas in mpmath. They match the AI second reader's
 `closed_form.py` line for line.
 
 ### 5. Independent agreement

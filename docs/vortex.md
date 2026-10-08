@@ -9,7 +9,7 @@ N identical unit point vortices sit on a regular N-gon of Euclidean radius r = �
 function with the −1/A background for each pair, plus ½ the Robin function for each vortex. In their words, "a single
 vortex so drifts according to the Hamiltonian system (Ωg , Rg ), where Ωg is the area form of g and Rg is Robins's
 function", and the collective Hamiltonian is H = Σ_{i<j} κᵢκⱼ G(sᵢ, sⱼ) + Σ ½ κₗ² R(sₗ). bolzakit uses G_Σ = −G_BK,
-which flips the sign of H; that is time reversal and does not affect spectral stability (item 03 review_1 §1.1).
+which flips the sign of H; that is time reversal and does not affect spectral stability (item 03 review_1 §1.1, by an AI second reader).
 
 Units are those of item 03, "C1" (c_norm = 1/2π).
 

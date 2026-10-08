@@ -14,8 +14,9 @@ Hyperbolic lattices are now built in the lab. Networks of coplanar-waveguide res
 effective hyperbolic space [KFH19], and electric-circuit networks have been used to measure the eigenstates of a
 "hyperbolic drum" [L+22]. Hyperbolic band theory describes such lattices with Bloch-like phases under the
 non-commutative Fuchsian group of a higher-genus surface [MR21]. Hyperbolic surface codes trade encoding rate against
-protection more favourably than the surface code [BT16]. For all of these, the Bolza surface is the smallest
-non-trivial example.
+protection more favourably than the surface code [BT16]. The lattices in these experiments are not the Bolza surface
+(the circuit-QED lattices of [KFH19], for instance, are {7,3}-type), but for this kind of physics the Bolza surface is a
+natural minimal, maximally symmetric test case.
 
 bolzakit gives you the exact Fuchsian group (matrix entries in ℤ[ζ₈]), the automorphism group, the length spectrum,
 Laplace eigenvalues, Green's-function and Bergman-kernel data at the Weierstrass points, vortex-ring stability data and a
@@ -62,7 +63,7 @@ import bolzakit as bk
 
 G = bk.group()
 print(len(G.GENS))                          # 8 side-pairing generators
-print(bk.automorphisms().order)             # 48 = |GL(2,3)|
+assert bk.automorphisms().order == 48       # = |GL(2,3)|
 print(bk.lengths(max_half_trace=5)[0])      # the systole class: half-trace 1+√2, 24 oriented geodesics
 print(bk.systole())                         # 3.057141838961996
 print(bk.systole(with_provenance=True).label)   # EXACT
@@ -91,6 +92,7 @@ assert G.word(G.RELATOR) == G.word([])      # g0 g1^-1 g2 g3^-1 g0^-1 g1 g2^-1 g
 A = bk.automorphisms()
 phi = A.isomorphism_to_GL23()               # element index -> 2x2 matrix over F_3
 print(A.order, A.full_order, A.element_order_counts())   # 48 96 {1: 1, 2: 13, 3: 8, 4: 6, 6: 8, 8: 12}
+assert A.element_order_counts()[8] == 12    # 12 elements of order 8: GL(2,3), not S4 x Z2
 ```
 
 Outputs: the `group()` arithmetic is exact in ℤ[ζ₈] (its helper functions carry no label of their own; `elements` and
@@ -98,14 +100,16 @@ Outputs: the `group()` arithmetic is exact in ℤ[ζ₈] (its helper functions c
 
 ### (b) Circuit-QED and electric-circuit lattices
 
-A finite lattice samples the Laplacian of the continuum surface, so its low-lying graph spectrum should approach the
-continuum spectrum. bolzakit ships 9 finite-element eigenvalue clusters as a quick offline reference. It also fetches
+Under refinement of the tiling, low-lying graph spectra are expected to approximate the continuum spectrum; bolzakit
+provides the continuum side for such comparisons. It ships 9 finite-element eigenvalue clusters as a quick offline reference. It also fetches
 the 1000 Strohmaier–Uski eigenvalues on demand.
 
 ```python
 import bolzakit as bk
 
-for lam, mult in bk.spectral.eigenvalues("fem"):          # 9 clusters, bundled
+fem = bk.spectral.eigenvalues("fem")
+assert len(fem) == 9                                      # 9 clusters, bundled
+for lam, mult in fem:
     print(f"{lam:9.4f}  x{mult}")
 print(bk.provenance.info(bk.spectral.eigenvalues).error)  # FEM: relative error <= 2e-4 vs Strohmaier–Uski
 ```
@@ -116,7 +120,8 @@ import bolzakit as bk
 
 su = bk.spectral.eigenvalues("su2013", n=9)               # QUOTED values (Strohmaier–Uski 2013)
 fem = bk.spectral.eigenvalues("fem")
-print(max(abs(a - b) / b for (a, _), (b, _) in zip(fem, su)))   # about 3e-5
+rel = max(abs(a - b) / b for (a, _), (b, _) in zip(fem, su))
+assert rel < 3e-5                                         # measured 2.98e-5
 print(bk.spectral.selberg_check(0.5))                     # |geometric - spectral side| of the heat trace, ~1e-16
 ```
 
@@ -137,12 +142,13 @@ print(bk.systole())                                       # 2*arccosh(1+sqrt2)
 for e in bk.lengths(10):                                  # half-trace p + q*sqrt2 <= 10
     print(e["halftrace"], round(e["length"], 6), e["n_unoriented"])
 print(bk.automorphisms().order)                           # 48
-print([p for p in range(2, 100) if bk.arith.golden_geodesic_is_systole(p)])   # [3, 7, 47]
+hits = [p for p in range(2, 100) if bk.arith.golden_geodesic_is_systole(p)]
+assert hits == [3, 7, 47]                                 # prime Lucas numbers L_{2^j}
 ```
 
 Outputs: `systole` is EXACT. `lengths` is NUMERICAL: the half-traces are exact and the multiplicities are rounded
-from sums with integrality residual ≤ 1.1e-8. `automorphisms` is PROVED. `golden_geodesic_is_systole` is PROVED, with a
-Lean proof.
+from sums with integrality residual ≤ 1.1e-8. `automorphisms` is PROVED. `golden_geodesic_is_systole` is PROVED: the arithmetic
+step (L_{n(p)} = p²−2 ⇔ p = L_{2^j}) is a Lean theorem; the geometric part is item 05's written proof.
 
 ### (d) Spectral geometry and quantum chaos
 
@@ -151,11 +157,12 @@ primitive length spectrum up to half-trace 120, the trace-formula balance, and t
 gives certified bounds on a von Neumann trace in the group algebra.
 
 ```python
+from fractions import Fraction
 import bolzakit as bk
 
 L = bk.lengths()                                          # all lengths with half-trace <= 120
 print(len(L), L[-1]["length"])                          # 42 distinct lengths, longest 10.934
-print(bk.spectral.zeta_zero())                            # -4/3 = chi/6 - 1, as a Fraction
+assert bk.spectral.zeta_zero() == Fraction(-4, 3)         # chi/6 - 1
 tb = bk.spectral.tau_bounds("systole_shell")
 print(tb["lower"], tb["upper"])                           # certified interval for tau(P_-(h))
 ```
@@ -182,7 +189,8 @@ import bolzakit as bk
 
 c = bk.green.constants()                                  # closed forms at a Weierstrass point
 print(c["B_Sigma_00"]["value"], c["beta3"]["value"])      # 0.69660196..., -0.16248381...
-print(bk.vortex.lambda3_series()["coefficients"])         # lambda_3 = 12 xi - 4 xi^2 - 94.8177 xi^3 + O(xi^4)
+coeffs = bk.vortex.lambda3_series()["coefficients"]       # lambda_3 = 12 xi - 4 xi^2 - 94.8177 xi^3 + O(xi^4)
+assert coeffs[1] == 12 and coeffs[2] == -4 and abs(coeffs[3] + 94.8177) < 1e-4
 for model in ("flat", "sinh", "tanh"):
     print(model, bk.vortex.ring(7, 0.01, model).modes()[3])   # flat: 0 (marginal); sinh 0.1224; tanh 0.1210
 ```
@@ -196,6 +204,7 @@ print(g.robin_mass(0j))                # Robin mass at the Weierstrass point 0, 
 print(g.G(0.1 + 0j, 0.2j))             # both points within Poincaré radius 0.45 of one Weierstrass point
 ring = bk.vortex.ring(7, 0.01, "bolza", D_ball=13.0)     # about 20 s to a few minutes
 print(ring.modes()[3], ring.split(3))  # ~0.1195; split ~ 1000 xi^4 from the C8 symmetry of the point
+assert 900 < ring.split(3) / 0.01**4 < 1100
 ```
 
 Outputs: `green.constants` is PROVED. `lambda3_series` is PROVED, valid for N = 7 in the truncated Boatto–Koiller
@@ -211,7 +220,7 @@ is simple over ℚ.
 import math
 import bolzakit as bk
 
-print(bk.arith.bolza_quartic())                           # [1, -4, -2, -4, 1]
+assert bk.arith.bolza_quartic() == [1, -4, -2, -4, 1]    # x^4 - 4x^3 - 2x^2 - 4x + 1
 s = bk.arith.salem_number(dps=30)
 print(s, abs(float(s) - math.exp(bk.systole() / 2)))      # largest root = e^{l_sys/2}
 ```
@@ -220,7 +229,7 @@ print(s, abs(float(s) - math.exp(bk.systole() / 2)))      # largest root = e^{l_
 # requires: pari
 import bolzakit as bk
 
-print(bk.arith.curve.euler_factor(3))                     # [1, 0, -2, 0, 9]: x^4 - 2x^2 + 9
+assert bk.arith.curve.euler_factor(3) == [1, 0, -2, 0, 9]  # x^4 - 2x^2 + 9
 print(bk.arith.curve.jacobian_is_Q_simple())              # True
 ```
 
@@ -237,7 +246,8 @@ import bolzakit as bk
 
 G = bk.group()
 z, word, M = bk.geometry.reduce_point(0.9 + 0.1j)         # z = M(0.9+0.1i) lies in the octagon
-print(z, word, bk.geometry.in_F(z))
+assert bk.geometry.in_F(z)
+print(z, word)
 print(G.word(G.RELATOR))                                  # ((1,0,0,0),(0,0,0,0)): the identity, exactly
 print(bk.geometry.dist(0j, 0.5 + 0j))                     # 2 artanh(0.5)
 print(bk.geometry.disk_to_upper(0j))                      # 1j
@@ -353,9 +363,16 @@ MIT. See [LICENSE](LICENSE).
 
 ## AI-assisted development
 
-bolzakit was written with substantial help from AI coding agents, working from Gordon Speagle's mathematical notes (the
-math-pursuits project) under his direction. To keep that honest:
-- every returned value carries a provenance label;
+bolzakit's code was ported from the math-pursuits research project. The derivations and notes there, and their
+second-reader reviews, were produced by AI agents (Claude) working under Gordon Speagle's direction. No human specialist
+or peer review has checked them yet. The provenance labels, including PROVED, reflect machine-checked computation, Lean
+proofs where stated, and AI-written arguments that are cited. Treat PROVED claims that rest on such arguments
+accordingly.
+
+What is in place:
+- every labelled function (the public factories and the functions listed in [docs/provenance.md](docs/provenance.md))
+  can return its provenance label; low-level helpers and object methods carry none (see
+  [Provenance labels](#provenance-labels));
 - every literature reference in these docs was checked against its source;
 - the Lean proofs build with no `sorry`, `admit` or `native_decide`;
 - the tests check the numbers against independent computations.

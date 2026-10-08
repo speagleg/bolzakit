@@ -27,6 +27,11 @@ def test_readme_has_blocks():
     assert len(BLOCKS) >= 8
 
 
+def test_readme_blocks_assert_values():
+    # the README doubles as a doctest: key printed values are asserted inside the blocks
+    assert sum(b.count("assert ") for b in BLOCKS) >= 4
+
+
 @pytest.mark.parametrize("code", BLOCKS, ids=[f"block{i}" for i in range(len(BLOCKS))])
 def test_readme_block(code, request):
     if "# requires: pari" in code and importlib.util.find_spec("cypari2") is None:

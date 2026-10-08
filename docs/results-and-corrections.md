@@ -50,7 +50,8 @@ Since ℂΓ ⊂ C*_r(Γ), C4 and C5 apply to every nonzero self-adjoint trace-ze
 - C2 is the Kadison–Kaplansky conjecture. [MY02, Thm 21] states: "The Kadison-Kaplansky conjecture holds for any torsion
   free subgroup G of a hyperbolic group, i.e. there exists no non-trivial projection in the reduced group C ∗ -algebra
   Cr∗ (G)."
-- C3 and C5 follow from C2 by continuous functional calculus.
+- C3 follows from C2 by continuous functional calculus. C5 needs both C4 (so that P₋(h) ≠ 0, 1) and C2/C3 (so that
+  P₋(h) ∉ C*_r(Γ) and the spectrum is an interval).
 - The note's proof of the trace integrality in C2 also uses Lück's theorem relating Baum–Connes to the trace conjecture,
   and its Proposition on the element h^Γ uses Jolissaint's property (RD). bolzakit's docs do not rely on those two
   citations; see the note for them.
@@ -89,13 +90,13 @@ Status: NUMERICAL (a float64 optimisation, not a certified bound).
 
 At a Bolza Weierstrass point the surface has C₈ symmetry, while a 7-ring has C₇ symmetry. The charge-8 Taylor terms of
 the regular part satisfy 8 ≡ 1 (mod 7), so they break the degeneracy between the cos(3θ_k) and sin(3θ_k) copies of
-the radial m = 3 mode at relative order ξ⁴. bolzakit measures
+the radial m = 3 mode, giving a split of order ξ⁴ (≈1000·ξ⁴ in C1 units). bolzakit measures
 
   `ring(7, xi, "bolza").split(3)` ≈ 1000·ξ⁴   (1.006e-5 at ξ = 0.01 with D_ball = 13; 1.015e-5 at D_ball = 15).
 
-The tests check 900 < split(3)/ξ⁴ < 1100. The code review of this module found the split independent of the
-finite-difference step. Item 03's review measured the O(ξ⁴) tangential-force residual of the ring (ratio 256 between
-ξ = 0.01 and 0.04); the size of the mode splitting is not recorded in item 03 and was first measured here. `modes()` returns the mean of the two copies, which is what the λ₃ series
+The tests check 900 < split(3)/ξ⁴ < 1100. The (AI) code review of this module found the split independent of the
+finite-difference step. Item 03's AI second reader measured the O(ξ⁴) tangential-force residual of the ring (ratio 256 between
+ξ = 0.01 and 0.04); the size of the mode splitting is not recorded in math-pursuits item 03; no literature search was done. `modes()` returns the mean of the two copies, which is what the λ₃ series
 describes.
 
 Label: NUMERICAL.
