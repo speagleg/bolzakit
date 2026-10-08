@@ -1,5 +1,5 @@
 """bolzakit: exact and provenance-labelled computations on the Bolza surface."""
-__version__ = "0.1.0.dev0"
+__version__ = "0.1.0"
 from . import errors, provenance, geometry, spectral, green, vortex, arith  # noqa: F401
 from .exact import group as _group_module
 from .exact.group import systole  # noqa: F401

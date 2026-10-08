@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bolzakit"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Exact and provenance-labelled computations on the Bolza surface (genus-2 hyperbolic surface)"
 readme = "README.md"
 license = {text = "MIT"}
