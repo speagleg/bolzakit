@@ -11,7 +11,7 @@ The generators g_k (k = 0..7, g_{k+4} = g_k⁻¹) are the hyperbolic translation
 2·arccosh(1+√2) along the axes at angles kπ/4: g_k = (1+√2, ζ^k).  We prove
   * g_k · g_{k+4} = 1 for all k, and
   * g₀ g₁⁻¹ g₂ g₃⁻¹ g₀⁻¹ g₁ g₂⁻¹ g₃ = 1
-as identities in ℤ[ζ]², by kernel evaluation (`decide`), no placeholder proofs, no `native_decide`.
+as identities in ℤ[ζ]², by kernel evaluation (`decide`), no placeholder proofs, no compiled-code evaluation.
 Also: det g_k = |A|² − μ²|B|² = 1 and the half-trace Re A = 1 + √2.
 -/
 import Mathlib
