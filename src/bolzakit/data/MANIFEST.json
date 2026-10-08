@@ -26,5 +26,12 @@
   "command": "python scripts/regen_lengths.py",
   "bolzakit_version": "0.1.0.dev0",
   "date": "2026-10-08"
+ },
+ "tau.json": {
+  "sha256": "5676a0465dc4c682cc38faf6600d41481a8e92063edfba1671239d3cd1856ed1",
+  "script": "scripts/regen_tau.py",
+  "command": "python scripts/regen_tau.py",
+  "bolzakit_version": "0.1.0.dev0",
+  "date": "2026-10-08"
  }
 }
