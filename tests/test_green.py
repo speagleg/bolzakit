@@ -86,3 +86,25 @@ def test_green_overlapping_charts(g):
     assert len(ok) >= 2
     vals = [g._core.G(zs[i], ws[i]) for i in ok]
     assert max(vals) - min(vals) < 1e-9
+
+
+# ---- final review C1: (T, D_ball) outside the validated set raise before anything is built
+
+@pytest.mark.parametrize("kw", [dict(T=10.0), dict(D_ball=9.0), dict(T=1.0), dict(T=5.0), dict(T=2.0, D_ball=12.0),
+                                dict(T=2.6, D_ball=13.5)])
+def test_green_unvalidated_T_D_raises_fast(kw):
+    import time
+    t0 = time.time()
+    with pytest.raises(OutOfValidityRange, match=r"\(2\.6, 15\.0\), \(2\.6, 13\.0\).*25%"):
+        green.green(**kw)
+    with pytest.raises(OutOfValidityRange):
+        green.SurfaceGreen(**kw)
+    assert time.time() - t0 < 1.0            # validated before the image ball is built
+
+
+def test_green_validated_pairs_accepted(monkeypatch):
+    import bolzakit.green.surface as S
+    monkeypatch.setattr(S, "_green", lambda T, D: (T, D))
+    assert green.green() == (2.6, 15.0)
+    assert green.green(T=2.6 + 1e-13, D_ball=13) == (2.6, 13.0)
+    assert set(green.VALIDATED_T_D) == {(2.6, 15.0), (2.6, 13.0)}

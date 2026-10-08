@@ -25,6 +25,11 @@ minute on slower machines.
 
 **Validity.** Both points must lie within Poincaré radius 0.45 of the same Weierstrass point, measured in a chart
 centred there. `G`, `regular` and `robin_mass` pick the chart that minimises max(|z_local|, |w_local|).
+- Only the validated parameter pairs `(T, D_ball)` = (2.6, 15.0) (default) and (2.6, 13.0) are accepted
+  (`bk.green.VALIDATED_T_D`); any other pair raises `OutOfValidityRange` before anything is built. At (2.6, 13),
+  G(0.1, 0.2i) and robin_mass(0) differ from the defaults by 1.1e-7 and 8.2e-8. Smaller T leaves a larger omitted
+  tail (T = 2.0: −3.1e-5 in G, −3.9e-5 in the Robin mass, so it is not accepted), and larger T needs a larger image
+  ball; un-validated pairs can be off by up to 25% (T = 10 at D_ball = 15).
 - A pair of points with no common chart raises `OutOfValidityRange`.
 - `G(z, z)` raises `ValueError`; use `robin_mass(z)` or `regular(z, z)` instead.
 - The six charts cover the surface: the covering radius is ρ = 0.4056164 < 0.45 (Poincaré distance 0.8607). The worst

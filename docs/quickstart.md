@@ -34,7 +34,7 @@ All errors derive from `bolzakit.errors.BolzakitError`.
 
 | error | when |
 |---|---|
-| `OutOfValidityRange` (also a `ValueError`) | `lengths` beyond half-trace 120 without `compute=True`; `green().G` for a pair with no common Weierstrass chart; a bolza ring with √ξ > 0.45 |
+| `OutOfValidityRange` (also a `ValueError`) | `lengths` beyond half-trace 120 without `compute=True`; `green().G` for a pair with no common Weierstrass chart; a bolza ring with √ξ > 0.45; `green(T, D_ball)` or a bolza ring with an un-validated `(T, D_ball)` (only (2.6, 15) and (2.6, 13) are accepted) |
 | `DataUnavailable` | the Strohmaier–Uski download or checksum failed; more FEM clusters requested than bundled |
 | `OptionalDependencyMissing` (also an `ImportError`) | `arith.curve` without cypari2 |
 

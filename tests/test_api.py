@@ -25,7 +25,7 @@ def test_green_callable_module(monkeypatch):
     import bolzakit.green.surface as S
     monkeypatch.setattr(S, "_green", lambda T, D: ("stub", T, D))
     assert callable(bk.green)
-    assert bk.green(T=1.0, D_ball=2.0) == ("stub", 1.0, 2.0)
+    assert bk.green(T=2.6, D_ball=13.0) == ("stub", 2.6, 13.0)
     assert callable(bk.green.constants) and callable(bk.green.bergman_at_weierstrass)
     assert bk.green.VALIDITY_RADIUS == 0.45
 

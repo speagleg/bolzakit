@@ -95,6 +95,25 @@ VALIDITY_RADIUS = 0.45
 # rho < VALIDITY_RADIUS, so every single point is valid; only a pair with no common chart raises.
 _ERR = "omitted tail <= 4e-6 in value at T=2.6; ΔG = 1/A to 2e-5"
 
+# (T, D_ball) pairs whose accuracy is validated: G(0.1, 0.2j) and robin_mass(0) agree with the (2.6, 15) values to
+# 1.2e-7 and 8.2e-8 at (2.6, 13).  Rejected after measurement (final review C1): T = 2.0 with D_ball = 12, 13 or 15
+# (-3.1e-5 in G, -3.9e-5 in the Robin mass: the omitted spectral tail grows like e^{-lambda_1 T}); and the review's
+# T=1 (-1.6e-3), T=5 (-5.6e-5), D_ball=9 (-1.5e-4), T=10 (-2.6e-2, 25%).
+VALIDATED_T_D = ((2.6, 15.0), (2.6, 13.0))
+
+
+def check_T_D(T, D_ball) -> tuple[float, float]:
+    """(float(T), float(D_ball)) if the pair is in VALIDATED_T_D (to 1e-12), else OutOfValidityRange. Cheap."""
+    T, D_ball = float(T), float(D_ball)
+    for t, d in VALIDATED_T_D:
+        if abs(T - t) <= 1e-12 and abs(D_ball - d) <= 1e-12:
+            return t, d
+    raise OutOfValidityRange(
+        f"(T, D_ball) = ({T!r}, {D_ball!r}) is not validated; allowed pairs: "
+        + ", ".join(f"({t}, {d})" for t, d in VALIDATED_T_D)
+        + ". Smaller T leaves a larger omitted spectral tail and larger T needs a larger image ball; un-validated "
+        "pairs can be off by up to 25% while the error label (<= 4e-6) would not apply.")
+
 
 class SurfaceGreen:
     """Green's function of the Bolza surface: -Δ G = δ - 1/A, ∫ G dA = 0 (heat-kernel splitting, item 03).
@@ -102,6 +121,7 @@ class SurfaceGreen:
 
     def __init__(self, T: float = 2.6, D_ball: float = 15.0):
         from ..exact.automorphisms import automorphisms
+        T, D_ball = check_T_D(T, D_ball)
         self._core = BolzaGreen(T=T, D_ball=D_ball, zmax=VALIDITY_RADIUS)
         A = automorphisms()
         self._charts = [A.chart_to(p) for p in A.weierstrass_points()]
@@ -158,4 +178,8 @@ def _green(T: float, D_ball: float) -> SurfaceGreen:
 @provenance("NUMERICAL", "heat-kernel image sum over exact group elements + omitted spectral tail (item 03)",
             _ERR)
 def green(T: float = 2.6, D_ball: float = 15.0) -> SurfaceGreen:
-    return _green(float(T), float(D_ball))
+    """Green's function of the Bolza surface (cached per (T, D_ball)).
+
+    Only the validated pairs in VALIDATED_T_D, (2.6, 15.0) and (2.6, 13.0), are accepted; any other pair raises
+    OutOfValidityRange before anything is built."""
+    return _green(*check_T_D(T, D_ball))

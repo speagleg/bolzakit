@@ -83,3 +83,12 @@ def test_bolza_lam_sigma_equals_item03_analyse():
         ref = D.analyse(g, xi, m=m, dps=15)
         assert abs(fast[m][0] - ref["lam_sigma"]) < 1e-12
         assert abs(fast[m][1] - ref["lam_sigma_sin"]) < 1e-12
+
+
+@pytest.mark.parametrize("kw", [dict(T=5.0), dict(D_ball=9.0), dict(T=10.0)])
+def test_bolza_ring_unvalidated_T_D_raises_fast(kw):
+    t0 = time.time()
+    with pytest.raises(OutOfValidityRange, match="allowed pairs"):
+        vortex.ring(7, 0.01, "bolza", **kw)
+    assert time.time() - t0 < 1.0
+    vortex.ring(7, 0.01, "tanh", **kw)        # T, D_ball are irrelevant for the closed-form models

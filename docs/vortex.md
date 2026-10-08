@@ -26,8 +26,8 @@ momentum maps, for the dynamics of point vortices on surfaces parametrized by th
 ## API
 
 - `bk.vortex.ring(N, xi, model="bolza", dps=30, *, T=2.6, D_ball=15.0)` (NUMERICAL) returns a `Ring`. Arguments are
-  validated before any expensive work: 0 < ξ < 1 and N ≥ 2. For `bolza` it also requires √ξ ≤ 0.45, and otherwise
-  raises `OutOfValidityRange`.
+  validated before any expensive work: 0 < ξ < 1 and N ≥ 2. For `bolza` it also requires √ξ ≤ 0.45 and a validated
+  `(T, D_ball)` pair, (2.6, 15.0) or (2.6, 13.0) (see [green.md](green.md)), and otherwise raises `OutOfValidityRange`.
 - `Ring.modes()` returns `{m: λ_m}` for m = 1..N−1. λ_m is the radial-mode Rayleigh quotient of Hess(H − ΩJ), with
   λ_{N−m} = λ_m.
   - flat, sinh and tanh: computed in mpmath by central differences with step 10^(−dps/3).

@@ -44,6 +44,8 @@ class Ring:
         self._bolza = None
         if model == "bolza":
             from ..green import VALIDITY_RADIUS
+            from ..green.surface import check_T_D
+            self.T, self.D_ball = check_T_D(self.T, self.D_ball)
             if mp.sqrt(self.xi) > VALIDITY_RADIUS:
                 raise OutOfValidityRange(
                     f"ring radius sqrt(xi)={float(mp.sqrt(self.xi)):.3f} exceeds {VALIDITY_RADIUS}")
