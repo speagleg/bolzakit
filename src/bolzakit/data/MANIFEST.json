@@ -14,7 +14,7 @@
   "date": "2026-10-08"
  },
  "green_constants.json": {
-  "sha256": "89e08d1c9edf9bf9983fe88cc8db866bc184f810d71f4ba4b3d9327eef3bcbaf",
+  "sha256": "9a25889a84a90d0441895b6a7c3f6dea53b96836307e17c6a9019bc506e61503",
   "script": "scripts/regen_green_constants.py",
   "command": "python scripts/regen_green_constants.py",
   "bolzakit_version": "0.1.0.dev0",

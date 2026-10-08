@@ -11,7 +11,7 @@
  },
  "beta2": {
   "value": "0.0397887357729738339422209408431",
-  "closed_form": "1/(8 pi)",
+  "closed_form": "1/(8 pi)  [no holomorphic 1-form of character 1 mod 8]",
   "label": "PROVED"
  },
  "beta3": {

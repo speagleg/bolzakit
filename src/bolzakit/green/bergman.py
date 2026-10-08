@@ -115,6 +115,7 @@ from ..provenance import provenance  # noqa: E402
 
 
 @provenance("NUMERICAL", "Hejhal-type computation of holomorphic 1-forms (item 03 bergman.py)",
+            "about 5e-20 from the closed form at the defaults (dps=50, M=24, npts=50); "
             "automorphy residual < 1e-23 at dps=70, M=40")
 def bergman_at_weierstrass(dps: int = 50, M: int = 24, npts: int = 50):
     """B_Σ(0, 0) at the Weierstrass point 0, i.e. 1/||f_0||² with f_0 the normalised 1-form of residue class 0.

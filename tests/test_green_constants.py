@@ -21,3 +21,9 @@ def test_lambda3_cubic_coefficient_matches_item03():
 def test_bergman_numeric_matches_closed_form():
     v = green.bergman_at_weierstrass()          # dps=50, M=24, npts=50: the item 03 driver's first setting
     assert abs(v - mp.mpf("0.69660196484283842959")) < 1e-10
+
+
+def test_constants_provenance_cites_derivation():
+    from bolzakit.provenance import info
+    src = info(green.constants).source
+    assert "review_1" in src and "docs/green.md" in src
