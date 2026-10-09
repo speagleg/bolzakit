@@ -16,6 +16,26 @@ def _require_skfem():
     return skfem
 
 
+def _dof_indices(spec, n: int):
+    """Normalise a Dirichlet-dof specification to a sorted unique int array, validated against range(n)."""
+    if spec is None:
+        return np.array([], dtype=int)
+    if isinstance(spec, dict):
+        parts = [_dof_indices(v, n) for v in spec.values()]
+        return np.unique(np.concatenate(parts)) if parts else np.array([], dtype=int)
+    if not isinstance(spec, (np.ndarray, list, tuple)) and hasattr(spec, "all"):  # skfem DofsView
+        spec = spec.all()
+    arr = np.asarray(spec)
+    if arr.size == 0:
+        return np.array([], dtype=int)
+    if arr.dtype.kind not in "iu":
+        raise TypeError("dirichlet_dofs must hold integer dof indices")
+    arr = arr.astype(int).ravel()
+    if arr.min() < 0 or arr.max() >= n:
+        raise ValueError(f"dirichlet_dofs indices must lie in [0, {n})")
+    return np.unique(arr)
+
+
 def from_forms(basis, stiffness_form, mass_form, p0: float, h: float = 1e-5, dirichlet_dofs=None):
     """Return ``(K, M, dK, dM, d2K, d2M)`` as sparse matrices at ``p0``.
 
@@ -24,6 +44,8 @@ def from_forms(basis, stiffness_form, mass_form, p0: float, h: float = 1e-5, dir
     ``basis.get_dofs()``; None keeps all dofs."""
     _require_skfem()
     from skfem import asm
+    if not h > 0:
+        raise ValueError("h must be positive")
 
     def at(p):
         return asm(stiffness_form, basis, p=p), asm(mass_form, basis, p=p)
@@ -31,15 +53,8 @@ def from_forms(basis, stiffness_form, mass_form, p0: float, h: float = 1e-5, dir
     K0, M0 = at(p0)
     Kp, Mp = at(p0 + h)
     Km, Mm = at(p0 - h)
-    if dirichlet_dofs is None:
-        drop = np.array([], dtype=int)
-    elif hasattr(dirichlet_dofs, "all"):  # skfem DofsView
-        drop = np.asarray(dirichlet_dofs.all(), dtype=int)
-    elif isinstance(dirichlet_dofs, dict):
-        drop = np.unique(np.concatenate([np.asarray(v.all() if hasattr(v, "all") else v, dtype=int).ravel()
-                                         for v in dirichlet_dofs.values()]))
-    else:
-        drop = np.unique(np.asarray(dirichlet_dofs, dtype=int).ravel())
+    n = K0.shape[0]
+    drop = _dof_indices(dirichlet_dofs, n)
     keep = np.setdiff1d(np.arange(K0.shape[0]), drop)
 
     def cond(X):
