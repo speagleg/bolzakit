@@ -38,7 +38,7 @@ from bolzakit.sensitivity.errors import (ClusterRangeError, ClusterSplitError, F
                                          PencilError)
 
 __all__ = ["ClusterSensitivity", "cluster_sensitivity", "directional", "from_callables", "smallest_eigenpairs",
-           "DISCRETE_CAVEAT"]
+           "SplittingMatrices", "splitting_matrices", "ritz_upper_bounds", "DISCRETE_CAVEAT"]
 
 _PENCIL_MSG = "K and M must be symmetric with M positive definite"
 
@@ -342,3 +342,75 @@ def from_callables(Kfun, Mfun, p0, v, cluster, h=1e-4, **kw) -> ClusterSensitivi
     d2K = (Kp - 2 * K0 + Km) / h**2
     d2M = (Mp - 2 * M0 + Mm) / h**2
     return cluster_sensitivity(K0, M0, dK, dM, cluster, d2K=d2K, d2M=d2M, **kw)
+
+
+# ----------------------------------------------------------------------------------------------- multi-parameter
+@dataclass(frozen=True)
+class SplittingMatrices:
+    eigvals: np.ndarray      # cluster eigenvalues, ascending
+    basis: np.ndarray        # n x m, M-orthonormal
+    lam_bar: float
+    mats: np.ndarray         # (d, m, m): A_l = U^T (dK_l - lam_bar dM_l) U, symmetrised
+    gap_ratio: float
+    label: str = "NUMERICAL"
+    caveat: str = DISCRETE_CAVEAT
+
+
+def splitting_matrices(K, M, dKs, dMs, cluster, *, gap_ratio_min=1e-3, eig=None, check_gap: bool = True,
+                       validate: bool = True) -> SplittingMatrices:
+    """Splitting matrices A_l = U^T (dK_l - lam_bar dM_l) U of the cluster (i, j), one per parameter l.
+
+    ``dKs`` (and ``dMs``; None means M does not depend on p) are length-d sequences of partial derivatives, dense or
+    sparse. A(v) = sum_l v_l mats[l] equals cluster_sensitivity(..., dK=sum v_l dK_l, dM=sum v_l dM_l).A.
+    ``eig=(w, V)`` reuses eigenpairs from smallest_eigenpairs (at least min(j + 2, n) of them); it skips the
+    eigensolve but not the validation. ``validate=False`` skips the (K, M) validation; ``check_gap=False`` skips
+    the core gap rule (gap_ratio is still reported). The rates eig(A(v)) are reduced-model slopes at a near-tie
+    (see the module docstring)."""
+    K, M, sparse = _prepare(K, M)
+    n = K.shape[0]
+    i, j = _check_range(cluster, n)
+    if validate:
+        _validate(K, M, sparse)
+    need = min(j + 2, n)
+    if eig is None:
+        w, V = _eigs(K, M, need, sparse)
+    else:
+        w, V = np.asarray(eig[0], dtype=float), np.asarray(eig[1], dtype=float)
+        if len(w) < need or V.shape != (n, len(w)):
+            raise ValueError(f"eig must hold at least {need} eigenpairs of the n = {n} pencil")
+    lam_bar, g_in, g_out, thresh, ratio = _gap(w, i, j, gap_ratio_min)
+    if check_gap and g_out < thresh:
+        raise _split_error(cluster, g_in, g_out, ratio)
+    U = V[:, i:j + 1]
+    dKs = list(dKs)
+    dMs = [None] * len(dKs) if dMs is None else list(dMs)
+    if len(dMs) != len(dKs):
+        raise ValueError("dKs and dMs must have the same length")
+    mats = np.empty((len(dKs), j - i + 1, j - i + 1))
+    for l, (dK, dM) in enumerate(zip(dKs, dMs)):
+        B = np.asarray(_as_op(dK, sparse, n) @ U)
+        if dM is not None:
+            B = B - lam_bar * np.asarray(_as_op(dM, sparse, n) @ U)
+        A = U.T @ B
+        mats[l] = (A + A.T) / 2
+    return SplittingMatrices(eigvals=w[i:j + 1].copy(), basis=U.copy(), lam_bar=lam_bar, mats=mats,
+                             gap_ratio=ratio)
+
+
+def ritz_upper_bounds(K, M, W) -> np.ndarray:
+    """Ritz values theta_0 <= ... <= theta_{p-1} of the pencil compressed to span W (W: n x p, full column rank).
+
+    Poincare separation: lambda_i(K, M) <= theta_i for i < p, hence sum_{i<p} lambda_i <= tr[(W^T M W)^{-1} W^T K W]
+    (the Ky Fan trial bound). Valid for the DISCRETE pencil. Raises PencilError if cond(W^T M W) > 1e12."""
+    W = np.asarray(W, dtype=float)
+    if W.ndim != 2 or W.shape[0] != K.shape[0]:
+        raise ValueError(f"W must have shape (n, p) with n = {K.shape[0]}")
+    KW, MW = np.asarray(K @ W), np.asarray(M @ W)
+    G = W.T @ MW
+    G = (G + G.T) / 2
+    H = W.T @ KW
+    H = (H + H.T) / 2
+    c = np.linalg.cond(G)
+    if not np.isfinite(c) or c > 1e12:
+        raise PencilError(f"W must have full column rank: cond(W^T M W) = {c:.3g} > 1e12")
+    return sla.eigh(H, G, eigvals_only=True)
