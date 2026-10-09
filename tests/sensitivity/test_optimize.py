@@ -118,16 +118,20 @@ def test_default_args_stationary_stops_quickly(case):
 def test_census_no_max_iter():
     rng = np.random.default_rng(2026)
     times, stops = [], []
-    for i in range(100):
-        kind = i % 4
+    for i in range(108):
+        kind = i % 4 if i < 100 else 4 + i % 2
         if kind == 0:
             args, kw = (_sym(rng, 6, 2, 2),), {}
         elif kind == 1:
             args, kw = (_sym(rng, 4, 2, 2), _sym(rng, 4, 2, 2)), {}
         elif kind == 2:
             args, kw = (_sym(rng, 6, 2, 2),), {"bound_signs": rng.choice([-1.0, 0.0, 1.0], 6)}
-        else:
+        elif kind == 3:
             args, kw = (_sym(rng, 6, 3, 3),), {"null_basis": np.linalg.qr(rng.standard_normal((6, 4)))[0]}
+        elif kind == 4:
+            args, kw = (_sym(rng, 64, 4, 4),), {"bound_signs": rng.choice([-1.0, 0.0, 1.0], 64, p=[0.45, 0.1, 0.45])}
+        else:
+            args, kw = (_sym(rng, 64, 2, 2), _sym(rng, 64, 2, 2)), {"bound_signs": rng.choice([-1.0, 0.0, 1.0], 64)}
         t0 = time.perf_counter()
         r = ascent_direction(*args, **kw)
         times.append(time.perf_counter() - t0)
@@ -162,3 +166,25 @@ def test_unreachable_tol_stops_no_progress_with_best_certificate():
         assert r.stop in ("gap", "no_progress") and r.n_iter < 1000
         assert r.duality_gap <= 1e-12 * _gscale(Au, Al)
     assert "no_progress" in stops
+
+
+@pytest.mark.parametrize("kind", ["m4_bounds", "gap_bounds"])
+def test_d64_with_bounds_fast(kind):
+    """Spec 13 target (d = 64, m <= 4 in < 50 ms) with many variables at bounds, the configuration of Task 9."""
+    rng = np.random.default_rng(64)
+    times = []
+    for _ in range(15):
+        if kind == "m4_bounds":
+            args = (_sym(rng, 64, 4, 4),)
+            signs = rng.choice([-1.0, 0.0, 1.0], 64, p=[0.45, 0.1, 0.45])
+        else:
+            args = (_sym(rng, 64, 2, 2), _sym(rng, 64, 2, 2))
+            signs = rng.choice([-1.0, 0.0, 1.0], 64)
+        t0 = time.perf_counter()
+        r = ascent_direction(*args, bound_signs=signs)
+        times.append(time.perf_counter() - t0)
+        assert r.stop in ("gap", "stationary") and r.duality_gap <= 1e-10 * _gscale(*args)
+        assert np.all(signs * r.d >= 0)
+    med = float(np.median(times))
+    print(f"d=64 {kind}: median {med * 1e3:.1f} ms, max {max(times) * 1e3:.1f} ms")
+    assert med < 0.05 and max(times) < 0.5

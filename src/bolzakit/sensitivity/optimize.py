@@ -58,7 +58,7 @@ class AscentDirection:
     rates: np.ndarray              # eigvalsh(A_upper(d))
     rates_lower: np.ndarray | None # eigvalsh(A_lower(d)); Gap only
     n_iter: int                    # FISTA iterations
-    stop: str                      # "gap", "stationary", "max_iter" or "no_progress" (see ascent_direction)
+    stop: str                      # "gap", "stationary", "no_progress" or "max_iter" (contract: ascent_direction)
 
 
 @dataclass(frozen=True)
@@ -124,6 +124,10 @@ def _proj_spectraplex(Y: np.ndarray) -> np.ndarray:
 
 def _project_face(N: np.ndarray, r: np.ndarray, fixed: np.ndarray) -> np.ndarray:
     """Orthogonal projection of r onto {d in span N : d_l = 0 for l in fixed} (N orthonormal columns)."""
+    if N.shape[0] == N.shape[1]:                 # span N = R^d: just zero the fixed coordinates
+        d = r.copy()
+        d[fixed] = 0.0
+        return d
     if not fixed.any():
         return N @ (N.T @ r)
     E = N[fixed]                                  # rows of N for the fixed coordinates
@@ -150,7 +154,8 @@ def _feasible_direction(N, r, signs, mu):
 
 
 _POLISH_RELS = (0.0, 1e-8, 1e-4, -1.0)   # polish faces: current range, two shrunken ranges, whole space
-_ROTATE_EVERY = 20                        # iterations between range-rotating refinements (and at every restart)
+_ROTATE_AFTER = 3     # rotate the range after this many checks (every 10 iterations) without halving the gap
+_ROTATE_NFEV = 30     # Gauss-Newton evaluations per rotation
 
 
 def ascent_direction(A_upper, A_lower=None, *, null_basis=None, bound_signs=None, tol=1e-10,
@@ -160,9 +165,17 @@ def ascent_direction(A_upper, A_lower=None, *, null_basis=None, bound_signs=None
     A_upper, A_lower: splitting-matrix stacks (d, m, m). null_basis: orthonormal basis (d, q) of null(A_eq), None
     for R^d. bound_signs: (d,) in {-1, 0, +1}: +1 at a lower bound, -1 at an upper bound, 0 free. Stops at the first
     of (a) phi_upper - phi <= tol * max(1, ||G||_2); (b) phi_upper <= stat_tol * max(1, |f_value|); (c) max_iter;
-    (e) no progress (two consecutive restarts: f stalled at rounding level). stop is "gap" for (a), "stationary" for
-    (b) or for (a) with phi <= 0 (d = 0), "max_iter" for (c) and "no_progress" for (e); for (c) and (e) the returned
-    point is the best certified one seen (smallest phi_upper - phi), so phi <= phi* <= phi_upper still holds."""
+    (e) no progress (two consecutive restarts: f stalled at rounding level).
+
+    Contract on the returned stop (always phi <= phi* <= phi_upper, d feasible, unit or zero):
+    - "gap": phi_upper - phi <= tol * gscale with phi > 0; d is a certified unit ascent direction of rate phi.
+    - "stationary": d = 0 and phi = 0, and either phi_upper <= stat_tol * max(1, |f_value|) (rule b) or
+      phi_upper <= tol * gscale (rule a reached with phi <= 0): phi* = 0 to that accuracy (a first-order KKT point
+      of the reduced model).
+    - "no_progress" / "max_iter": the best certified point seen; the gap may exceed tol * gscale. d may be 0 with
+      phi = 0 (no feasible direction with a positive certified rate was found); then phi_upper bounds phi*.
+    Callers (the Task 7/9 driver) take a step only for phi > 0, treat "stationary" as convergence, and treat
+    "no_progress"/"max_iter" with d = 0 as stationary to accuracy phi_upper."""
     Au = np.asarray(A_upper, dtype=float)
     if Au.ndim != 3 or Au.shape[1] != Au.shape[2]:
         raise ValueError("A_upper must have shape (d, m, m)")
@@ -248,23 +261,29 @@ def ascent_direction(A_upper, A_lower=None, *, null_basis=None, bound_signs=None
             cons.append(np.array([np.trace(F) for F in Fb]))
             z0.append(np.einsum("ia,ij,jb,kab->k", W, Y, W, Fb))   # current Y in the face coordinates
         act = np.nonzero(m > (rel * m.max() if rel >= 0 and m.size else -1.0))[0]
-        Tp = P @ np.hstack(col_blocks + [S[:, act]])
-        nz = Tp.shape[1]
-        C = np.zeros((len(cons), nz))
+        TY = P @ np.hstack(col_blocks)
+        nY = TY.shape[1]
+        C = np.zeros((len(cons), nY))
         off = 0
         for b, c in enumerate(cons):
             C[b, off:off + len(c)] = c
             off += len(c)
-        KKT = np.block([[Tp.T @ Tp, C.T], [C, np.zeros((len(cons), len(cons)))]])
-        rhs = np.concatenate([np.zeros(nz), np.ones(len(cons))])
-        z = np.linalg.lstsq(KKT, rhs, rcond=None)[0][:nz]
-        # the minimisers form z + null([Tp; C]); take the one nearest the current iterate, which stays PSD when the
-        # iterate lies inside a non-unique optimal face (e.g. phi* = 0 with a family of dual certificates)
-        z0 = np.concatenate(z0 + [m[act]])
-        Q = np.vstack([Tp, C])
-        _, sv, Vt = np.linalg.svd(Q, full_matrices=True)
-        Nn = Vt[int(np.sum(sv > 1e-12 * max(1.0, sv[0] if sv.size else 1.0))):].T
-        z = z + Nn @ (Nn.T @ (z0 - z))
+        zY0 = np.concatenate(z0)
+        for _ in range(len(act) + 1):         # active-set drop: free multipliers that come out negative are removed
+            Tp = np.hstack([TY, S[:, act]])
+            nz = Tp.shape[1]
+            Cp = np.hstack([C, np.zeros((len(cons), len(act)))])
+            KKT = np.block([[Tp.T @ Tp, Cp.T], [Cp, np.zeros((len(cons), len(cons)))]])
+            # solve for the step from the current iterate zc: the KKT null space is null([Tp; C]) x {0}, so the
+            # minimum-norm step gives the minimiser nearest the iterate, which stays PSD when the iterate lies inside
+            # a non-unique optimal face (e.g. phi* = 0 with a family of dual certificates)
+            zc = np.concatenate([zY0, m[act]])
+            rhs = np.concatenate([-(Tp.T @ (Tp @ zc)), 1.0 - Cp @ zc])
+            z = zc + np.linalg.lstsq(KKT, rhs, rcond=None)[0][:nz]
+            neg = z[nY:] < 0
+            if not neg.any():
+                break
+            act = act[~neg]
         off, Ys = 0, []
         for Fb, W in faces:
             Ys.append(W @ np.einsum("k,kab->ab", z[off:off + len(Fb)], Fb) @ W.T)
@@ -279,35 +298,49 @@ def ascent_direction(A_upper, A_lower=None, *, null_basis=None, bound_signs=None
         return (np.linalg.eigvalsh(Yu)[0] >= -1e-12 and (Yl is None or np.linalg.eigvalsh(Yl)[0] >= -1e-12)
                 and bool(np.all(m >= 0)))
 
+    PAu = np.einsum("kl,lab->kab", P, Au)           # projected stacks: residual = sum_b sgn_b <PA_b, Y_b> + P S mu
+    PAl = None if Al is None else np.einsum("kl,lab->kab", P, Al)
+
     def rotate(x):
-        """Range-rotating refinement (Burer-Monteiro): Y = R R^T / |R|_F^2 per block and mu = s^2, so every point is
-        feasible; minimise |T x|^2 over (R, s) by least squares from the current iterate. The face polish keeps the
+        """Range-rotating refinement (Burer-Monteiro): Y = R R^T / |R|_F^2 per block, so every point is feasible;
+        minimise |T x|^2 over R by a few Gauss-Newton (trust-region) steps from the current iterate, with the
+        multipliers held fixed (the face polish adjusts them) and an analytic Jacobian. The face polish keeps the
         range of Y fixed; this moves it, which the first-order iteration does only slowly when the optimal Y is
         rank-deficient (a sharp optimum where several small eigenvalues of A(d) cross)."""
         Yu, Yl, m = unpack(x)
-        blocks = [Y for Y in (Yu, Yl) if Y is not None]
-        sizes = [Y.shape[0] for Y in blocks]
+        blocks = [(Yu, PAu, 1.0)] + ([] if Al is None else [(Yl, PAl, -1.0)])
+        const = T[:, nu + nl:] @ m
 
-        def split(v):
+        def Rs(v):
             out, off = [], 0
-            for k in sizes:
-                R = v[off:off + k * k].reshape(k, k)
-                out.append(R @ R.T / max(np.sum(R * R), 1e-300))
+            for Y, _, _ in blocks:
+                k = Y.shape[0]
+                out.append(v[off:off + k * k].reshape(k, k))
                 off += k * k
-            return out, v[off:] ** 2
+            return out
 
         def res(v):
-            Ys, mm = split(v)
-            return T @ pack(Ys[0], Ys[1] if Al is not None else None, mm)
+            out = const.copy()
+            for (_, PA, sg), R in zip(blocks, Rs(v)):
+                out += sg * np.einsum("kab,ab->k", PA, R @ R.T) / max(np.sum(R * R), 1e-300)
+            return out
+
+        def jac(v):                     # d<PA_l, R R^T / c>/dR = (2/c) (PA_l R - <PA_l, Y> R)
+            J = []
+            for (_, PA, sg), R in zip(blocks, Rs(v)):
+                c = max(np.sum(R * R), 1e-300)
+                g = np.einsum("kab,ab->k", PA, R @ R.T) / c
+                J.append((sg * 2 / c) * (np.einsum("kab,bc->kac", PA, R) - g[:, None, None] * R).reshape(dim, -1))
+            return np.hstack(J)
 
         v0 = []
-        for Y in blocks:
+        for Y, _, _ in blocks:
             w, V = np.linalg.eigh(Y)
             v0.append((V * np.sqrt(np.maximum(w, 0.0) + 1e-12)).ravel())
-        v0 = np.concatenate(v0 + [np.sqrt(np.maximum(m, 0.0))])
-        v = least_squares(res, v0, method="trf", xtol=1e-15, ftol=1e-15, gtol=1e-15, max_nfev=200 * len(v0)).x
-        Ys, mm = split(v)
-        return pack(Ys[0], Ys[1] if Al is not None else None, mm)
+        v = least_squares(res, np.concatenate(v0), jac=jac, method="trf", xtol=1e-15, ftol=1e-15, gtol=1e-15,
+                          max_nfev=_ROTATE_NFEV).x
+        Ys = [R @ R.T / max(np.sum(R * R), 1e-300) for R in Rs(v)]
+        return pack(Ys[0], Ys[1] if Al is not None else None, m)
 
     best = None   # (gap, x, d, phi, rates, rates_lower) with the smallest certified gap so far
 
@@ -330,7 +363,22 @@ def ascent_direction(A_upper, A_lower=None, *, null_basis=None, bound_signs=None
     x = pack(np.eye(mu_) / mu_, None if Al is None else np.eye(Al.shape[1]) / Al.shape[1], np.zeros(len(B)))
     y, t = x.copy(), 1.0
     fprev = 0.5 * float(np.sum((T @ x) ** 2))
-    stop, it, restarted = "max_iter", 0, False
+    stop, it, restarted, stalled = "max_iter", 0, False, False
+    stale, prev_gap, f_at_rot = 0, np.inf, np.inf
+
+    def adopt(cand):
+        """Certify cand; if it lowers the dual objective, move the iterate there and restart the momentum."""
+        nonlocal x, y, t, fprev, restarted, stalled
+        if cand is None:
+            return
+        fc = certify(cand)
+        if fc < fprev:
+            x, y, t, fprev, restarted, stalled = cand, cand.copy(), 1.0, fc, False, False
+
+    def polish_all():
+        for rel in _POLISH_RELS:
+            adopt(polish(x, rel))
+
     for it in range(1, max_iter + 1):
         x_new = project(y - (T.T @ (T @ y)) / L)
         r = T @ x_new
@@ -350,24 +398,18 @@ def ascent_direction(A_upper, A_lower=None, *, null_basis=None, bound_signs=None
             break
         if it == 1 or it % 10 == 0 or restarted:
             certify(x)
-            for rnd in range(2):
-                if rnd == 1:                  # the fixed-range polish did not close the gap: rotate, then re-polish
-                    if best[0] <= tol * gscale or not (it % _ROTATE_EVERY == 0 or restarted):
-                        break
-                    cand = rotate(x)
-                    fc = certify(cand)
-                    if fc < fprev:
-                        x, y, t, fprev, restarted, stalled = cand, cand.copy(), 1.0, fc, False, False
-                for rel in _POLISH_RELS:
-                    cand = polish(x, rel)
-                    if cand is None:
-                        continue
-                    fc = certify(cand)
-                    if fc < fprev:            # adopt the better polished point and restart the momentum there
-                        x, y, t, fprev, restarted, stalled = cand, cand.copy(), 1.0, fc, False, False
+            polish_all()
+            # rotate only when the fixed-range polish has stalled: several checks without halving the certified gap,
+            # or a stall of the iteration itself, and only if f moved since the last rotation
+            if best[0] > tol * gscale and (stale >= _ROTATE_AFTER or stalled) and fprev < f_at_rot:
+                f_at_rot, stale = fprev, 0
+                adopt(rotate(x))
+                polish_all()
             if best[0] <= tol * gscale:
                 stop = "gap"
                 break
+            stale = stale + 1 if best[0] > 0.5 * prev_gap else 0
+            prev_gap = best[0]
         if stalled:
             stop = "no_progress"
             break
