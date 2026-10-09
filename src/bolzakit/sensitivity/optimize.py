@@ -13,7 +13,7 @@ is not controlled. Imports only numpy/scipy and bolzakit.sensitivity.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Callable
 
 import numpy as np
@@ -24,7 +24,7 @@ from bolzakit.sensitivity import core as _core
 from bolzakit.sensitivity.core import DISCRETE_CAVEAT, ritz_upper_bounds, splitting_matrices
 
 __all__ = ["ParametricPencil", "LowestEigenvalue", "Gap", "AscentDirection", "ascent_direction", "IterRecord",
-           "EigenOptResult"]
+           "EigenOptResult", "maximize_eigenvalue"]
 
 
 # ----------------------------------------------------------------------------------------------- types
@@ -510,3 +510,209 @@ def ascent_direction(A_upper, A_lower=None, *, null_basis=None, bound_signs=None
             stop = "no_progress"
     return AscentDirection(d=d, phi=phi, phi_upper=phi_upper, duality_gap=max(phi_upper - phi, 0.0), Y_upper=Yu,
                            Y_lower=Yl, mu=mu_full, rates=ru, rates_lower=rl, n_iter=it, stop=stop)
+
+
+# ----------------------------------------------------------------------------------------------- driver helpers
+def _window(K, M, sparse, k_low: int, k_up: int, mult_rtol: float, validate: bool):
+    """Eigenpairs through the top of the single-linkage cluster based at k_up (plus one), and that cluster's top j.
+    Returns w, V, j, s. The scale s = max(|lambda_0|, |lambda_{k_low+1}|, 1e-300) is fixed before the growth."""
+    n = K.shape[0]
+    if validate:
+        _core._validate(K, M, sparse)
+    count = min(n, k_up + 4)
+    while True:
+        w, V = _core._eigs(K, M, count, sparse)
+        s = max(abs(w[0]), abs(w[k_low + 1]) if k_low + 1 < len(w) else 0.0, 1e-300)
+        j = k_up
+        while j + 1 < len(w) and w[j + 1] - w[j] <= mult_rtol * s:
+            j += 1
+        if j + 1 < len(w) or count == n:
+            return w, V, j, s
+        count = min(n, count + 4)
+
+
+def _as_list(X, d):
+    X = list(X)
+    if len(X) != d:
+        raise ValueError(f"pencil.dK(p) / pencil.dM(p) must return {d} matrices")
+    return X
+
+
+def _normalised_ascent(A_up, A_lo, f, c, **kw) -> AscentDirection:
+    """ascent_direction on the stacks divided by the eigenvalue scale c > 0, with f_value = f / c, mapped back to the
+    original units: d and Y are scale-free; phi, phi_upper, the duality gap, mu and the rates scale by c.
+
+    c is the eigenvalue scale s of the pencil (not ||A||: the splitting matrices vanish at a smooth stationary point,
+    and dividing by them would blow the residual back up to O(1)). The stacks then hold O(||dK/dp|| / s) data
+    whatever the units of K and M, so the subproblem's absolute floors act relatively: in the original units its
+    stopping rules read phi_upper <= stat_tol * max(c, |f|) and phi_upper - phi <= tol * max(c, ||A||_2)."""
+    ad = ascent_direction(A_up / c, None if A_lo is None else A_lo / c, f_value=f / c, **kw)
+    return replace(ad, phi=ad.phi * c, phi_upper=ad.phi_upper * c, duality_gap=ad.duality_gap * c, mu=ad.mu * c,
+                   rates=ad.rates * c, rates_lower=None if ad.rates_lower is None else ad.rates_lower * c)
+
+
+def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, upper=None, A_eq=None, b_eq=None,
+                        step0: float | None = None, max_iter: int = 100, mult_rtol: float = 1e-3,
+                        stat_tol: float = 1e-8, armijo: float = 1e-4, screen: bool = True,
+                        callback: Callable | None = None, _debug_screen: bool = False,
+                        _direction: Callable | None = None, _max_eigensolves: int | None = None,
+                        _subproblem_max_iter: int = 2_000) -> EigenOptResult:
+    """Maximise lambda_k(p) (LowestEigenvalue(k)) or lambda_{k+1}(p) - lambda_k(p) (Gap(k)) subject to
+    lower <= p <= upper and A_eq p = b_eq, by multiple-eigenvalue steepest ascent with an Armijo trust region
+    (spec 7). Raises ValueError for an infeasible p0 and TypeError for an unknown objective. Statuses:
+    - "stationary": the subproblem returned stop "stationary" (phi* = 0 to its accuracy: an eps-stationary point
+      of the reduced model, eps = mult_rtol * s). This is the only certified convergence status.
+    - "subproblem_not_converged": the subproblem stopped "no_progress" or "max_iter" with no certified ascent
+      direction (d = 0, phi = 0); phi_upper bounds phi* but is NOT certified to stat_tol. (A "no_progress" /
+      "max_iter" result with phi > 0 still carries a certified ascent direction of rate phi and is stepped along.)
+    - "step_too_small": the trust radius fell below 1e-10 * step0 without an accepted step.
+    - "max_iter": max_iter outer iterations (or _max_eigensolves eigensolves).
+    - "lower_coalescence" (LowestEigenvalue(k), k > 0): lambda_k coalesced with lambda_{k-1}.
+    - "gap_closed" (Gap): lambda_{k+1} - lambda_k <= mult_rtol * s.
+
+    The splitting stacks are divided by the eigenvalue scale s before each subproblem (_normalised_ascent), so the
+    iteration is invariant under K -> a K, M -> b M, and "stationary" means phi_upper <= stat_tol * max(s, |f|); the subproblem budget is capped by _subproblem_max_iter (default 2000, about twice the
+    longest tail in the ascent_direction census, i.e. well under a second for small stacks).
+
+    Private keywords (tests and examples only): _debug_screen eigensolves every screened trial and asserts the
+    Armijo test would have failed; _direction(sm_upper, null_basis, bound_signs) -> (d, rate) replaces the
+    steepest-ascent direction (the plate example's naive baseline); _max_eigensolves caps eigensolves (status
+    "max_iter"); _subproblem_max_iter is ascent_direction's max_iter."""
+    if not isinstance(objective, (Gap, LowestEigenvalue)):
+        raise TypeError("objective must be LowestEigenvalue or Gap")
+    p = np.array(p0, dtype=float).ravel()
+    dim = p.size
+    lo = np.full(dim, -np.inf) if lower is None else np.broadcast_to(np.asarray(lower, float), (dim,)).copy()
+    hi = np.full(dim, np.inf) if upper is None else np.broadcast_to(np.asarray(upper, float), (dim,)).copy()
+    if np.any(p < lo) or np.any(p > hi):
+        raise ValueError("p0 violates the bounds")
+    N = None
+    if A_eq is not None:
+        A_eq = np.atleast_2d(np.asarray(A_eq, float))
+        b_eq = np.zeros(A_eq.shape[0]) if b_eq is None else np.atleast_1d(np.asarray(b_eq, float))
+        if np.linalg.norm(A_eq @ p - b_eq) > 1e-10 * max(1.0, np.linalg.norm(b_eq)):
+            raise ValueError("p0 violates A_eq p = b_eq")
+        N = sla.null_space(A_eq)
+    is_gap = isinstance(objective, Gap)
+    k = int(objective.k)
+    span = hi - lo
+    if step0 is None:
+        step0 = (0.05 * float(np.max(span)) if np.all(np.isfinite(span))
+                 else 0.05 * max(1.0, float(np.max(np.abs(p)))))
+    D0 = float(step0)
+    Delta, Dmax = D0, 100 * D0
+    hist: list = []
+    counters = {"eig": 0, "screened": 0}
+
+    def evaluate(q):
+        K, M, sparse = _core._prepare(pencil.K(q), pencil.M(q))
+        counters["eig"] += 1
+        w, V, j, s = _window(K, M, sparse, k, k + 1 if is_gap else k, mult_rtol, validate=True)
+        return K, M, sparse, w, V, j, s
+
+    def value(w):
+        return float(w[k + 1] - w[k]) if is_gap else float(w[k])
+
+    def log(rec):
+        hist.append(rec)
+        if callback:
+            callback(rec)
+
+    def finish(status, st, it, ad):
+        w, j = st[3], st[5]
+        mult = j - (k + 1 if is_gap else k) + 1
+        return EigenOptResult(p=p.copy(), value=value(w), eigvals=w[:j + 2].copy(), multiplicity=mult,
+                              phi=ad.phi if ad else float("nan"), phi_upper=ad.phi_upper if ad else float("nan"),
+                              Y_upper=ad.Y_upper if ad else np.zeros((0, 0)), Y_lower=ad.Y_lower if ad else None,
+                              mu=ad.mu if ad else np.zeros(dim), status=status, n_iter=it,
+                              n_eigensolves=counters["eig"], n_screened=counters["screened"], history=tuple(hist))
+
+    st = evaluate(p)
+    ad = None
+    for it in range(max_iter):
+        K, M, sparse, w, V, j, s = st
+        f = value(w)
+        # active clusters and status conditions
+        if is_gap:
+            if w[k + 1] - w[k] <= mult_rtol * s:
+                return finish("gap_closed", st, it, ad)
+            i = k
+            while i > 0 and w[i] - w[i - 1] <= mult_rtol * s:
+                i -= 1
+            up, low = (k + 1, j), (i, k)
+        else:
+            if k > 0 and w[k] - w[k - 1] <= mult_rtol * s:
+                return finish("lower_coalescence", st, it, ad)
+            up, low = (k, j), None
+        dKs = _as_list(pencil.dK(p), dim)
+        dMs = None if pencil.dM is None else _as_list(pencil.dM(p), dim)
+        sm_up = splitting_matrices(K, M, dKs, dMs, up, eig=(w, V), check_gap=False, validate=False)
+        sm_lo = (splitting_matrices(K, M, dKs, dMs, low, eig=(w, V), check_gap=False, validate=False)
+                 if low else None)
+        # at-bound test: within 1e-12 (relative) or within a negligible 1e-6 fraction of the trust radius, so a
+        # variable a rounding distance from its bound never limits the step to ~1e-12
+        tolb = np.maximum(1e-12 * np.where(np.isfinite(span), np.maximum(1.0, span), 1.0), 1e-6 * Delta)
+        signs = np.where(p - lo <= tolb, 1.0, np.where(hi - p <= tolb, -1.0, 0.0))
+        if _direction is None:
+            c = s if s > 1e-300 else 1.0
+            ad = _normalised_ascent(sm_up.mats, None if sm_lo is None else sm_lo.mats, f, c, null_basis=N,
+                                    bound_signs=signs, max_iter=_subproblem_max_iter, stat_tol=stat_tol)
+            # Stationary: the subproblem's "stationary" label, or its rule (b) met by the certified dual bound
+            # (phi* <= phi_upper <= stat_tol * max(1, |f| / c) in the normalised units). The latter covers a "gap" stop
+            # whose tiny certified phi > 0 the subproblem reported first (it checks rule (b) on its FISTA iterate,
+            # not on the polished point); without it the driver zigzags at rate ~1e-9 until step_too_small/max_iter.
+            if ad.stop == "stationary" or ad.phi_upper <= stat_tol * max(c, abs(f)):
+                return finish("stationary", st, it, ad)
+            # "no_progress"/"max_iter" with d = 0 certify nothing beyond phi* <= phi_upper: not converged. With
+            # phi > 0 they still carry a certified ascent direction of rate phi, which the step below uses.
+            if ad.phi <= 0:
+                return finish("subproblem_not_converged", st, it, ad)
+            d, phi = ad.d, ad.phi
+        else:
+            d, phi = _direction(sm_up, N, signs)
+            d = np.asarray(d, dtype=float)
+            phi = float(phi)
+            ad = AscentDirection(d=d, phi=phi, phi_upper=phi, duality_gap=0.0, Y_upper=np.zeros((0, 0)),
+                                 Y_lower=None, mu=np.zeros(dim), rates=np.linalg.eigvalsh(
+                                     np.einsum("l,lab->ab", d, sm_up.mats)), rates_lower=None, n_iter=0, stop="gap")
+            if not np.any(d) or phi <= 0:
+                return finish("stationary", st, it, ad)
+        # maximal feasible step along d
+        with np.errstate(divide="ignore", invalid="ignore"):
+            steps = np.where(d > 1e-15, (hi - p) / d, np.where(d < -1e-15, (lo - p) / d, np.inf))
+        tau_b = float(np.min(steps)) if steps.size else np.inf
+        mult = up[1] - up[0] + 1
+        accepted = False
+        while not accepted:
+            if Delta < 1e-10 * D0:
+                return finish("step_too_small", st, it, ad)
+            if _max_eigensolves is not None and counters["eig"] >= _max_eigensolves:
+                return finish("max_iter", st, it, ad)
+            tau = min(Delta, tau_b)
+            q = np.clip(p + tau * d, lo, hi)
+            target = f + armijo * tau * phi
+            if screen and not is_gap:
+                Kq, Mq = pencil.K(q), pencil.M(q)
+                theta = ritz_upper_bounds(Kq, Mq, V[:, :j + 1])[k]
+                # rounding margin (scale-free: relative to the eigenvalue scale s); lambda_k <= theta_k
+                if theta + 1e-12 * max(abs(f), s) < target:
+                    counters["screened"] += 1
+                    if _debug_screen:
+                        Kc, Mc, sq = _core._prepare(Kq, Mq)
+                        wq = _core._eigs(Kc, Mc, k + 1, sq)[0]
+                        assert wq[k] < target, "screen rejected a step that passes the Armijo test"
+                    log(IterRecord(it, f, mult, phi, ad.phi_upper, tau, False, True, ad.rates))
+                    Delta = tau / 2
+                    continue
+            st_q = evaluate(q)
+            fq = value(st_q[3])
+            accepted = fq >= target
+            log(IterRecord(it, f, mult, phi, ad.phi_upper, tau, accepted, False, ad.rates))
+            if accepted:
+                # spec 7 step 8; a bound-limited step (tau < Delta) never shrinks Delta
+                if fq - f >= 0.75 * tau * phi:
+                    Delta = min(max(2 * tau, Delta), Dmax)
+                p, st = q, st_q
+            else:
+                Delta = tau / 2
+    return finish("max_iter", st, max_iter, ad)

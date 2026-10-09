@@ -1,7 +1,8 @@
 import time
 import numpy as np, pytest
 import scipy.linalg as sla
-from bolzakit.sensitivity.optimize import ascent_direction
+from bolzakit.sensitivity.optimize import (ParametricPencil, LowestEigenvalue, Gap, EigenOptResult, IterRecord,
+                                           ascent_direction, maximize_eigenvalue)
 
 
 def _lmin(Au, d):
@@ -317,3 +318,210 @@ def test_uncertified_direction_is_never_returned(monkeypatch):
     r = ascent_direction(*args, **kw)
     _assert_certificate(r, *args, **kw)
     assert np.all(r.d == 0) and r.phi == 0 and r.stop in ("stationary", "no_progress")
+
+
+# ------------------------------------------------------------------ maximize_eigenvalue
+def _linear_pencil(Ss, M=None):
+    Ss = [np.asarray(S, float) for S in Ss]
+    n = Ss[0].shape[0]
+    Mm = np.eye(n) if M is None else M
+    return ParametricPencil(K=lambda p: sum(pl * S for pl, S in zip(p, Ss)), M=lambda p: Mm, dK=lambda p: Ss)
+
+
+def test_bounds_driver_R1():
+    pen = ParametricPencil(K=lambda p: np.diag([p[0], 2 - p[0]]), M=lambda p: np.eye(2),
+                           dK=lambda p: [np.diag([1.0, -1.0])])
+    seen = []
+    res = maximize_eigenvalue(pen, [0.0], LowestEigenvalue(0), lower=[0.0], upper=[2.0], callback=seen.append)
+    assert isinstance(res, EigenOptResult) and res.status == "stationary"
+    assert len(seen) == len(res.history) > 0 and all(a is b for a, b in zip(seen, res.history))   # callback
+    assert abs(res.p[0] - 1) < 1e-3 and abs(res.value - 1) < 1e-3
+    assert all(isinstance(h, IterRecord) for h in res.history)
+
+
+def _simplex_instance(seed):
+    rng = np.random.default_rng(seed)
+    Ss = []
+    for _ in range(3):
+        X = rng.standard_normal((3, 3)); Ss.append((X + X.T) / 2 + 2 * np.eye(3))
+    return Ss
+
+
+def _grid_simplex(fun, h=1e-3):
+    a = np.arange(0, 1 + h / 2, h)
+    A, B = np.meshgrid(a, a, indexing="ij")
+    mask = A + B <= 1 + 1e-12
+    P = np.stack([A[mask], B[mask], 1 - A[mask] - B[mask]], axis=1)
+    vals = fun(P)
+    i = int(np.argmax(vals))
+    return P[i], vals[i]
+
+
+def _nm_polish(fun1, p_start):
+    from scipy.optimize import minimize
+    def neg(x):
+        p = np.array([x[0], x[1], 1 - x[0] - x[1]])
+        if np.any(p < 0):
+            return 1e3 + float(np.sum(np.minimum(p, 0) ** 2))
+        return -fun1(p)
+    r = minimize(neg, p_start[:2], method="Nelder-Mead",
+                 options={"xatol": 1e-12, "fatol": 1e-14, "maxiter": 20000})
+    return np.array([r.x[0], r.x[1], 1 - r.x[0] - r.x[1]]), -r.fun
+
+
+def test_simplex_lowest_eigenvalue_matches_reference():
+    Ss = _simplex_instance(3)
+    lmin = lambda P: np.linalg.eigvalsh(np.einsum("nl,lab->nab", P, np.array(Ss)))[:, 0]
+    p_ref, _ = _grid_simplex(lmin)
+    _, v_ref = _nm_polish(lambda p: lmin(p[None])[0], p_ref)
+    res = maximize_eigenvalue(_linear_pencil(Ss), np.ones(3) / 3, LowestEigenvalue(0), lower=np.zeros(3),
+                              upper=np.ones(3), A_eq=np.ones((1, 3)), b_eq=[1.0], max_iter=200)
+    assert abs(res.value - v_ref) < 1e-5, (res.status, res.value, v_ref)
+    assert abs(res.p.sum() - 1) < 1e-10 and np.all(res.p >= 0)
+    vals = [h.value for h in res.history if h.accepted]
+    assert all(b >= a - 1e-14 for a, b in zip(vals, vals[1:]))       # monotone accepted iterates
+
+
+def test_simplex_gap_polished_from_endpoint():
+    Ss = _simplex_instance(4)
+    gap = lambda p: (lambda w: w[1] - w[0])(np.linalg.eigvalsh(sum(pl * S for pl, S in zip(p, Ss))))
+    res = maximize_eigenvalue(_linear_pencil(Ss), np.ones(3) / 3, Gap(0), lower=np.zeros(3), upper=np.ones(3),
+                              A_eq=np.ones((1, 3)), b_eq=[1.0], max_iter=200)
+    assert res.status in ("stationary", "step_too_small") and res.Y_lower is not None
+    _, v_pol = _nm_polish(gap, res.p)
+    assert v_pol - res.value <= 1e-6 and abs(res.p.sum() - 1) < 1e-10 and np.all(res.p >= 0)
+
+
+def _concave_pencil():
+    # lambda_0(p) = p - p^2 (eigenvector e0 for all p near [0, 1]); maximum 1/4 at p = 1/2
+    return ParametricPencil(K=lambda p: np.diag([p[0] - p[0] ** 2, 5.0]), M=lambda p: np.eye(2),
+                            dK=lambda p: [np.diag([1 - 2 * p[0], 0.0])])
+
+
+def test_screen_soundness_forced():
+    # step0 = 10 overshoots: theta_0 = tau - tau^2 << target, so the screen must fire. _debug_screen eigensolves
+    # every screened trial and asserts that the Armijo test would have failed too.
+    res = maximize_eigenvalue(_concave_pencil(), [0.0], LowestEigenvalue(0), step0=10.0, _debug_screen=True)
+    assert res.n_screened >= 1 and res.status == "stationary"
+    assert abs(res.p[0] - 0.5) < 1e-4 and abs(res.value - 0.25) < 1e-8
+
+
+def test_status_lower_coalescence():
+    pen = ParametricPencil(K=lambda p: np.diag([1.0, 1.0 + p[0], 3.0]), M=lambda p: np.eye(3),
+                           dK=lambda p: [np.diag([0.0, 1.0, 0.0])])
+    assert maximize_eigenvalue(pen, [0.0], LowestEigenvalue(1)).status == "lower_coalescence"
+
+
+def test_status_gap_closed():
+    pen = ParametricPencil(K=lambda p: np.diag([1.0, 1.0 + p[0], 3.0]), M=lambda p: np.eye(3),
+                           dK=lambda p: [np.diag([0.0, 1.0, 0.0])])
+    assert maximize_eigenvalue(pen, [0.0], Gap(0)).status == "gap_closed"
+
+
+def test_status_step_too_small():
+    # armijo = 1 demands f(tau) >= f + tau * phi, impossible for the strictly concave p - p^2
+    res = maximize_eigenvalue(_concave_pencil(), [0.0], LowestEigenvalue(0), armijo=1.0)
+    assert res.status == "step_too_small" and res.n_screened > 0
+
+
+def test_status_max_iter():
+    Ss = _simplex_instance(3)
+    res = maximize_eigenvalue(_linear_pencil(Ss), np.ones(3) / 3, LowestEigenvalue(0), lower=np.zeros(3),
+                              upper=np.ones(3), A_eq=np.ones((1, 3)), b_eq=[1.0], max_iter=1)
+    assert res.status == "max_iter" and res.n_iter == 1
+
+
+def test_status_stationary_at_start():
+    pen = ParametricPencil(K=lambda p: np.diag([p[0], 2 - p[0]]), M=lambda p: np.eye(2),
+                           dK=lambda p: [np.diag([1.0, -1.0])])
+    res = maximize_eigenvalue(pen, [1.0], LowestEigenvalue(0))
+    assert res.status == "stationary" and res.multiplicity == 2 and res.n_iter == 0
+
+
+def test_status_subproblem_not_converged():
+    # Adapted from the brief: its 2x2 instance is solved exactly by the subproblem's first polish (stop "stationary"
+    # even at max_iter = 1). Here a triple eigenvalue at p = 0 with all four parameters at their lower bound is a
+    # stationary point (phi* = 0) that one subproblem iteration cannot certify: ascent_direction stops "max_iter"
+    # with d = 0, phi = 0, which the driver must report as subproblem_not_converged, never as stationary.
+    X = np.random.default_rng(0).standard_normal((3, 4, 3, 3))[2]
+    big = np.zeros((4, 4, 4))
+    big[:, :3, :3] = (X + X.transpose(0, 2, 1)) / 2
+    pen = ParametricPencil(K=lambda p: np.diag([1.0, 1.0, 1.0, 5.0]) + np.einsum("l,lab->ab", p, big),
+                           M=lambda p: np.eye(4), dK=lambda p: list(big))
+    res = maximize_eigenvalue(pen, np.zeros(4), LowestEigenvalue(0), lower=0.0, stat_tol=0.0, _subproblem_max_iter=1)
+    assert res.status == "subproblem_not_converged" and res.multiplicity == 3
+    assert res.phi == 0.0 and res.phi_upper > 0.1                     # uncertified: phi_upper is far from 0
+    res = maximize_eigenvalue(pen, np.zeros(4), LowestEigenvalue(0), lower=0.0)      # default budget
+    assert res.status == "stationary" and res.phi_upper <= 1e-8
+
+
+def test_infeasible_p0_raises():
+    pen = _linear_pencil(_simplex_instance(3))
+    with pytest.raises(ValueError, match="bounds"):
+        maximize_eigenvalue(pen, [-0.1, 0.6, 0.5], LowestEigenvalue(0), lower=np.zeros(3))
+    with pytest.raises(ValueError, match="A_eq"):
+        maximize_eigenvalue(pen, [0.2, 0.2, 0.2], LowestEigenvalue(0), A_eq=np.ones((1, 3)), b_eq=[1.0])
+
+
+def test_cluster_growth_without_split_error_R3():
+    # lambda_j - lambda_k = 0.99e-3 s and lambda_{j+1} - lambda_k = 1.01e-3 s: single linkage chains them.
+    # s = max(|lambda_0|, |lambda_1|) ~ 1, so mult_rtol * s ~ 1e-3; the core gap rule would reject cluster (0, 1)
+    lam = [1.0, 1.0 + 0.99e-3, 1.0 + 1.01e-3, 1.5, 2.0]
+    rng = np.random.default_rng(5)
+    S1 = rng.standard_normal((5, 5)); S1 = (S1 + S1.T) / 2
+    pen = ParametricPencil(K=lambda p: np.diag(lam) + p[0] * S1, M=lambda p: np.eye(5), dK=lambda p: [S1])
+    res = maximize_eigenvalue(pen, [0.0], LowestEigenvalue(0), max_iter=3)
+    assert res.status in ("stationary", "max_iter", "step_too_small")   # a status, never ClusterSplitError
+    assert res.multiplicity == 3
+
+
+# ------------------------------------------------------------------ review focus (driver)
+def test_sparse_pencil_with_screen_review_focus():
+    # Review Focus 2: FE users pass scipy.sparse K, M, dK; the driver (eigensolve, splitting, screen) must accept them.
+    import scipy.sparse as sp
+    n = 60
+    e = np.ones(n)
+    L = sp.diags([-e[:-1], 2 * e, -e[:-1]], [-1, 0, 1]).tocsc()
+    B = sp.block_diag([L, L], format="csc")                       # every eigenvalue exactly double
+    rng = np.random.default_rng(0)
+    D = [sp.diags(rng.uniform(0.5, 1.5, 2 * n)).tocsc() for _ in range(3)]
+    pen = ParametricPencil(K=lambda p: B + sum(pl * Dl for pl, Dl in zip(p, D)), M=lambda p: sp.identity(2 * n,
+                           format="csc"), dK=lambda p: D)
+    res = maximize_eigenvalue(pen, np.zeros(3), LowestEigenvalue(0), lower=-1.0, upper=1.0, step0=0.5, max_iter=5)
+    assert res.status in ("max_iter", "stationary", "step_too_small") and res.value > res.history[0].value
+    assert res.history[0].multiplicity == 2
+
+
+def test_scalar_bounds_and_integer_p0_review_focus():
+    # Review Focus 4: p0 as a Python list of ints and scalar bounds are broadcast, not rejected.
+    pen = ParametricPencil(K=lambda p: np.diag([p[0], 2 - p[0]]), M=lambda p: np.eye(2),
+                           dK=lambda p: [np.diag([1.0, -1.0])])
+    res = maximize_eigenvalue(pen, [0], LowestEigenvalue(0), lower=0, upper=2)
+    assert res.status == "stationary" and abs(res.p[0] - 1) < 1e-3 and res.p.dtype == float
+
+
+def test_gap_with_upper_cluster_at_top_of_spectrum_review_focus():
+    # Review Focus 5: Gap(k) whose upper cluster ends at lambda_{n-1}: no out-of-range access, a status is returned.
+    pen = ParametricPencil(K=lambda p: np.diag([1.0, 2.0 + p[0], 2.0 + p[1]]), M=lambda p: np.eye(3),
+                           dK=lambda p: [np.diag([0.0, 1.0, 0.0]), np.diag([0.0, 0.0, 1.0])])
+    res = maximize_eigenvalue(pen, [0.0, 0.0], Gap(0), lower=-0.5, upper=0.5, max_iter=20)
+    assert res.multiplicity >= 1 and res.status in ("max_iter", "stationary", "step_too_small")
+    assert res.value >= 1.0 - 1e-12
+
+
+# ------------------------------------------------------------------ scaling (controller ruling, Task 6 review)
+@pytest.mark.parametrize("cK, cM", [(1e6, 1.0), (1e-6, 1.0), (1e6, 1e-6)])
+def test_driver_scale_invariant(cK, cM):
+    # The driver normalises the splitting stacks before ascent_direction, so scaling K by cK and M by cM (eigenvalues
+    # by cK / cM) gives the same iterates: the same final value relative to scale and a similar step count.
+    Ss = _simplex_instance(3)
+    kw = dict(lower=np.zeros(3), upper=np.ones(3), A_eq=np.ones((1, 3)), b_eq=[1.0], max_iter=200)
+    ref = maximize_eigenvalue(_linear_pencil(Ss), np.ones(3) / 3, LowestEigenvalue(0), **kw)
+    Mc = cM * np.eye(3)
+    res = maximize_eigenvalue(_linear_pencil([cK * S for S in Ss], M=Mc), np.ones(3) / 3, LowestEigenvalue(0), **kw)
+    scale = cK / cM
+    assert res.status == ref.status == "stationary", (res.status, ref.status)
+    assert res.n_screened == ref.n_screened
+    assert abs(res.value / scale - ref.value) <= 1e-8 * abs(ref.value)
+    assert abs(res.n_iter - ref.n_iter) <= max(2, ref.n_iter // 5), (res.n_iter, ref.n_iter)
+    assert np.allclose(res.p, ref.p, atol=1e-6)
