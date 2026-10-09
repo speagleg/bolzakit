@@ -58,12 +58,18 @@ def _is_symmetric(X) -> bool:
 
 
 def _sparse_pd_by_lu(X) -> bool:
-    """LU without off-diagonal pivoting, with a symmetric ordering. Sylvester's law makes the signs of diag(U) the
-    inertia, so an all-positive diagonal means positive definite."""
+    """Certify positive definiteness by an LU with diagonal pivoting only, under a symmetric ordering.
+
+    If perm_r == perm_c, the factorisation is P X P^T = L U with L unit lower triangular. For symmetric X this is
+    L D L^T with D = diag(U), and Sylvester's law makes sign(D) the inertia. SuperLU still swaps rows off the
+    diagonal when a diagonal pivot is exactly zero, even with diag_pivot_thresh=0 (e.g. [[0,1],[1,0]] blocks).
+    Then perm_r != perm_c, diag(U) says nothing about the inertia, and the result is "not certified" (False)."""
     try:
         lu = spla.splu(sp.csc_matrix(X), permc_spec="MMD_AT_PLUS_A", diag_pivot_thresh=0.0,
                        options={"SymmetricMode": True})
     except RuntimeError:  # exactly singular
+        return False
+    if not np.array_equal(lu.perm_r, lu.perm_c):
         return False
     d = lu.U.diagonal()
     return bool(np.all(np.isfinite(d)) and np.all(d > 0))

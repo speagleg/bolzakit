@@ -66,3 +66,38 @@ def test_from_callables_warns():
     with pytest.warns(UserWarning, match="finite-difference"):
         r = from_callables(lambda p: _family(p[0]), lambda p: np.eye(3), np.zeros(1), np.ones(1), (0, 1))
     assert np.allclose(sorted(r.rates), [-1, 1], atol=1e-6)
+
+def _swap_blocks_indefinite():
+    # 19 zero-diagonal [[0,1],[1,0]] blocks (eigenvalues +-1) plus diag(0.3, 0.4): symmetric and indefinite.
+    # SuperLU must pivot off the diagonal on it, so diag(U) signs are not the inertia.
+    blocks = [sp.csr_matrix(np.array([[0.0, 1.0], [1.0, 0.0]]))] * 19 + [sp.diags([0.3, 0.4])]
+    return sp.block_diag(blocks, format="csc")
+
+def test_sparse_rejects_indefinite_M_with_offdiagonal_pivots():
+    M = _swap_blocks_indefinite(); n = M.shape[0]
+    assert np.linalg.eigvalsh(M.toarray()).min() < 0
+    K = sp.identity(n, format="csc")
+    from bolzakit.sensitivity.core import _sparse_pd_by_lu
+    assert not _sparse_pd_by_lu(M)
+    assert not _sparse_pd_by_lu(sp.csc_matrix(np.array([[0.0, 1.0], [1.0, 0.0]])))
+    # Exact type and validation message: numpy's LinAlgError subclasses ValueError and also says "positive definite",
+    # so a plain pytest.raises(ValueError) would accept a late Cholesky crash in the eigensolve.
+    with pytest.raises(ValueError, match="K and M must be symmetric with M positive definite") as ei:
+        cluster_sensitivity(K, M, K, 0 * K, (0, 0))
+    assert type(ei.value) is ValueError
+
+def test_sparse_generalized_matches_dense_second_order():
+    # Non-identity M, nonzero dM, d2K, d2M; n large enough to take the eigsh + sparse bordered-solve path.
+    n = 120; x = np.arange(n)
+    K = sp.diags([-np.ones(n - 1), 2 * np.ones(n), -np.ones(n - 1)], [-1, 0, 1]).tocsc()
+    M = sp.diags([np.full(n - 1, 0.1), 1 + 0.3 * np.sin(x), np.full(n - 1, 0.1)], [-1, 0, 1]).tocsc()
+    dK = sp.diags([np.linspace(0, 1, n)], [0]).tocsc(); dM = sp.diags([0.1 * np.linspace(1, 0, n)], [0]).tocsc()
+    d2K = sp.diags([0.1 * np.cos(x)], [0]).tocsc(); d2M = sp.diags([0.05 * np.sin(2 * x)], [0]).tocsc()
+    for cl in [(0, 0), (2, 2)]:
+        rs = cluster_sensitivity(K, M, dK, dM, cl, d2K=d2K, d2M=d2M)
+        rd = cluster_sensitivity(K.toarray(), M.toarray(), dK.toarray(), dM.toarray(), cl,
+                                 d2K=d2K.toarray(), d2M=d2M.toarray())
+        assert np.allclose(rs.eigvals, rd.eigvals, rtol=1e-10)
+        assert np.allclose(rs.rates, rd.rates, rtol=1e-8, atol=1e-12)
+        assert abs(rs.trace_hessian - rd.trace_hessian) < 1e-7 * max(1, abs(rd.trace_hessian))
+        assert abs(rs.kyfan_upper - rd.kyfan_upper) < 1e-7 * max(1, abs(rd.kyfan_upper))
