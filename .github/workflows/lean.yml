@@ -18,5 +18,10 @@ jobs:
       - name: Build
         working-directory: lean
         run: lake build
+      - name: Axiom gate
+        working-directory: lean
+        run: |
+          lake env lean BolzaKit/LocalMax.lean 2>&1 | tee axioms.log
+          bash ../scripts/check_axioms.sh axioms.log
       - name: Check no sorry
         run: bash scripts/check_no_sorry.sh
