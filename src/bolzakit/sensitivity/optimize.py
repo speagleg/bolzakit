@@ -122,8 +122,22 @@ def _proj_spectraplex(Y: np.ndarray) -> np.ndarray:
     return (V * _proj_simplex(w)) @ V.T
 
 
+# Rank tolerance of the face projection. The rows of N[fixed] have norm <= 1 (N has orthonormal columns), so a pivoted QR
+# diagonal |R_kk| <= _FACE_RANK_RTOL * max(1, |R_00|) means the corresponding direction moves the fixed coordinates
+# by at most ~1e-12 per unit length. Treating it as free costs at most ~1e-12 of span-N error once _feasible_direction
+# zeroes the fixed coordinates, two orders below the 1e-10 certificate tolerance checked by ascent_direction.
+_FACE_RANK_RTOL = 1e-12
+# _feasible_direction treats a projected residual of norm <= _NOISE_RTOL * |r| as zero: below that it is cancellation
+# noise of the projection (the face holds no ascent direction), and normalising it would invent a "unit" direction.
+_NOISE_RTOL = 1e3 * np.finfo(float).eps
+# ... and rejects a direction whose fixed coordinates, zeroed at the end, exceed _LEAK_RTOL of its norm: zeroing them
+# moves d off span N by at most that much, which must stay below the 1e-10 certificate tolerance.
+_LEAK_RTOL = 1e-11
+
+
 def _project_face(N: np.ndarray, r: np.ndarray, fixed: np.ndarray) -> np.ndarray:
-    """Orthogonal projection of r onto {d in span N : d_l = 0 for l in fixed} (N orthonormal columns)."""
+    """Orthogonal projection of r onto {d in span N : d_l = 0 for l in fixed} (N orthonormal columns). Exactly zero
+    when the fixed coordinates pin all of span N (numerical rank of N[fixed] = q, tolerance _FACE_RANK_RTOL)."""
     if N.shape[0] == N.shape[1]:                 # span N = R^d: just zero the fixed coordinates
         d = r.copy()
         d[fixed] = 0.0
@@ -134,7 +148,9 @@ def _project_face(N: np.ndarray, r: np.ndarray, fixed: np.ndarray) -> np.ndarray
     # z = N^T r minus its component in range(E^T) (rank-revealing QR), i.e. the projection onto null(E)
     Q, Rq, _ = sla.qr(E.T, mode="economic", pivoting=True)
     diag = np.abs(np.diag(Rq))
-    rank = int(np.sum(diag > 1e-12 * max(1.0, diag[0] if diag.size else 1.0)))
+    rank = int(np.sum(diag > _FACE_RANK_RTOL * max(1.0, diag[0] if diag.size else 1.0)))
+    if rank >= N.shape[1]:                        # null(E) = {0}: the face is {0}; z - Q Q^T z would be pure noise
+        return np.zeros(N.shape[0])
     Q = Q[:, :rank]
     z = N.T @ r
     return N @ (z - Q @ (Q.T @ z))
@@ -142,7 +158,9 @@ def _project_face(N: np.ndarray, r: np.ndarray, fixed: np.ndarray) -> np.ndarray
 
 def _feasible_direction(N, r, signs, mu):
     """A feasible unit-or-zero direction from the dual residual r: project r onto the face of the cone that fixes
-    every at-bound variable with a positive multiplier or an outward component, adding violators until feasible."""
+    every at-bound variable with a positive multiplier or an outward component, adding violators until feasible.
+    Returns 0 when the projection is at the noise level of r (_NOISE_RTOL) or when zeroing the fixed coordinates
+    would move d off span N by more than _LEAK_RTOL relative (both: no reliable direction on this face)."""
     fixed = (signs != 0) & (mu > 0)
     for _ in range(len(r) + 1):
         d = _project_face(N, r, fixed)
@@ -150,11 +168,15 @@ def _feasible_direction(N, r, signs, mu):
         if not bad.any():
             break
         fixed |= bad
-    d[fixed] = 0.0
     nd = np.linalg.norm(d)
-    return d / nd if nd > 0 else d
+    if nd <= _NOISE_RTOL * np.linalg.norm(r) or np.linalg.norm(d[fixed]) > _LEAK_RTOL * nd:
+        return np.zeros_like(d)
+    d[fixed] = 0.0
+    return d / np.linalg.norm(d)
 
 
+_CERT_SPAN_TOL = 1e-10   # a returned d must lie in span N to this (absolute, d is unit or zero)
+_CERT_RTOL = 1e-12       # phi recomputation and weak duality phi <= phi_upper, relative to gscale
 _POLISH_RELS = (0.0, 1e-8, 1e-4, -1.0)   # polish faces: current range, two shrunken ranges, whole space
 _ROTATE_AFTER = 3     # rotate the range after this many checks (every 10 iterations) without halving the gap
 _ROTATE_NFEV = 15     # Gauss-Newton evaluations per rotation
@@ -176,6 +198,9 @@ def ascent_direction(A_upper, A_lower=None, *, null_basis=None, bound_signs=None
       of the reduced model).
     - "no_progress" / "max_iter": the best certified point seen; the gap may exceed tol * gscale. d may be 0 with
       phi = 0 (no feasible direction with a positive certified rate was found); then phi_upper bounds phi*.
+    Every returned result passes a final recomputation of these properties (d in span N to 1e-10, sign feasible,
+    phi = lambda_min(...) and phi <= phi_upper to 1e-12 * gscale, Y and mu dual feasible); a result that fails is
+    replaced by d = 0, phi = 0 with the stop relabelled "stationary" or "no_progress" by the size of phi_upper.
     Callers (the Task 7/9 driver) take a step only for phi > 0, treat "stationary" as convergence, and treat
     "no_progress"/"max_iter" with d = 0 as stationary to accuracy phi_upper.
 
@@ -236,13 +261,40 @@ def ascent_direction(A_upper, A_lower=None, *, null_basis=None, bound_signs=None
         Yu, Yl, m = unpack(x)
         return pack(_proj_spectraplex(Yu), None if Yl is None else _proj_spectraplex(Yl), np.maximum(m, 0.0))
 
+    def primal_ok(d):
+        """d is feasible for the cone: zero, or unit, in span N to _CERT_SPAN_TOL and sign feasible on the bounds."""
+        nd = np.linalg.norm(d)
+        return nd == 0.0 or (abs(nd - 1.0) <= 1e-12 and np.linalg.norm(d - P @ d) <= _CERT_SPAN_TOL
+                             and bool(np.all(signs * d >= 0)))
+
+    def rates_of(d):
+        ru = np.linalg.eigvalsh(np.einsum("l,lab->ab", d, Au))
+        rl = None if Al is None else np.linalg.eigvalsh(np.einsum("l,lab->ab", d, Al))
+        return ru, rl, float(ru[0] - (rl[-1] if rl is not None else 0.0))
+
+    def certificate_ok(d, phi, Yu, Yl, mu_full, phi_upper):
+        """Recompute the certificate from the fields to be returned: d feasible (primal_ok), phi its rate, Y on the
+        spectraplex, mu >= 0 on the bounds only, phi_upper = |P(g(Y) + mu s)|, and weak duality phi <= phi_upper."""
+        ctol = _CERT_RTOL * gscale
+        if not primal_ok(d) or abs(rates_of(d)[2] - phi) > ctol:
+            return False
+        for Y in (Yu, Yl):
+            if Y is not None and (np.linalg.eigvalsh(Y)[0] < -1e-12 or abs(np.trace(Y) - 1.0) > 1e-12):
+                return False
+        if np.any(mu_full < 0) or np.any(mu_full[signs == 0] != 0):
+            return False
+        gv = np.einsum("lab,ab->l", Au, Yu) + mu_full * signs
+        if Al is not None:
+            gv -= np.einsum("lab,ab->l", Al, Yl)
+        return abs(float(np.linalg.norm(P @ gv)) - phi_upper) <= ctol and phi <= phi_upper + ctol
+
     def primal(r, m_full):
         """Feasible d from the residual r and its rate phi. d = 0 is always feasible with rate 0, so a unit d with
         phi < 0 (r is rounding noise near a stationary point) is replaced by d = 0, phi = 0."""
         d = _feasible_direction(N, r, signs, m_full)
-        ru = np.linalg.eigvalsh(np.einsum("l,lab->ab", d, Au))
-        rl = None if Al is None else np.linalg.eigvalsh(np.einsum("l,lab->ab", d, Al))
-        phi = float(ru[0] - (rl[-1] if rl is not None else 0.0))
+        if not primal_ok(d):
+            d = np.zeros(dim)
+        ru, rl, phi = rates_of(d)
         if phi < 0.0:
             d, phi, ru = np.zeros(dim), 0.0, np.zeros(mu_)
             rl = None if Al is None else np.zeros(Al.shape[1])
@@ -374,7 +426,8 @@ def ascent_direction(A_upper, A_lower=None, *, null_basis=None, bound_signs=None
             best = (gap, cand, d, phi, ru, rl)
         return 0.5 * float(rc @ rc)
 
-    x = pack(np.eye(mu_) / mu_, None if Al is None else np.eye(Al.shape[1]) / Al.shape[1], np.zeros(len(B)))
+    x0 = pack(np.eye(mu_) / mu_, None if Al is None else np.eye(Al.shape[1]) / Al.shape[1], np.zeros(len(B)))
+    x = x0
     y, t = x.copy(), 1.0
     fprev = 0.5 * float(np.sum((T @ x) ** 2))
     stop, it, restarted, stalled = "max_iter", 0, False, False
@@ -442,5 +495,18 @@ def ascent_direction(A_upper, A_lower=None, *, null_basis=None, bound_signs=None
     phi_upper = float(np.linalg.norm(r))
     mu_full = np.zeros(dim)
     mu_full[B] = mB
+    # Final soundness guard: never return an uncertified result. If the primal side fails, fall back to d = 0 (always
+    # feasible, rate 0) with the same dual point; if the dual side fails too, to the initial dual point Y = I/m, mu = 0.
+    if not certificate_ok(d, phi, Yu, Yl, mu_full, phi_upper):
+        d, phi = np.zeros(dim), 0.0
+        ru, rl = np.zeros(mu_), None if Al is None else np.zeros(Al.shape[1])
+        if not certificate_ok(d, phi, Yu, Yl, mu_full, phi_upper):
+            Yu, Yl, mB = unpack(x0)
+            mu_full = np.zeros(dim)
+            phi_upper = float(np.linalg.norm(T @ x0))
+        if phi_upper <= max(tol * gscale, stat_thresh):
+            stop = "stationary"
+        elif stop != "max_iter":
+            stop = "no_progress"
     return AscentDirection(d=d, phi=phi, phi_upper=phi_upper, duality_gap=max(phi_upper - phi, 0.0), Y_upper=Yu,
                            Y_lower=Yl, mu=mu_full, rates=ru, rates_lower=rl, n_iter=it, stop=stop)

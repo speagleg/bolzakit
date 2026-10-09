@@ -126,10 +126,15 @@ def test_census_no_max_iter():
     """Correctness census. Wall-clock limits are loose guards (~10x the unloaded times, so shared CI runners pass);
     the strict spec 13 targets (< 50 ms) are measured by the benchmark / perf docs, not asserted. The load-independent
     guard is the iteration count."""
-    rng = np.random.default_rng(2026)
     times, stops, iters = [], [], []
+    instances = []
+    rng = np.random.default_rng(2026)
     for i in range(112):
-        kind = i % 4 if i < 100 else 4 + i % 3
+        instances.append((rng, i % 4 if i < 100 else 4 + i % 3))
+    for seed in (47, 101, 7):                     # round-4 kind: small bounds + non-square subspace + Gap
+        srng = np.random.default_rng(seed)
+        instances += [(srng, 7)] * 30
+    for rng, kind in instances:
         if kind == 0:
             args, kw = (_sym(rng, 6, 2, 2),), {}
         elif kind == 1:
@@ -142,19 +147,17 @@ def test_census_no_max_iter():
             args, kw = (_sym(rng, 64, 4, 4),), {"bound_signs": rng.choice([-1.0, 0.0, 1.0], 64, p=[0.45, 0.1, 0.45])}
         elif kind == 5:
             args, kw = (_sym(rng, 64, 2, 2), _sym(rng, 64, 2, 2)), {"bound_signs": rng.choice([-1.0, 0.0, 1.0], 64)}
-        else:
+        elif kind == 6:
             args, kw = _plate_like(rng)
+        else:
+            args, kw = _small_bounds_subspace_gap(rng)
         t0 = time.perf_counter()
         r = ascent_direction(*args, **kw)
         times.append(time.perf_counter() - t0)
         stops.append(r.stop)
         iters.append(r.n_iter)
         assert r.stop != "max_iter"
-        assert r.phi <= r.phi_upper + 1e-12 * _gscale(*args)
-        if r.stop in ("gap", "stationary"):
-            assert r.duality_gap <= 1e-10 * _gscale(*args)
-        if r.stop == "stationary":
-            assert np.all(r.d == 0)
+        _assert_certificate(r, *args, **kw)
     med = float(np.median(times))
     print(f"census: median {med * 1e3:.1f} ms, max {max(times) * 1e3:.1f} ms, iterations median "
           f"{np.median(iters):.0f} max {max(iters)}, stops { {s: stops.count(s) for s in set(stops)} }")
@@ -211,3 +214,106 @@ def test_d64_with_bounds_fast(kind):
           f"{np.median(iters):.0f} max {max(iters)}")
     assert np.median(iters) <= 100 and max(iters) <= 2000
     assert med < 0.25 and max(times) < 2.5
+
+
+# ------------------------------------------------------------------ fix round 4: full-rank faces, certificate checks
+def _assert_certificate(r, Au, Al=None, null_basis=None, bound_signs=None, stat_tol=0.0, f_value=0.0, tol=1e-10):
+    """Recompute every certificate property from the returned fields: d unit-or-zero, in span N, sign feasible;
+    phi = lambda_min(A_upper(d)) - lambda_max(A_lower(d)); Y on the spectraplex, mu >= 0 on the bounds only;
+    phi_upper = |P(g(Y) + mu s)|; weak duality phi <= phi_upper; the stop contract."""
+    dim = Au.shape[0]
+    g = _gscale(Au, *([] if Al is None else [Al]))
+    N = np.eye(dim) if null_basis is None else null_basis
+    s = np.zeros(dim) if bound_signs is None else bound_signs
+    nd = np.linalg.norm(r.d)
+    assert nd == 0 or abs(nd - 1) <= 1e-12
+    assert np.linalg.norm(r.d - N @ (N.T @ r.d)) <= 1e-10
+    assert np.all(s * r.d >= 0)
+    lm = np.linalg.eigvalsh(np.einsum("l,lab->ab", r.d, Au))[0]
+    if Al is not None:
+        lm -= np.linalg.eigvalsh(np.einsum("l,lab->ab", r.d, Al))[-1]
+    assert abs(lm - r.phi) <= 1e-12 * g
+    for Y in (r.Y_upper, r.Y_lower):
+        if Y is not None:
+            assert np.allclose(Y, Y.T) and np.linalg.eigvalsh(Y)[0] >= -1e-13 and abs(np.trace(Y) - 1) <= 1e-12
+    assert np.all(r.mu >= 0) and np.all(r.mu[s == 0] == 0)
+    gv = np.einsum("lab,ab->l", Au, r.Y_upper) + r.mu * s
+    if Al is not None:
+        gv -= np.einsum("lab,ab->l", Al, r.Y_lower)
+    assert abs(np.linalg.norm(N @ (N.T @ gv)) - r.phi_upper) <= 1e-12 * g
+    assert r.phi <= r.phi_upper + 1e-12 * g
+    assert abs(r.duality_gap - max(r.phi_upper - r.phi, 0.0)) <= 1e-15 * g
+    if r.stop == "gap":
+        assert r.phi > 0 and nd > 0 and r.duality_gap <= tol * g
+    if r.stop == "stationary":
+        assert np.all(r.d == 0) and r.phi == 0
+        assert r.phi_upper <= max(tol * g, stat_tol * max(1.0, abs(f_value)))
+
+
+def _small_bounds_subspace_gap(rng, all_bounded=True):
+    """d = 8, a random 5-dim null_basis, a Gap stack, bounds on every variable (or on a random subset)."""
+    signs = rng.choice([-1.0, 1.0], 8) if all_bounded else rng.choice([-1.0, 0.0, 1.0], 8)
+    return (_sym(rng, 8, 2, 2), _sym(rng, 8, 2, 2)), {"null_basis": np.linalg.qr(rng.standard_normal((8, 5)))[0],
+                                                     "bound_signs": signs}
+
+
+def test_project_face_full_rank_returns_exact_zeros():
+    """The fixed coordinates pin all of span N (rank N[fixed] = q): the projection is exactly 0, not rounding noise."""
+    from bolzakit.sensitivity.optimize import _feasible_direction, _project_face
+    rng = np.random.default_rng(3)
+    for d, q, nfix in ((8, 5, 5), (8, 5, 7), (64, 10, 40), (12, 3, 12)):
+        N = np.linalg.qr(rng.standard_normal((d, q)))[0]
+        fixed = np.zeros(d, bool)
+        fixed[rng.choice(d, nfix, replace=False)] = True
+        for scale in (1.0, 1e-15, 1e8):
+            r = scale * rng.standard_normal(d)
+            out = _project_face(N, r, fixed)
+            assert np.all(out == 0)
+            signs = np.where(fixed, 1.0, 0.0)
+            assert np.all(_feasible_direction(N, r, signs, signs) == 0)
+    # rank < q: a genuine projection, in span N with the fixed coordinates at rounding level
+    N = np.linalg.qr(rng.standard_normal((8, 5)))[0]
+    fixed = np.zeros(8, bool)
+    fixed[:3] = True
+    out = _project_face(N, rng.standard_normal(8), fixed)
+    assert np.linalg.norm(out) > 0.1 and np.linalg.norm(out - N @ (N.T @ out)) <= 1e-14
+    assert np.linalg.norm(out[fixed]) <= 1e-14
+
+
+def _sub_bounds_gap_seed47_instance0():
+    """The review's reproducer: the reviewer census (seed 47) draws 50 'sub_bounds' instances, then this one."""
+    rng = np.random.default_rng(47)
+    for _ in range(50):
+        d = int(rng.choice([6, 8, 12]))
+        _sym(rng, d, 4, 4)
+        np.linalg.qr(rng.standard_normal((d, d - 3)))
+        rng.choice([-1.0, 0.0, 1.0], d, p=[0.3, 0.4, 0.3])
+    args = (_sym(rng, 8, 2, 2), _sym(rng, 8, 2, 2))
+    kw = {"null_basis": np.linalg.qr(rng.standard_normal((8, 5)))[0], "bound_signs": rng.choice([-1.0, 0.0, 1.0], 8)}
+    return args, kw
+
+
+def test_full_rank_face_reproducer_is_certified():
+    """Round-3 regression: the QR face projection returned ~1e-31 noise on a face where the fixed coordinates pin all
+    of span N; it was normalised into a 'unit' d outside span N and returned as stop='gap' with phi = 0.31 >
+    phi_upper = 7e-16."""
+    args, kw = _sub_bounds_gap_seed47_instance0()
+    assert np.all(kw["bound_signs"] != 0)                   # the instance as reported: every variable at a bound
+    r = ascent_direction(*args, **kw)
+    _assert_certificate(r, *args, **kw)
+    assert r.stop in ("gap", "stationary")
+
+
+def test_uncertified_direction_is_never_returned(monkeypatch):
+    """Soundness guard: even if the face projection produced a unit d outside span N (the round-3 failure mode),
+    ascent_direction must return a certified result (here d = 0, phi = 0), never an uncertified 'gap'."""
+    import bolzakit.sensitivity.optimize as O
+    args, kw = _sub_bounds_gap_seed47_instance0()
+    off_span = np.zeros(8)
+    off_span[[2, 5]] = [-0.35498954, -0.93487027]           # the direction round 3 returned: rate 0.31 > phi_upper
+    off_span /= np.linalg.norm(off_span)
+    assert np.linalg.norm(off_span - kw["null_basis"] @ (kw["null_basis"].T @ off_span)) > 0.1
+    monkeypatch.setattr(O, "_feasible_direction", lambda N, r, signs, mu: off_span.copy())
+    r = ascent_direction(*args, **kw)
+    _assert_certificate(r, *args, **kw)
+    assert np.all(r.d == 0) and r.phi == 0 and r.stop in ("stationary", "no_progress")
