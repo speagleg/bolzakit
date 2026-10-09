@@ -176,6 +176,11 @@ class RankResult:
     certificate: Certificate
 
 
+def _encloses_0(v) -> bool:
+    """v is a finite ball containing 0 (arb nan / infinite balls also 'contain' 0 in python-flint)."""
+    return bool(v.is_finite() and v.contains(0))
+
+
 def _pivot(Jc):
     """PIV if its 5x5 minor of Jc certainly excludes 0, else the first such minor (None if there is none)."""
     for cols in [PIV] + list(itertools.combinations(range(16), 5)):
@@ -212,7 +217,7 @@ def certify_rank(surface=None) -> RankResult:
                     Tb[p][jj] = -X[ii, jj]
             Tb = arb_mat(Tb)
             resid = arb_mat(Jc) * Tb
-            kernel_ok = all(resid[i, j].contains(0) for i in range(5) for j in range(11))
+            kernel_ok = all(_encloses_0(resid[i, j]) for i in range(5) for j in range(11))
             resid_upper = max(abs(resid[i, j]).upper() for i in range(5) for j in range(11))
             JT = arb_mat(Jf) * Tb  # 6 x 11
             for cols in itertools.combinations(range(11), 6):
@@ -233,7 +238,7 @@ def certify_rank(surface=None) -> RankResult:
         else:
             cols, det = list(best[0]), best[1]
             Jmin = [[ball_str(JT[i, c]) for c in cols] for i in range(6)]
-        constraints_ok = cval is not None and all(v.contains(0) for v in cval)
+        constraints_ok = cval is not None and all(_encloses_0(v) for v in cval)
         # the certificate's claims are exactly the conditions of RankResult.certified
         claims = [
             Claim(lhs="det J[:, cols]", op="!=0", rhs="0", holds=bool(det.is_finite() and not det.contains(0))),

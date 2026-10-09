@@ -71,3 +71,49 @@ def test_trace_coords_perturbed_contains_tau():
     # certify_rank on the deformed surface (balls) still certifies rank 6
     r = certify_rank(s)
     assert r.certified and r.certificate.certified and r.certificate.inputs["tau"] == tau
+
+
+# ------------------------------------------------------------------ fix round 2: NaN / infinite balls never "enclose 0"
+_BAD = {"nan": "nan", "inf": "[+/- inf]"}
+
+
+def _claim(r, lhs):
+    return next(c for c in r.certificate.claims if c.lhs == lhs)
+
+
+@pytest.mark.parametrize("bad", list(_BAD))
+def test_nonfinite_constraint_value_not_certified(monkeypatch, bad):
+    from bolzakit.certified import chart
+    real = chart.jacobians
+
+    def fake(x0):
+        Jc, Jf, cval, fval = real(x0)
+        cval = list(cval); cval[0] = arb(_BAD[bad])
+        assert cval[0].contains(0)   # the python-flint behaviour the finiteness check guards against
+        return Jc, Jf, cval, fval
+    monkeypatch.setattr(chart, "jacobians", fake)
+    r = chart.certify_rank()
+    assert not _claim(r, "constraints(x)").holds
+    assert r.certified is False and r.certificate.certified is False
+
+
+@pytest.mark.parametrize("bad", list(_BAD))
+def test_nonfinite_kernel_residual_not_certified(monkeypatch, bad):
+    from bolzakit.certified import chart
+    real = chart.jacobians
+
+    def fake(x0):
+        Jc, Jf, cval, fval = real(x0)
+        Jc = [list(row) for row in Jc]
+        Jc[0][1] = arb(_BAD[bad])     # a free (non-PIV) column: the pivot survives, Tb and Jc.Tb become non-finite
+        return Jc, Jf, cval, fval
+    monkeypatch.setattr(chart, "jacobians", fake)
+    r = chart.certify_rank()
+    assert not _claim(r, "Jc . Tb (all entries)").holds
+    assert r.certified is False and r.certificate.certified is False
+
+
+def test_rank_certificate_enclosure_data():
+    d = certify_rank().certificate.data
+    assert "kernel_residual_upper" in d and len(d["constraints"]) == 5
+    assert all(arb(s).contains(0) for s in d["constraints"])
