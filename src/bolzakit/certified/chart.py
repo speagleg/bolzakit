@@ -196,9 +196,10 @@ def certify_rank(surface=None) -> RankResult:
         try:
             Jc, Jf, cval, _ = jacobians(x0)
         except ZeroDivisionError:
-            Jc = None
+            Jc, cval = None, None
         piv = None if Jc is None else _pivot(Jc)
-        best, ncert, ok = None, 0, False
+        best, ncert, resid_upper, stacked = None, 0, None, None
+        kernel_ok = False
         if piv is not None:
             free = [j for j in range(16) if j not in piv]
             Ap = arb_mat([[Jc[i][c] for c in piv] for i in range(5)])
@@ -212,6 +213,7 @@ def certify_rank(surface=None) -> RankResult:
             Tb = arb_mat(Tb)
             resid = arb_mat(Jc) * Tb
             kernel_ok = all(resid[i, j].contains(0) for i in range(5) for j in range(11))
+            resid_upper = max(abs(resid[i, j]).upper() for i in range(5) for j in range(11))
             JT = arb_mat(Jf) * Tb  # 6 x 11
             for cols in itertools.combinations(range(11), 6):
                 d = arb_mat([[JT[i, c] for c in cols] for i in range(6)]).det()
@@ -221,32 +223,42 @@ def certify_rank(surface=None) -> RankResult:
                         best = (cols, d)
             # cross-check: an 11 x 11 minor of the stacked [Jc; Jf]
             S = arb_mat([Jc[i] for i in range(5)] + [Jf[i] for i in range(6)])
-            stacked_ok = False
             for cols in itertools.combinations(range(16), 11):
                 d = arb_mat([[S[i, c] for c in cols] for i in range(11)]).det()
                 if d.is_finite() and not d.contains(0):
-                    stacked_ok = True
+                    stacked = (list(cols), d)
                     break
-            ok = best is not None and stacked_ok and kernel_ok and all(v.contains(0) for v in cval)
         if best is None:
             cols, det, Jmin = [], arb("nan"), []
         else:
             cols, det = list(best[0]), best[1]
             Jmin = [[ball_str(JT[i, c]) for c in cols] for i in range(6)]
-        holds = bool(det.is_finite() and not det.contains(0))
+        constraints_ok = cval is not None and all(v.contains(0) for v in cval)
+        # the certificate's claims are exactly the conditions of RankResult.certified
+        claims = [
+            Claim(lhs="det J[:, cols]", op="!=0", rhs="0", holds=bool(det.is_finite() and not det.contains(0))),
+            Claim(lhs="det [Jc; Jf][:, stacked_cols]", op="!=0", rhs="0", holds=stacked is not None),
+            Claim(lhs="Jc . Tb (all entries)", op="encloses", rhs="0", holds=bool(kernel_ok)),
+            Claim(lhs="constraints(x)", op="encloses", rhs="0", holds=bool(constraints_ok))]
+        ok = all(c.holds for c in claims)
+        data = {"J": Jmin, "cols": cols,
+                "stacked_cols": stacked[0] if stacked else None,
+                "stacked_det": ball_str(stacked[1]) if stacked else None,
+                "kernel_residual_upper": ball_str(resid_upper) if resid_upper is not None else None,
+                "constraints": [ball_str(v) for v in cval] if cval is not None else None}
+        inputs = {"surface": label, "klein": [ball_str(c) for c in x0], "prec": _PREC,
+                  "words": [w for w, _ in WORDS], "pivot_columns_Jc": list(piv) if piv else None}
+        tau = getattr(surface, "trace_coords", None)
+        if tau is not None:
+            inputs["tau"] = list(tau)
         cert = Certificate(
-            kind="rank",
-            inputs={"surface": label, "prec": _PREC, "words": [w for w, _ in WORDS],
-                    "pivot_columns_Jc": list(piv) if piv else None},
-            claims=[Claim(lhs="det J[:, cols]", op="!=0", rhs="0", holds=holds)],
-            data={"J": Jmin, "cols": cols},
+            kind="rank", inputs=inputs, claims=claims, data=data,
             dependencies=[
                 Dependency("D12", "T2 is a topological 6-manifold; invariance of domain; continuity of the "
-                                  "quotient to T2 and of the extended mapping-class group action on T2",
-                           "Fenchel-Nielsen; Felikson-Natanzon arXiv:1102.4861 sec. 2"),
-                Dependency("D13", "the trace functions tau_w are C^1 (real-analytic) in the Klein vertex "
-                                  "coordinates; Arb ball arithmetic (python-flint) is trusted",
-                           "PROOF.md Lemma 9d2; python-flint")],
+                                  "quotient to T2; the trace functions tau_w are C^1; the extended mapping-class "
+                                  "group action on T2 is continuous",
+                           "Fenchel-Nielsen; Felikson-Natanzon arXiv:1102.4861 sec. 2; PROOF.md Lemma 9d2"),
+                Dependency("D13", "software: python-flint (Arb) and sympy are trusted", "python-flint; sympy")],
             producer=make_producer())
         return RankResult(det=ball_str(det), cols=cols, n_nonzero_minors=ncert, certified=bool(ok),
                           certificate=cert)

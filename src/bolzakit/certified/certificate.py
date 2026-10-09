@@ -13,7 +13,7 @@ from pathlib import Path
 @dataclass
 class Claim:
     lhs: str
-    op: str  # one of "<", "<=", ">", ">=", "!=0"
+    op: str  # one of "<", "<=", ">", ">=", "!=0", "encloses"
     rhs: str
     holds: bool
 

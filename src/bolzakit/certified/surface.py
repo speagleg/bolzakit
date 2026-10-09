@@ -159,6 +159,7 @@ class Surface:
     by pi/2 (V_k -> V_{k+2}); certify_spectrum then computes only 2 of the 8 sectors."""
 
     def __init__(self, vertices_hyp, is_bolza=False, label="custom", r2_invariant=False):
+        self.trace_coords = None   # the tau of Surface.from_trace_coords, else None
         self.vertices_hyp = vertices_hyp
         self.is_bolza = is_bolza
         self.label = label
@@ -178,18 +179,17 @@ class Surface:
 
         The octagon is the unique zero, certified by a Krawczyk inclusion at 128 bits, of [constraints; traces - tau]
         in 11 Klein coordinates (the other 5 fixed at their Bolza values; chart.solve_trace_coords).  Raises
-        OutOfValidityRange if |tau - tau_B|_inf > 0.05 max(tau_B) or the inclusion fails.  tau equal (as floats) to
-        chart.bolza_traces() denotes Bolza itself and returns Surface.bolza().  check=True also certifies
-        rank d(pi) = 6 at the solution (CertificationFailed otherwise)."""
+        OutOfValidityRange if |tau - tau_B|_inf > 0.05 max(tau_B) or the inclusion fails.  The result is never
+        flagged is_bolza, even for tau = chart.bolza_traces(): the floats are not the exact (irrational) Bolza traces,
+        and their preimage is ~6e-17 from Bolza.  tau is kept in .trace_coords and in the label (certificates record
+        it).  check=True also certifies rank d(pi) = 6 at the solution (CertificationFailed otherwise)."""
         from . import chart
         tau = [float(t) for t in tau]
-        if tau == chart.bolza_traces():
-            s = cls.bolza()
-        else:
-            xs = chart.solve_trace_coords(tau)
-            with prec(chart._PREC):
-                V = [_tohyp(xs[2 * k], xs[2 * k + 1]) for k in range(8)]
-            s = cls(V, label=f"trace_coords(tau={tau!r})", r2_invariant=False)
+        xs = chart.solve_trace_coords(tau)
+        with prec(chart._PREC):
+            V = [_tohyp(xs[2 * k], xs[2 * k + 1]) for k in range(8)]
+        s = cls(V, label=f"trace_coords(tau={tau!r})", r2_invariant=False)
+        s.trace_coords = tau
         if check and not chart.certify_rank(s).certified:
             raise CertificationFailed(f"rank d(pi) = 6 could not be certified at tau={tau!r}")
         return s
