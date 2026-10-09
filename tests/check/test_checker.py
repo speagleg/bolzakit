@@ -59,9 +59,12 @@ def test_valid(certs):
 
 def test_mode_b_is_only_conditionally_valid(certs):
     ok, why = check_file(certs["count"])
-    assert ok and why.startswith("VALID (conditional on lambda_1 >= 33/10)") and "assumes: lambda_1 >= 33/10" in why
+    assert ok and why == "VALID (conditional on lambda_1 >= 33/10)"
     ok, why = check_file(certs["countA"])
     assert ok and why == "VALID"
+    assert check_file(certs["rank"])[1] == "VALID"
+    for k in ("rr", "first_order", "kyfan"):
+        assert check_file(certs[k])[1] == "VALID given stored Gram data"
 
 
 def test_mode_b_without_hypothesis_is_invalid(certs, tmp_path):
@@ -90,15 +93,31 @@ def _bump_J(r):
     r["data"]["J"][1] = r["data"]["J"][0]
 
 
+def _set_ball(path, value):
+    def f(r):
+        d = r
+        for k in path[:-1]:
+            d = d[k]
+        d[path[-1]] = value
+    return f
+
+
 TAMPERS = {
     "rr": [lambda r: r["data"].__setitem__("mu", "3.0"),
            lambda r: r["data"]["K"][1].__setitem__(1, _bump_ball(r["data"]["K"][1][1], 10))],
     "count": [lambda r: r["data"].__setitem__("target", 3),
               lambda r: r["data"]["c_coeffs"].__setitem__(0, "1/3")],
     "countA": [lambda r: r["data"].__setitem__("a", "4")],
-    "rank": [_bump_J],
+    "rank": [_bump_J,
+             _set_ball(("data", "J"), [["1" if i == j else "0" for j in range(6)] for i in range(6)]),
+             _set_ball(("data", "stacked_det"), "[1 +/- 0]"),
+             _set_ball(("data", "kernel_residual_upper"), "[1e6 +/- 0]"),
+             _set_ball(("data", "cols"), [0, 1, 2, 3, 4, 5]),
+             lambda r: r["inputs"]["klein"].__setitem__(0, _bump_ball(r["inputs"]["klein"][0], 1e-3))],
     "first_order": [lambda r: r["data"]["transfer_terms"].__setitem__(
-        "mu", _bump_ball(r["data"]["transfer_terms"]["mu"], 0.1))],
+        "mu", _bump_ball(r["data"]["transfer_terms"]["mu"], 0.1)),
+        _set_ball(("data", "terms", "b_uu_over_m"), "[-1000 +/- 0]"),
+        lambda r: r["data"]["raw"].__setitem__("dq_xx", _bump_ball(r["data"]["raw"]["dq_xx"], 1e3))],
     "kyfan": [_kyfan_bump,
               lambda r: r["data"]["raw"].__setitem__("lam", ["3.0", "3.1"])],
 }
@@ -120,6 +139,25 @@ def test_flipped_claim_is_invalid(certs, tmp_path):
     assert not check_file(q)[0]
 
 
+def test_first_order_forged_b_with_consistent_terms_is_invalid(certs, tmp_path):
+    # B is rebuilt from the raw sums, so a forged B with a matching stored sum still fails
+    def forge(r):
+        r["data"]["terms"]["b_uu_over_m"] = "[-1000 +/- 0]"
+        r["data"]["b_ee_upper_over_m"] = "[-990 +/- 0]"
+    q = _mutate(certs["first_order"], forge, tmp_path, resha=True)
+    ok, why = check_file(q)
+    assert not ok and "rebuilt" in why
+
+
+def test_malformed_certificate_does_not_crash(certs, tmp_path):
+    q = _mutate(certs["rank"], lambda r: r.__setitem__("claims", ["x"]), tmp_path)
+    ok, why = check_file(q)
+    assert not ok and why.startswith("INVALID")
+    r = subprocess.run([sys.executable, "-m", "bolzakit_check", str(q), str(certs["rank"])], capture_output=True,
+                       text=True)
+    assert r.returncode == 1 and f"{certs['rank']}: VALID" in r.stdout
+
+
 def test_cli_exit_codes(certs, tmp_path):
     r = subprocess.run([sys.executable, "-m", "bolzakit_check", str(certs["rr"])], capture_output=True, text=True)
     assert r.returncode == 0 and "VALID" in r.stdout
@@ -127,6 +165,13 @@ def test_cli_exit_codes(certs, tmp_path):
     r = subprocess.run([sys.executable, "-m", "bolzakit_check", str(certs["rr"]), str(q)], capture_output=True,
                        text=True)
     assert r.returncode == 1 and f"{q}: INVALID" in r.stdout and f"{certs['rr']}: VALID" in r.stdout
+    # only conditionally valid (mode B count): exit 2; with an INVALID file: exit 1
+    r = subprocess.run([sys.executable, "-m", "bolzakit_check", str(certs["rr"]), str(certs["count"])],
+                       capture_output=True, text=True)
+    assert r.returncode == 2 and "VALID (conditional on lambda_1 >= 33/10)" in r.stdout
+    r = subprocess.run([sys.executable, "-m", "bolzakit_check", str(certs["count"]), str(q)], capture_output=True,
+                       text=True)
+    assert r.returncode == 1
 
 
 def test_deep_mode_labels_consistency_only(certs, tmp_path):
@@ -220,3 +265,24 @@ def test_every_certificate_is_strict_json(certs, monkeypatch, tmp_path):
         c.save(p)
         ok, why = check_file(p)
         assert not ok and why.startswith("INVALID") and "sha" not in why.lower(), why
+
+
+@pytest.mark.slow
+def test_honest_rr_n48_cluster_sum_checks_valid(tmp_path):
+    c = certify_spectrum(Surface.bolza(), k=3, degree=2, n=48)
+    from fractions import Fraction
+    assert c.certified and Fraction(c.cluster_sum_upper) >= Fraction(c.certificate.claims[1].rhs)
+    p = tmp_path / "rr48.json"
+    c.certificate.save(p)
+    ok, why = check_file(p)
+    assert ok and why == "VALID given stored Gram data", why
+
+
+def test_rank_of_deformed_octagon_checks_valid(tmp_path):
+    from bolzakit.certified.chart import bolza_traces
+    tau = bolza_traces(); tau[0] += 0.5; tau[3] -= 0.25
+    c = certify_rank(Surface.from_trace_coords(tau)).certificate
+    assert c.certified
+    p = tmp_path / "rank_def.json"
+    c.save(p)
+    assert check_file(p) == (True, "VALID")

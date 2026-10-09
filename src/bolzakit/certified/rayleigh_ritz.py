@@ -7,6 +7,7 @@ Sylvester's criterion for t*Mp - Kp in Arb.
 from __future__ import annotations
 
 import math
+from fractions import Fraction
 import time
 from dataclasses import dataclass
 
@@ -52,6 +53,27 @@ def certified_upper(Kp, Mp, guess, step0=1e-6, iters=40):
         if ok(mid): hi = mid
         else: lo = mid
     return hi
+
+
+def _stored_mu(data, t0):
+    """Decimal mu >= t0 for which mu M - K is certified positive definite from the balls as STORED (parsed at 128
+    bits), so that an independent checker reading the certificate can re-derive the claim.  The bisection point t0
+    is certifiable from the in-memory balls only; the stored 30-digit balls are marginally wider, so mu starts
+    1e-12 (relative) above t0 and grows geometrically if needed.  upper[-1] (= t0) may thus be slightly smaller
+    than the claimed mu; both are rigorous."""
+    with prec(128):
+        K = [[arb(x) for x in r] for r in data["K"]]
+        M = [[arb(x) for x in r] for r in data["M"]]
+        m = len(K)
+        rel = arb(10) ** -12
+        for _ in range(30):
+            mu = rational_upper(arb(t0) * (1 + rel))
+            q = Fraction(mu)
+            t = arb(q.numerator) / arb(q.denominator)
+            if is_pd([[t * M[i][j] - K[i][j] for j in range(m)] for i in range(m)]):
+                return mu
+            rel *= 10
+    raise RuntimeError("could not certify an upper bound from the stored balls")
 
 
 @dataclass
@@ -135,7 +157,7 @@ def certify_spectrum(surface, k=3, degree=2, n=48, strict=False) -> SpectrumResu
                 sub_mus = sl.eigh(Kpf[:j + 1, :j + 1], Mpf[:j + 1, :j + 1], eigvals_only=True)
                 upper.append(certified_upper([r[:j + 1] for r in Kp[:j + 1]], [r[:j + 1] for r in Mp[:j + 1]],
                                              float(sub_mus[-1]), step0, iters))
-            mu = rational_upper(arb(upper[-1]))
+            mu = _stored_mu(data, upper[-1])
         except RuntimeError:
             ok = False
             mu = "inf"
@@ -146,14 +168,18 @@ def certify_spectrum(surface, k=3, degree=2, n=48, strict=False) -> SpectrumResu
             cs_rhs, cs_ok = "inf", False
             try:
                 kyfan = GM.solve(GK).trace()
+                # the claim is about the balls actually stored: a re-solve from the parsed K / M strings at 128 bits
+                # (what an independent checker does) is joined to the in-memory enclosure
+                with prec(128):
+                    stored = arb_mat([[arb(x) for x in r] for r in data["M"]]).solve(
+                        arb_mat([[arb(x) for x in r] for r in data["K"]])).trace()
+                kyfan = kyfan.union(stored)
                 if ok and kyfan.is_finite():
-                    up = kyfan.upper()
-                    f = float(up)
-                    while not arb(f) >= up:  # round outward: the float must certainly be >= the ball's upper end
+                    cs_rhs = rational_upper(kyfan)
+                    f = float(Fraction(cs_rhs))
+                    while Fraction(f) < Fraction(cs_rhs):  # the float result is never tighter than the claim rhs
                         f = math.nextafter(f, math.inf)
-                    # the claimed rhs carries 1% of the ball radius as slack: an independent re-solve from the
-                    # stored (30-digit) balls encloses the trace slightly differently (seen: 1e-3 of the radius)
-                    cluster, cs_rhs, cs_ok = f, rational_upper(kyfan + kyfan.rad() / 100), True
+                    cluster, cs_ok = f, True
                     data["cluster_sum"] = ball_str(kyfan)
             except ZeroDivisionError:  # GM not provably invertible
                 pass

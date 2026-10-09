@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from decimal import Decimal, localcontext
+from decimal import ROUND_CEILING, Decimal, localcontext
 
 import flint
 from flint import arb
@@ -39,10 +39,23 @@ def certainly_gt(x, q) -> bool:
 
 
 def ball_str(x) -> str:
-    """Outward-enclosing ball string with 30 mid digits, e.g. '[3.838887258800000000000000000000 +/- 1.01e-12]'.
-
-    more=True prints the stored midpoint (not the shortest decimal), so arb(ball_str(x)) contains x."""
-    return x.str(30, radius=True, more=True)
+    """Outward-enclosing ball string '[mid +/- rad]': 30 mid digits, and a 7-digit radius covering the true radius
+    plus the decimal rounding of the mid (arb's own str rounds the radius to 3 digits, which can widen a ball by
+    0.1% of its radius).  arb(ball_str(x)) contains x."""
+    if not x.is_finite():
+        return x.str(radius=True)
+    m = x.mid()
+    ms = m.str(30, radius=False, more=True)
+    pm = arb(ms)
+    exact = pm.rad() == 0 and pm == m                   # the 30-digit mid is exactly the arb midpoint
+    r = x.rad() if exact else (x.rad() + abs(m) * arb("1e-29")).upper()   # |rounding| <= 0.5e-29 |m|
+    if r == 0:
+        return ms
+    with localcontext() as ctx:                         # radius: 8 significant digits, rounded UP past r
+        ctx.prec = 8
+        ctx.rounding = ROUND_CEILING
+        rd = +(Decimal(r.str(20, radius=False, more=True)) * (1 + Decimal("1e-15")))
+    return f"[{ms} +/- {rd:E}]"
 
 
 def json_float(x):

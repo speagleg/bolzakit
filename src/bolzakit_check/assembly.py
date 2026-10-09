@@ -1,8 +1,10 @@
 """Re-assembly of the cluster perturbation bounds from their stored inputs (PROOF.md Lemma 5, §4.4 gap transfer;
-Lemma 8, step 5).  The Gram / transfer inputs are trusted data of the certificate; the final bound is recomputed here
+Lemma 8, step 5).  The raw Gram / element-sum inputs are trusted data of the certificate; the final bound is recomputed here
 and never read from the stored sum.
 
-b_ee_upper_v1 (kind cluster_first_order), with lam1 = [lam1.lower, lam1.upper] and lam4 = gap.lower from the inputs:
+b_ee_upper_v1 (kind cluster_first_order), with lam1 = [lam1.lower, lam1.upper] and lam4 = gap.lower from the inputs,
+rebuilt from the raw element sums of data["raw"] (c = m_x1/m_11, m_u = m_xx - c m_x1, mu = q_xx/m_u,
+B = ((dq_xx - lam1 dm_xx) + 2 c lam1 dm_x1 - c^2 lam1 dm_11)/m_u, Sa/m = Sa/m_u, Sr/m = Sr/m_u):
     mw = (mu - lam1)/(lam4 - lam1),   qw = (mu - lam1) lam4/(lam4 - lam1)       (gap transfer, w = u - P_E u)
     E  = 2 (sqrt(Sa/m) sqrt(qw) + lam1 sqrt(Sr/m) sqrt(mw)) + beta_a qw + lam1 beta_rho mw
     claim: B + E < 0,  B = b(u,u)/m(u).
@@ -28,19 +30,36 @@ def _lam_inputs(inputs):
 
 
 def b_ee(data, inputs):
-    """Recomputed B + E (ball) for the first-order certificate."""
+    """B + E (ball) for the first-order certificate, rebuilt from data["raw"]; the stored terms, transfer terms and
+    sum are cross-checked against the rebuild (a disjoint stored value is INVALID)."""
     if data.get("assembly") != "b_ee_upper_v1":
         raise CheckError("unknown assembly id for cluster_first_order")
     with precision(PREC):
         lam, lam4 = _lam_inputs(inputs)
-        t = data["transfer_terms"]
-        B = ball(data["terms"]["b_uu_over_m"])
-        mu, Sa, Sr = ball(t["mu"]), ball(t["Sa_over_m"]), ball(t["Sr_over_m"])
-        ba, br = ball(t["beta_a"]), ball(t["beta_rho"])
+        r = {k: ball(data["raw"][k]) for k in ("q_xx", "m_xx", "m_x1", "m_11", "dq_xx", "dm_xx", "dm_x1", "dm_11",
+                                               "c", "Sa", "Sr", "beta_a", "beta_rho")}
+        c = r["m_x1"] / r["m_11"]
+        if not r["c"].overlaps(c):
+            raise CheckError("raw c is not m_x1/m_11")
+        m_u = r["m_xx"] - c * r["m_x1"]
+        q_u = r["q_xx"]
+        mu = q_u / m_u
+        b_uu = (r["dq_xx"] - lam * r["dm_xx"]) + 2 * c * lam * r["dm_x1"] - c * c * lam * r["dm_11"]
+        B = b_uu / m_u
+        Sa, Sr = r["Sa"] / m_u, r["Sr"] / m_u
+        ba, br = r["beta_a"], r["beta_rho"]
         exc = mu - lam
         mw = exc / (lam4 - lam)
         qw = exc * lam4 / (lam4 - lam)
         E = 2 * (Sa.sqrt() * qw.sqrt() + lam * Sr.sqrt() * mw.sqrt()) + ba * qw + lam * br * mw
+        t, tt = data["terms"], data["transfer_terms"]
+        for name, stored, val in (("b_uu_over_m", t["b_uu_over_m"], B), ("transfer_err_over_m",
+                                  t["transfer_err_over_m"], E), ("b_ee_upper_over_m", data["b_ee_upper_over_m"], B + E),
+                                  ("mu", tt["mu"], mu), ("m_u", tt["m_u"], m_u), ("Sa_over_m", tt["Sa_over_m"], Sa),
+                                  ("Sr_over_m", tt["Sr_over_m"], Sr), ("beta_a", tt["beta_a"], ba),
+                                  ("beta_rho", tt["beta_rho"], br)):
+            if val.is_finite() and not ball(stored).overlaps(val):
+                raise CheckError(f"stored {name} differs from the value rebuilt from data['raw']")
         return B + E
 
 
@@ -104,4 +123,7 @@ def g2(data, inputs):
         trNX = (N * Xe).trace()
         A_term = -2 * (N * M1e * N * Ae).trace()
         c1_term = 2 * lam * (c1e.transpose() * N * c1e)[0, 0] / m11
-        return trNX + A_term + c1_term
+        g = trNX + A_term + c1_term
+        if g.is_finite() and not ball(data["g2_enclosure"]).overlaps(g):
+            raise CheckError("stored g2_enclosure differs from the value rebuilt from data['raw']")
+        return g

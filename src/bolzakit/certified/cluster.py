@@ -187,6 +187,12 @@ def _first_order(n, lam1_in, gap_in, sym):
     """Certified upper bound of b(e,e)/m(u) for the F_A deformation, P1 trial space on Mesh(n).
 
     Certificate data (assembly "b_ee_upper_v1"):
+      data["raw"] (the checker's input; ball strings): the exact sums over elements for the float vector x and the
+        constants 1:  q_xx, m_xx, m_x1, m_11 (forms q, m) and dq_xx, dm_xx, dm_x1, dm_11 (their t-derivatives q', m'),
+        c = m_x1/m_11, Sa = sum_T beta_a,T^2 q_T(u), Sr = sum_T beta_rho,T^2 m_T(u) (u = x - c 1), beta_a, beta_rho.
+        Rebuild:  m_u = m_xx - c m_x1,  q_u = q_xx (q annihilates constants),  mu = q_u/m_u,
+          b_uu = (dq_xx - lam1 dm_xx) + 2 c lam1 dm_x1 - c^2 lam1 dm_11   (b = q' - lam1 m', q'(., 1) = 0),
+          B = b_uu/m_u,  Sa/m = Sa/m_u,  Sr/m = Sr/m_u,  then E as below.
       data["terms"] = {"b_uu_over_m": B, "transfer_err_over_m": E}   (Arb ball strings)
       data["b_ee_upper_over_m"] = ball of  B + E   (Arb ball addition)
       claim: b_ee_upper_over_m < 0, i.e. the upper end of B + E is certainly negative.
@@ -296,6 +302,8 @@ def _first_order(n, lam1_in, gap_in, sym):
     b_ee_upper = _float_up(bound) if bound.is_finite() else None
     data = {
         "assembly": "b_ee_upper_v1",
+        "raw": {**{k: ball_str(v) for k, v in S.items()}, "c": ball_str(c), "Sa": ball_str(Sa), "Sr": ball_str(Sr),
+                "beta_a": ball_str(beta_a), "beta_rho": ball_str(beta_rho)},
         "terms": {"b_uu_over_m": ball_str(B), "transfer_err_over_m": ball_str(E)},
         "b_ee_upper_over_m": ball_str(bound),
         "transfer_terms": {"mu": ball_str(mu), "m_u": ball_str(m_u), "Sa_over_m": ball_str(Sa / m_u),
@@ -555,7 +563,7 @@ def _kyfan(direction, n, lam1_in, gap_in, sym, second_order):
     g2_upper = _float_up(g2) if g2.is_finite() else None
     breakdown = {grp: json_float(_ub(build({grp})[0]) - float(g2_0.mid())) for grp in sorted(ALL)}
     # raw inputs keep all 30 mid digits (short ball_str folds the mid rounding into a much wider radius)
-    bs = lambda x: x.str(30, radius=True, more=True)
+    bs = ball_str
     vec = lambda xs: [bs(x) for x in xs]
     raw = {"lam": [lam1_in.lower, lam1_in.upper], "lam4": gap_in.lower, "lamU": repr(_ub(lam)),
            "G": {k: [[bs(Gu[k][a, b]) for b in range(nv)] for a in range(nv)]
