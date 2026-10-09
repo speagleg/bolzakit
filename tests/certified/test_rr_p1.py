@@ -9,18 +9,18 @@ from bolzakit.certified import Surface, certify_spectrum
 def test_p1_n24_golden():
     r = certify_spectrum(Surface.bolza(), k=3, degree=1, n=24)
     assert r.certified
-    assert abs(r.upper[-1] - 3.857985420933427) < 1e-5          # SRC cert_rr_bolza_12_24.json; see note below
+    assert abs(r.upper_inprocess[-1] - 3.857985420933427) < 1e-5          # SRC cert_rr_bolza_12_24.json; see note below
     assert r.upper[-1] >= 3.8388872588                          # contains true lambda_1 from above
     assert r.certificate.kind == "rr_upper" and len(r.certificate.data["K"]) == 4
 
 def test_p1_n12_golden():
     r = certify_spectrum(Surface.bolza(), k=3, degree=1, n=12)
-    assert abs(r.upper[-1] - 3.9827723626133213) < 5e-3
+    assert abs(r.upper_inprocess[-1] - 3.9827723626133213) < 5e-3
 
 @pytest.mark.slow
 def test_p1_n192_golden():
     r = certify_spectrum(Surface.bolza(), k=3, degree=1, n=192)
-    assert abs(r.upper[-1] - 3.839184804702046) < 1e-9
+    assert abs(r.upper_inprocess[-1] - 3.839184804702046) < 1e-9
 
 def test_bisection_never_certifies_below_truth():
     from bolzakit.certified.rayleigh_ritz import is_pd

@@ -193,9 +193,37 @@ def _nonzero(d):
     return bool(d.is_finite() and not d.contains(0))
 
 
+def pairing_selfcheck(xs):
+    """Independent validation of the pairing construction at the Klein balls xs: each g_k is in SO(2,1)
+    (g^T J g contains J, det g contains 1) and maps H_{k+4} -> H_{k+1}, H_{k+5} -> H_k (enclosures contain)."""
+    H = hyperboloid(xs)
+    for k, g in enumerate(pairings(xs)):
+        for i in range(3):
+            for j in range(3):
+                gtjg = sum((g[a][i] * SIG[a] * g[a][j] for a in range(3)), arb(0))
+                if not (gtjg.is_finite() and gtjg.contains(SIG[i] if i == j else 0)):
+                    raise CheckError(f"side pairing g{k} is not Lorentzian (g^T J g != J)")
+        d = _det3(g)
+        if not (d.is_finite() and d.contains(1)):
+            raise CheckError(f"side pairing g{k} does not have determinant 1")
+        for src, dst in ((H[k + 4], H[k + 1]), (H[(k + 5) % 8], H[k])):
+            img = [sum((g[i][a] * src[a] for a in range(3)), arb(0)) for i in range(3)]
+            if not all(v.is_finite() and v.overlaps(w) for v, w in zip(img, dst)):
+                raise CheckError(f"side pairing g{k} does not map the octagon side as required")
+
+
 def _int_cols(cols, n, size):
     return (isinstance(cols, list) and len(cols) == n and len(set(cols)) == n
             and all(isinstance(c, int) and not isinstance(c, bool) and 0 <= c < size for c in cols))
+
+
+CANONICAL_WORDS = ["g0g1", "g0G2", "g1g2", "g1g3", "g1G3", "g2g3"]
+
+
+def describe(inputs):
+    w = inputs["words"]
+    tag = "" if w == CANONICAL_WORDS else "non-canonical words "
+    return f"rank 6 for {tag}{','.join(w)}, surface {inputs.get('surface')}"
 
 
 def derive(inputs, data, ball):
@@ -209,6 +237,7 @@ def derive(inputs, data, ball):
     piv = inputs["pivot_columns_Jc"]
     if not _int_cols(piv, 5, 16):
         raise CheckError("bad pivot_columns_Jc")
+    pairing_selfcheck(x0)
     Jc, Jf, cval = jacobians(x0, words)
     ok_con = all(_finite0(v) for v in cval)
     free = [j for j in range(16) if j not in piv]

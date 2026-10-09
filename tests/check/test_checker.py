@@ -62,7 +62,7 @@ def test_mode_b_is_only_conditionally_valid(certs):
     assert ok and why == "VALID (conditional on lambda_1 >= 33/10)"
     ok, why = check_file(certs["countA"])
     assert ok and why == "VALID"
-    assert check_file(certs["rank"])[1] == "VALID"
+    assert check_file(certs["rank"])[1] == "VALID (rank 6 for g0g1,g0G2,g1g2,g1g3,g1G3,g2g3, surface bolza)"
     for k in ("rr", "first_order", "kyfan"):
         assert check_file(certs[k])[1] == "VALID given stored Gram data"
 
@@ -285,4 +285,18 @@ def test_rank_of_deformed_octagon_checks_valid(tmp_path):
     assert c.certified
     p = tmp_path / "rank_def.json"
     c.save(p)
-    assert check_file(p) == (True, "VALID")
+    ok, why = check_file(p)
+    assert ok and why.startswith("VALID (rank 6 for g0g1,g0G2,g1g2,g1g3,g1G3,g2g3, surface ") and c.inputs["surface"] in why
+
+
+def test_first_order_negative_beta_is_invalid(certs, tmp_path):
+    q = _mutate(certs["first_order"], _set_ball(("data", "raw", "beta_a"), "[-1 +/- 0]"), tmp_path, resha=True)
+    ok, why = check_file(q)
+    assert not ok and "beta_a" in why and ">= 0" in why
+
+
+def test_rank_broken_octagon_fails_pairing_selfcheck(certs, tmp_path):
+    q = _mutate(certs["rank"], lambda r: r["inputs"]["klein"].__setitem__(
+        9, _bump_ball(r["inputs"]["klein"][9], 1e-3)), tmp_path, resha=True)
+    ok, why = check_file(q)
+    assert not ok and "side pairing" in why

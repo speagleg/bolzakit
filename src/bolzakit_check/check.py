@@ -134,6 +134,8 @@ def _check(raw, deep):
         msg = f"VALID (conditional on {note})"
     elif kind in GRAM_KINDS:
         msg = "VALID given stored Gram data"
+    elif kind == "rank":
+        msg = f"VALID ({rank.describe(raw['inputs'])})"
     else:
         msg = "VALID"
     if deep:

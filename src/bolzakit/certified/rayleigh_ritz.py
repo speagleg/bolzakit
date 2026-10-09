@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 from fractions import Fraction
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import scipy.linalg as sl
@@ -55,16 +55,15 @@ def certified_upper(Kp, Mp, guess, step0=1e-6, iters=40):
     return hi
 
 
-def _stored_mu(data, t0):
-    """Decimal mu >= t0 for which mu M - K is certified positive definite from the balls as STORED (parsed at 128
-    bits), so that an independent checker reading the certificate can re-derive the claim.  The bisection point t0
-    is certifiable from the in-memory balls only; the stored 30-digit balls are marginally wider, so mu starts
-    1e-12 (relative) above t0 and grows geometrically if needed.  upper[-1] (= t0) may thus be slightly smaller
-    than the claimed mu; both are rigorous."""
+def _stored_mu(data, t0, m=None):
+    """Decimal mu >= t0 for which mu M - K (leading m x m block, default all) is certified positive definite from
+    the balls as STORED (parsed at 128 bits), so that an independent checker reading the certificate can re-derive
+    the claim.  The bisection point t0 is certifiable from the in-memory balls only; the stored balls are marginally
+    wider, so mu starts 1e-12 (relative) above t0 and grows geometrically if needed."""
     with prec(128):
         K = [[arb(x) for x in r] for r in data["K"]]
         M = [[arb(x) for x in r] for r in data["M"]]
-        m = len(K)
+        m = len(K) if m is None else m
         rel = arb(10) ** -12
         for _ in range(30):
             mu = rational_upper(arb(t0) * (1 + rel))
@@ -76,14 +75,24 @@ def _stored_mu(data, t0):
     raise RuntimeError("could not certify an upper bound from the stored balls")
 
 
+def _float_at_least(q: str) -> float:
+    """Smallest-ish float >= the exact decimal q."""
+    f = float(Fraction(q))
+    while Fraction(f) < Fraction(q):
+        f = math.nextafter(f, math.inf)
+    return f
+
+
 @dataclass
 class SpectrumResult:
-    upper: list
+    upper: list               # certificate-attested: upper[j-1] >= the stored-ball bound for lambda_j (upper[-1] >= mu)
+
     float_eigs: list
     area_over_4pi: str
     certified: bool
     certificate: Certificate
     cluster_sum_upper: float | None = None   # degree 2: upper bound of lambda_1+..+lambda_k (Ky Fan)
+    upper_inprocess: list = field(default_factory=list)   # in-memory bisection values (<= upper; fidelity pins)
 
 
 def _project_p2(mesh, surface, k):
@@ -150,14 +159,17 @@ def certify_spectrum(surface, k=3, degree=2, n=48, strict=False) -> SpectrumResu
         mus = sl.eigh(Kpf, Mpf, eigvals_only=True)
         area = Mp[0][0] / (4 * arb.pi())
         data = {"K": [[ball_str(x) for x in r] for r in Kp], "M": [[ball_str(x) for x in r] for r in Mp]}
-        upper, ok = [], True
+        upper, upper_inprocess, ok = [], [], True
         try:
-            # a bound for each lambda_j, j <= k, from the leading (j+1)-dim sub-space {1, x1..xj}
+            # a bound for each lambda_j, j <= k, from the leading (j+1)-dim sub-space {1, x1..xj}; the bisection
+            # value (in-memory balls) is re-certified from the stored balls, and upper reports that attested bound
             for j in range(1, k + 1):
                 sub_mus = sl.eigh(Kpf[:j + 1, :j + 1], Mpf[:j + 1, :j + 1], eigvals_only=True)
-                upper.append(certified_upper([r[:j + 1] for r in Kp[:j + 1]], [r[:j + 1] for r in Mp[:j + 1]],
-                                             float(sub_mus[-1]), step0, iters))
-            mu = _stored_mu(data, upper[-1])
+                t0 = certified_upper([r[:j + 1] for r in Kp[:j + 1]], [r[:j + 1] for r in Mp[:j + 1]],
+                                     float(sub_mus[-1]), step0, iters)
+                upper_inprocess.append(t0)
+                mu = _stored_mu(data, t0, j + 1)
+                upper.append(_float_at_least(mu))
         except RuntimeError:
             ok = False
             mu = "inf"
@@ -175,11 +187,10 @@ def certify_spectrum(surface, k=3, degree=2, n=48, strict=False) -> SpectrumResu
                         arb_mat([[arb(x) for x in r] for r in data["K"]])).trace()
                 kyfan = kyfan.union(stored)
                 if ok and kyfan.is_finite():
-                    cs_rhs = rational_upper(kyfan)
-                    f = float(Fraction(cs_rhs))
-                    while Fraction(f) < Fraction(cs_rhs):  # the float result is never tighter than the claim rhs
-                        f = math.nextafter(f, math.inf)
-                    cluster, cs_ok = f, True
+                    # outward margin 1e-6 of the radius: a checker on another flint version may enclose the trace
+                    # of the stored balls slightly differently
+                    cs_rhs = rational_upper(kyfan + kyfan.rad() * arb("1e-6"))
+                    cluster, cs_ok = _float_at_least(cs_rhs), True   # never tighter than the claim rhs
                     data["cluster_sum"] = ball_str(kyfan)
             except ZeroDivisionError:  # GM not provably invertible
                 pass
@@ -199,4 +210,5 @@ def certify_spectrum(surface, k=3, degree=2, n=48, strict=False) -> SpectrumResu
     if not ok and strict:
         raise CertificationFailed("could not certify a Rayleigh-Ritz upper bound")
     return SpectrumResult(upper=upper, float_eigs=[float(x) for x in mus],
-                          area_over_4pi=area_s, certified=ok, certificate=cert, cluster_sum_upper=cluster)
+                          area_over_4pi=area_s, certified=ok, certificate=cert, cluster_sum_upper=cluster,
+                          upper_inprocess=upper_inprocess)
