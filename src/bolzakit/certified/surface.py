@@ -16,7 +16,7 @@ from __future__ import annotations
 import numpy as np
 from flint import arb, arb_mat
 
-from ..errors import OutOfValidityRange
+from ..errors import CertificationFailed, OutOfValidityRange
 from ._arb import certainly_lt, prec
 from ._hyp import Bm
 from .jets import J
@@ -171,6 +171,28 @@ class Surface:
         # (53 bits) would cap the whole certified computation at ~1e-8 absolute radius.
         with prec(_PREC):
             return cls(bolza_vertices_hyp(), is_bolza=True, label="bolza", r2_invariant=True)
+
+    @classmethod
+    def from_trace_coords(cls, tau, check=True) -> "Surface":
+        """The surface with Teichmueller trace coordinates tau (6 floats, chart.WORDS order) near Bolza.
+
+        The octagon is the unique zero, certified by a Krawczyk inclusion at 128 bits, of [constraints; traces - tau]
+        in 11 Klein coordinates (the other 5 fixed at their Bolza values; chart.solve_trace_coords).  Raises
+        OutOfValidityRange if |tau - tau_B|_inf > 0.05 max(tau_B) or the inclusion fails.  tau equal (as floats) to
+        chart.bolza_traces() denotes Bolza itself and returns Surface.bolza().  check=True also certifies
+        rank d(pi) = 6 at the solution (CertificationFailed otherwise)."""
+        from . import chart
+        tau = [float(t) for t in tau]
+        if tau == chart.bolza_traces():
+            s = cls.bolza()
+        else:
+            xs = chart.solve_trace_coords(tau)
+            with prec(chart._PREC):
+                V = [_tohyp(xs[2 * k], xs[2 * k + 1]) for k in range(8)]
+            s = cls(V, label=f"trace_coords(tau={tau!r})", r2_invariant=False)
+        if check and not chart.certify_rank(s).certified:
+            raise CertificationFailed(f"rank d(pi) = 6 could not be certified at tau={tau!r}")
+        return s
 
     # -------------------------------------------------------------- coordinates
     def _klein_arb(self):
