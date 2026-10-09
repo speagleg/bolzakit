@@ -26,7 +26,7 @@ import flint
 from flint import acb, arb, arb_poly
 
 from ..errors import CertificationFailed
-from ._arb import ball_str, certainly_gt, certainly_lt, prec
+from ._arb import ball_str, certainly_gt, certainly_lt, json_float, prec
 from .certificate import Certificate, Claim, Dependency, make_producer
 
 PRECISION_BITS = 200
@@ -283,8 +283,8 @@ def count_eigenvalues(surface="bolza", window=(0, 3.3), N=21, strict=False, targ
     certified = all(c.holds for c in claims)
     data = {"N": N, "s": res["s"], "a": res["a"], "X": res["X"], "c_coeffs": res["c_coeffs"],
             "lengths": lengths_data, "target": target, "mode": mode,
-            "I": res["I"], "G_P": res["G_P"], "F0": res["F0"], "c_lower": res["c_lower"],
-            "bound": res["bound"], "bound_upper": bound, "u_msg": res["u_msg"], "v_msg": res["v_msg"]}
+            "I": res["I"], "G_P": res["G_P"], "F0": res["F0"], "c_lower": json_float(res["c_lower"]),
+            "bound": res["bound"], "bound_upper": json_float(bound), "u_msg": res["u_msg"], "v_msg": res["v_msg"]}
     lo_exact = "0" if mode == "A" else res["a"]
     hi_exact = res["a"] if mode == "A" else res["X"]
     inputs = {"surface": "bolza", "window": [window[0], window[1]], "N": N,

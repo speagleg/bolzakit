@@ -18,7 +18,7 @@ from flint import arb, arb_mat
 from ..errors import CertificationFailed
 from . import forms
 from ._arb import ball_str, certainly_gt, prec, rational_upper
-from .certificate import Certificate, Claim, Dependency, make_producer
+from .certificate import Certificate, Claim, Dependency, make_producer, trial_provenance
 from .jets import J
 from .mesh import Mesh, positions_arb, positions_jet
 
@@ -80,7 +80,25 @@ def _project_p2(mesh, surface, k):
     m = k + 1
     Kp = [[GK[i, j] for j in range(m)] for i in range(m)]
     Mp = [[GM[i, j] for j in range(m)] for i in range(m)]
-    return Kp, Mp, GK, GM
+    sample_src = [([c.v for c in X[i0]], [c.v for c in X[i1]], [c.v for c in X[i2]], e[0][0], e[1][0])
+                  for (i0, i1, i2), e in zip(mesh.T, elems)]
+    return Kp, Mp, GK, GM, vecs, sample_src
+
+
+def element_sample(cert, elements):
+    """Deterministic 1% sample (at least 1, at most 200) of the elements, for the checker's --deep consistency mode.
+
+    elements[t] = (P0, P1, P2, Ke, Me): arb hyperboloid vertices and the element matrices.  The indices are
+    random.Random(seed).sample(range(len(elements)), size) with seed = int(sha256[:8], 16), sha256 the hash of the
+    certificate before element_sample is added (so a checker can re-derive the selection)."""
+    import random
+    size = max(1, min(200, len(elements) // 100))
+    seed = int(cert.sha256()[:8], 16)
+    idx = sorted(random.Random(seed).sample(range(len(elements)), size))
+    mat = lambda A: [[ball_str(x) for x in row] for row in A]
+    return {"n_elements": len(elements), "seed_rule": "int(sha256_without_element_sample[:8], 16)",
+            "items": [{"index": t, "vertices": [[ball_str(c) for c in P] for P in elements[t][:3]],
+                       "K": mat(elements[t][3]), "M": mat(elements[t][4])} for t in idx]}
 
 
 def certify_spectrum(surface, k=3, degree=2, n=48, strict=False) -> SpectrumResult:
@@ -98,10 +116,13 @@ def certify_spectrum(surface, k=3, degree=2, n=48, strict=False) -> SpectrumResu
             o = np.argsort(w); w, U = w[o], U[:, o]
             vecs = [np.ones(mesh.Nf)] + [U[:, i] for i in range(1, k + 1)]
             Kp, Mp = forms.project_p1(mesh, elems, vecs)
+            sample_src = [(X[i0], X[i1], X[i2], e[0], e[1]) for (i0, i1, i2), e in zip(mesh.T, elems)]
             step0, iters = 1e-6, 40
+            v0_rule = "RandomState(0).rand(Nf)"
         else:
-            Kp, Mp, GK, GM = _project_p2(mesh, surface, k)
+            Kp, Mp, GK, GM, vecs, sample_src = _project_p2(mesh, surface, k)
             step0, iters = 1e-9, 50
+            v0_rule = "RandomState(0).rand(ndof)"
         Kpf = np.array([[float(x.mid()) for x in r] for r in Kp])
         Mpf = np.array([[float(x.mid()) for x in r] for r in Mp])
         mus = sl.eigh(Kpf, Mpf, eigvals_only=True)
@@ -130,7 +151,9 @@ def certify_spectrum(surface, k=3, degree=2, n=48, strict=False) -> SpectrumResu
                     f = float(up)
                     while not arb(f) >= up:  # round outward: the float must certainly be >= the ball's upper end
                         f = math.nextafter(f, math.inf)
-                    cluster, cs_rhs, cs_ok = f, rational_upper(kyfan), True
+                    # the claimed rhs carries 1% of the ball radius as slack: an independent re-solve from the
+                    # stored (30-digit) balls encloses the trace slightly differently (seen: 1e-3 of the radius)
+                    cluster, cs_rhs, cs_ok = f, rational_upper(kyfan + kyfan.rad() / 100), True
                     data["cluster_sum"] = ball_str(kyfan)
             except ZeroDivisionError:  # GM not provably invertible
                 pass
@@ -139,11 +162,13 @@ def certify_spectrum(surface, k=3, degree=2, n=48, strict=False) -> SpectrumResu
         claim = Claim(lhs=f"lambda_{k}", op="<=", rhs=mu, holds=ok)
         cert = Certificate(
             kind="rr_upper",
-            inputs={"surface": surface.label, "degree": degree, "n": n, "k": k},
+            inputs={"surface": surface.label, "degree": degree, "n": n, "k": k,
+                    "trial": trial_provenance(vecs, v0_rule)},
             claims=[claim] + claims_extra, data=data,
             dependencies=[Dependency("D9", "min-max principle for the Laplacian on a closed surface",
                                      "Courant–Hilbert")],
             producer=make_producer())
+        cert.data["element_sample"] = element_sample(cert, sample_src)
         area_s = ball_str(area)
     if not ok and strict:
         raise CertificationFailed("could not certify a Rayleigh-Ritz upper bound")

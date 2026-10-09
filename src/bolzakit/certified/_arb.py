@@ -39,8 +39,20 @@ def certainly_gt(x, q) -> bool:
 
 
 def ball_str(x) -> str:
-    """Round-trippable ball string, e.g. '[3.83 +/- 1.01e-12]'."""
-    return x.str(radius=True)
+    """Outward-enclosing ball string with 30 mid digits, e.g. '[3.838887258800000000000000000000 +/- 1.01e-12]'.
+
+    more=True prints the stored midpoint (not the shortest decimal), so arb(ball_str(x)) contains x."""
+    return x.str(30, radius=True, more=True)
+
+
+def json_float(x):
+    """x as a float if finite, else the string 'nan' / 'inf' / '-inf' (certificates are strict JSON)."""
+    x = float(x)
+    if x != x:
+        return "nan"
+    if x in (float("inf"), float("-inf")):
+        return "inf" if x > 0 else "-inf"
+    return x
 
 
 def parse_ball(s) -> arb:

@@ -26,9 +26,9 @@ from flint import arb, arb_mat
 
 from ..errors import CertificationFailed, OutOfValidityRange
 from . import forms
-from ._arb import PM, ball_str, certainly_gt, certainly_lt, prec
+from ._arb import PM, ball_str, certainly_gt, certainly_lt, json_float, prec
 from ._hyp import Bm
-from .certificate import Certificate, Claim, Dependency, make_producer
+from .certificate import Certificate, Claim, Dependency, make_producer, trial_provenance
 from .jets import D
 from .mesh import Mesh, positions_dual, positions_jet, vertices_dual
 from .surface import Surface
@@ -252,6 +252,7 @@ def _first_order(n, lam1_in, gap_in, sym):
     Af = Phi.T @ (dKf - lamf * dMf) @ Phi; Af = (Af + Af.T) / 2
     ev, evec = np.linalg.eigh(Af)
     xvec = Phi @ evec[:, 0]                          # most negative direction (float, untrusted)
+    inputs["trial"] = trial_provenance([xvec], "RandomState(0).rand(Nf)")
     # exact quantities for vectors [1, x] (arb)
     xa = [arb(float(v)) for v in xvec]
     S = {k: arb(0) for k in ["q_xx", "m_xx", "m_x1", "m_11", "dq_xx", "dm_xx", "dm_x1", "dm_11"]}
@@ -301,9 +302,11 @@ def _first_order(n, lam1_in, gap_in, sym):
                            "Sr_over_m": ball_str(Sr / m_u), "beta_a": ball_str(beta_a),
                            "beta_rho": ball_str(beta_rho), "m_w_over_m": ball_str(m_w / m_u),
                            "q_w_over_m": ball_str(q_w / m_u)},
-        "diagnostics": {"non_additive": True, "beta_a": float(beta_a.upper()), "beta_rho": float(beta_rho.upper()),
+        "diagnostics": {"non_additive": True, "beta_a": json_float(beta_a.upper()),
+                        "beta_rho": json_float(beta_rho.upper()),
                         "beta_rms_a": ball_str((Sa / q_u).sqrt()), "beta_rms_rho": ball_str((Sr / m_u).sqrt()),
-                        "float_cluster": w[1:4].tolist(), "float_A_eigs_per_unit_t": ev.tolist()},
+                        "float_cluster": [json_float(x) for x in w[1:4]],
+                        "float_A_eigs_per_unit_t": [json_float(x) for x in ev]},
     }
     cert = Certificate(kind="cluster_first_order", inputs=inputs,
                        claims=[Claim(lhs="b_ee_upper_over_m", op="<", rhs="0", holds=ok)],
@@ -456,6 +459,7 @@ def _kyfan(direction, n, lam1_in, gap_in, sym, second_order):
     g2f = float(np.trace(Xf) - 2 * np.trace(M1f @ Af) + 2 * lamf * c1f @ c1f / m11f)
     # ---- certified pass: exact Gram matrices of the 7 float vectors [x_1..x_3, psi_1..psi_3, 1]
     V = np.column_stack([x, psi, one])
+    inputs["trial"] = trial_provenance([V[:, j] for j in range(V.shape[1])], "RandomState(0).rand(ndof)")
     nv = 7
     Gs = {k: arb_mat(nv, nv) for k in ("K0", "K1", "K2", "M0", "M1", "M2", "W1q", "W1m", "W2q", "W2m")}
     bmax = [arb(0)] * 4
@@ -504,7 +508,7 @@ def _kyfan(direction, n, lam1_in, gap_in, sym, second_order):
         mw = exc / (lam4 - lam); qw = exc * lam4 / (lam4 - lam)
         sm.append(_sqrt_up(mw)); sq.append(_sqrt_up(qw))
         eta.append(dict(mu=ball_str(Gu["K0"][i, i] / Gu["M0"][i, i]), m_u=ball_str(Gu["M0"][i, i]),
-                        sqrt_q_w_le=_ub(sq[-1]), sqrt_m_w_le=_ub(sm[-1])))
+                        sqrt_q_w_le=json_float(_ub(sq[-1])), sqrt_m_w_le=json_float(_ub(sm[-1]))))
     nrm = lambda G_, f: _sqrt_up(G_[f, f])           # point >= sqrt of the upper end of a (nonneg) weighted sum
     W1q = [nrm(Gu["W1q"], f) for f in range(7)]; W1m = [nrm(Gu["W1m"], f) for f in range(7)]
     W2q = [nrm(Gu["W2q"], f) for f in range(7)]; W2m = [nrm(Gu["W2m"], f) for f in range(7)]
@@ -549,7 +553,7 @@ def _kyfan(direction, n, lam1_in, gap_in, sym, second_order):
     g2_0, _ = build(set())
     ok = certainly_lt(g2, 0)                           # NaN / infinite never pass
     g2_upper = _float_up(g2) if g2.is_finite() else None
-    breakdown = {grp: _ub(build({grp})[0]) - float(g2_0.mid()) for grp in sorted(ALL)}
+    breakdown = {grp: json_float(_ub(build({grp})[0]) - float(g2_0.mid())) for grp in sorted(ALL)}
     # raw inputs keep all 30 mid digits (short ball_str folds the mid rounding into a much wider radius)
     bs = lambda x: x.str(30, radius=True, more=True)
     vec = lambda xs: [bs(x) for x in xs]
@@ -568,9 +572,10 @@ def _kyfan(direction, n, lam1_in, gap_in, sym, second_order):
             "non_additive": True,
             "g2_central": ball_str(g2_0),
             "error_breakdown_upper_minus_central": breakdown,
-            "beta_max": dict(beta1=_ub(b1), beta1r=_ub(b1r), beta2=_ub(b2), beta2r=_ub(b2r)),
+            "beta_max": {k: json_float(_ub(b)) for k, b in zip(("beta1", "beta1r", "beta2", "beta2r"), bmax)},
             "eta": eta, "area_over_4pi": ball_str(Gu["M0"][ONE, ONE] / (4 * arb.pi())),
-            "float_cluster": w[1:4].tolist(), "float_g2": g2f, "float_T2": T2f, "float_A_eigs": A_float,
+            "float_cluster": [json_float(v) for v in w[1:4]], "float_g2": json_float(g2f),
+            "float_T2": json_float(T2f), "float_A_eigs": [json_float(v) for v in A_float],
             "A_e_enclosure_diag": [ball_str(B1u[i, i]) for i in range(3)],
             "B2_uu_diag": [ball_str(B2u[i, i]) for i in range(3)],
         },

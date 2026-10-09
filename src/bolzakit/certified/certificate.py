@@ -42,7 +42,7 @@ class Certificate:
     def canonical_json(self) -> str:
         return json.dumps(
             {"schema": self.schema, "kind": self.kind, "inputs": self.inputs, "data": self.data},
-            sort_keys=True, separators=(",", ":"))
+            sort_keys=True, separators=(",", ":"), allow_nan=False)
 
     def sha256(self) -> str:
         return hashlib.sha256(self.canonical_json().encode("utf-8")).hexdigest()
@@ -54,7 +54,7 @@ class Certificate:
             "dependencies": [asdict(x) for x in self.dependencies],
             "producer": self.producer, "certified": self.certified, "sha256": self.sha256(),
         }
-        return json.dumps(d, sort_keys=True, indent=2)
+        return json.dumps(d, sort_keys=True, indent=2, allow_nan=False)  # strict JSON: no NaN / Infinity
 
     def save(self, path) -> None:
         Path(path).write_text(self.to_json() + "\n", encoding="utf-8")
@@ -70,6 +70,14 @@ class Certificate:
     @classmethod
     def load(cls, path) -> "Certificate":
         return cls.from_json(Path(path).read_text(encoding="utf-8"))
+
+
+def trial_provenance(vectors, v0_rule="RandomState(0).rand(Nf)") -> dict:
+    """Provenance of the (untrusted) float trial vectors: the ARPACK start vector rule and the sha256 of the vectors,
+    stacked row-wise (one row per vector) as little-endian float64 bytes."""
+    import numpy as np
+    a = np.ascontiguousarray(np.array([np.asarray(v, dtype=float) for v in vectors]), dtype="<f8")
+    return {"arpack_v0": v0_rule, "sha256": hashlib.sha256(a.tobytes()).hexdigest()}
 
 
 def make_producer() -> dict:

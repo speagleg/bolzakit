@@ -56,8 +56,8 @@ def test_cluster_sum_failed_solve_is_none(monkeypatch):
     orig = rr._project_p2
 
     def singular_gm(mesh, surface, k):
-        Kp, Mp, GK, GM = orig(mesh, surface, k)
-        return Kp, Mp, GK, arb_mat(k + 1, k + 1)   # zero matrix: solve cannot succeed
+        Kp, Mp, GK, GM, *rest = orig(mesh, surface, k)
+        return (Kp, Mp, GK, arb_mat(k + 1, k + 1), *rest)   # zero matrix: solve cannot succeed
     monkeypatch.setattr(rr, "_project_p2", singular_gm)
     r = certify_spectrum(Surface.bolza(), k=3, degree=2, n=12)
     assert r.cluster_sum_upper is None
