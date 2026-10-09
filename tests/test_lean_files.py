@@ -14,3 +14,16 @@ def test_axiom_gate_script(tmp_path):
     empty = tmp_path / "e.log"; empty.write_text("")
     run = lambda p: subprocess.run(["bash", str(ROOT / "scripts/check_axioms.sh"), str(p)]).returncode
     assert run(ok) == 0 and run(bad) == 1 and run(empty) == 1
+
+
+def test_axiom_gate_joins_wrapped_lines(tmp_path):
+    # Lean wraps long axiom lists; a disallowed axiom on a continuation line must still fail the gate.
+    run = lambda p: subprocess.run(["bash", str(ROOT / "scripts/check_axioms.sh"), str(p)]).returncode
+    wrapped_bad = tmp_path / "wb.log"
+    wrapped_bad.write_text("'Bolza.bolza_strict_local_max' depends on axioms: [propext,\n Classical.choice,\n"
+                           " sorryAx,\n Quot.sound]\n")
+    wrapped_ok = tmp_path / "wo.log"
+    wrapped_ok.write_text("'Bolza.x' depends on axioms: [propext,\n Classical.choice,\n Quot.sound]\n"
+                          "'Bolza.y' does not depend on any axioms\n")
+    unclosed = tmp_path / "u.log"; unclosed.write_text("'Bolza.x' depends on axioms: [propext,\n")
+    assert run(wrapped_bad) == 1 and run(wrapped_ok) == 0 and run(unclosed) == 1

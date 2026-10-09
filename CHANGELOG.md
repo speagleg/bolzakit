@@ -1,5 +1,68 @@
 # Changelog
 
+## [0.2.0] - 2026-10-09
+
+### Added
+
+- `bolzakit.certified` (extra `[cert]`: python-flint, sympy). This is a certified (Arb ball arithmetic) layer for
+  the Bolza surface and its small deformations, and every result carries a `bolzakit-cert/1` JSON certificate.
+  - `Surface`: the Bolza octagon, the deformations `deform("F_A" | "F_B" | 16-vector, t)` for |t| ≤ 0.05, and
+    `from_trace_coords`. Closure is certified by interval Newton or Krawczyk.
+  - `certify_spectrum`: P1 / P2 Rayleigh–Ritz upper bounds. `upper` is attested by the certificate, and
+    `upper_inprocess` keeps the in-memory values.
+  - `count_eigenvalues`: Selberg trace-formula counts for Bolza (Fortier Bourque–Petri LP). Mode A is
+    assumption-free. Mode B is conditional on λ₁ ≥ a.
+  - `certify_lam1_lower`: the Lehmann–Goerisch lower bound λ₁ ≥ 3.83887570105 (n = 48, ρ = 5), conditional on
+    λ₄ ≥ 4.0.
+  - `certify_cluster`: the first-order test (A ≠ 0 along F_A) and the second-order Ky Fan bound on D²Λ(v,v), with
+    explicit `Lam1Input` / `GapInput` and certificate-attested `b_ee_upper` / `kyfan_upper` (plus `*_inprocess`).
+  - `certify_rank`: rank 6 of the trace-coordinate chart at Bolza.
+- `bolzakit_check`, an independent checker (`python -m bolzakit_check FILE... [--deep]`) that imports nothing from
+  `bolzakit`. It re-derives each claim per certificate kind. Exit codes: 0 = all VALID, 2 = some only conditionally
+  VALID, 1 = some INVALID. VALID messages state their trust boundary ("VALID given stored Gram data").
+- `bolzakit.sensitivity`, a standalone module that depends only on numpy and scipy. `cluster_sensitivity`
+  computes the splitting rates, the cluster-sum Hessian and an exact Ky Fan prefix bound for a symmetric pencil.
+  It also provides `directional` and `from_callables`, and scikit-fem and FEniCSx adapters.
+- `proofs/bolza-local-max/`: the computer-assisted proof that Bolza is a strict local maximum of λ₁, with ten
+  golden certificates (an SU13-free route, plus SU13 cross-checks), `reproduce.py --quick | --full`, the paper and
+  the review record. The status is conditional on the cited inputs, and no human expert has read the proof.
+- Lean 4: the `BolzaKit/LocalMax` skeleton (8 files) of the local-maximum argument, conditional on its computational
+  inputs, with a CI axiom gate (`scripts/check_axioms.sh`).
+- Docs: `docs/certified.md` (method, trust model, validity limits, known limitations) and `docs/sensitivity.md`.
+  The README has new sections for software engineers, physicists and engineers.
+- Examples: `bolza_deform.py`, `bolza_strain_rates.py` and `membrane_repeated_frequency.py`.
+- CI: the default job installs `.[dev,cert,skfem]` and runs `bolzakit_check` on the golden certificates (exit 0
+  or 2 passes). The weekly job runs `--runslow` and `reproduce.py --quick`. A weekly FEniCSx job runs in the dolfinx
+  image.
+
+### Changed
+
+- The scikit-fem example is named `membrane_repeated_frequency.py` (it is a membrane, not a plate).
+- The `bolzakit.sensitivity.core` docstring no longer claims that near-tie splitting rates are O(spread)-accurate.
+  They are eig(A) at the cluster mean. The cluster-sum derivatives are the reliable quantities.
+
+### Fixed
+
+- `scripts/check_axioms.sh` failed open when Lean wrapped a `#print axioms` list across lines. It now joins the log
+  before parsing, and it fails on an unterminated list. The Lean CI axiom step runs under `shell: bash` (pipefail),
+  so a failing `lean` is no longer masked by `tee`.
+
+### Performance (measured, one core; not asserted in tests)
+
+- Regenerating the golden set (`reproduce.py --full`) takes about 36 min. Per certificate: P1 n = 192 Rayleigh–Ritz
+  419 s, P2 n = 96 65 s, first order n = 192 about 680 s each, Ky Fan n = 96 125–150 s, the LP counts 4–21 s,
+  rank 1 s, Lehmann–Goerisch n = 48 about 4 min. `reproduce.py --quick` takes about 1 min.
+
+### Known limitations
+
+- Deformations are validated near Bolza only (|t| ≤ 0.05), and counting is for Bolza only.
+- Arbitrary vector directions certify weakly, because of the minimum-norm second-order jet. This is deferred to
+  v0.3.
+- The checker trusts the stored Gram / raw-sum data, and `--deep` is a consistency check only. The kyfan and b_ee
+  checker formulas share their derivation with the producer. λ₁ ≥ a and λ₄ ≥ 4.0 are linked by hand. The
+  Lehmann–Goerisch computation cannot detect a wrong ρ. See `docs/certified.md`.
+- No human expert has reviewed the proof or the derivations (see `VERIFICATION.md`).
+
 ## 0.1.0
 
 First release.

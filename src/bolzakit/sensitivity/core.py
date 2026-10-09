@@ -4,7 +4,8 @@ The pencil comes from any finite-element model. It may be dense (numpy) or spars
 first (and optionally second) parameter derivatives of K and M, this module returns, for a cluster of eigenvalues
 lambda_i..lambda_j:
 
-* ``A = U^T (dK - lam_bar dM) U``. Its eigenvalues are the first-order splitting rates of the cluster.
+* ``A = U^T (dK - lam_bar dM) U``. Its eigenvalues are the first-order splitting rates of an exactly degenerate
+  cluster (for a nearly degenerate one, see "Near-degenerate clusters" below).
 * ``trace_hessian``: the second derivative of the sum of the cluster eigenvalues,
   ``tr(U^T (d2K - lam_bar d2M) U) - 2 tr(A U^T dM U) - 2 tr(B^T Z)``. Here ``B = (dK - lam_bar dM) U`` and Z is
   the solution of the deflated system ``(K - lam_bar M) Z = B - M U U^T B`` with ``U^T M Z = 0``.
@@ -15,8 +16,13 @@ Ky Fan bound and the derivatives are statements about the eigenvalues of the mat
 about the eigenvalues of the continuous operator that the finite-element model discretises, and the
 discretisation error is not controlled. All results carry the label "NUMERICAL".
 
-If the cluster is near-degenerate rather than exactly degenerate, the formulas use the cluster mean lam_bar. They
-are then exact to within O(spread of the cluster).
+Near-degenerate clusters. If the cluster is only nearly degenerate (spread g_in > 0), the formulas use the cluster
+mean lam_bar, and ``rates`` are by definition eig(A) at lam_bar. They are NOT O(g_in)-accurate predictions of the
+derivatives of the individual branches. Counterexample: K = diag(1, 1+delta, 3), M = I, and dK coupling the first two
+modes with off-diagonal entry 1. The rates are +-1 for every delta > 0, but both branch derivatives at t = 0 are 0.
+The rates describe the splitting once |t| >> g_in / |A|, not the derivatives at t = 0. The cluster SUM is smooth,
+so ``tr A`` (its first derivative) and ``trace_hessian`` (its second derivative) are correct: exact for an exactly
+degenerate cluster, and accurate to O(g_in) otherwise (exact in the counterexample).
 
 This module imports only numpy and scipy, and nothing from the rest of bolzakit.
 """
@@ -40,7 +46,7 @@ class ClusterSensitivity:
     eigvals: np.ndarray          # cluster eigenvalues (ascending)
     basis: np.ndarray            # n x m, M-orthonormal cluster eigenvectors
     A: np.ndarray                # m x m symmetric first-order matrix U^T (dK - lam_bar dM) U
-    rates: np.ndarray            # eigvalsh(A): first-order splitting rates
+    rates: np.ndarray            # eigvalsh(A) at lam_bar (not branch derivatives of a near-tie; module docstring)
     trace_hessian: float | None  # d^2/dt^2 of the sum of the cluster eigenvalues (needs d2K/d2M)
     kyfan_upper: float | None    # upper bound for d^2/dt^2 (lambda_0 + ... + lambda_j), discrete problem only
     label: str = "NUMERICAL"

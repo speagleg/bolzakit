@@ -16,16 +16,29 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "${{ matrix.python }}"}
-      - run: pip install -e ".[dev]"
+      - run: pip install -e ".[dev,cert,skfem]"
       - run: pytest -q
-  slow-network:
-    # Weekly (and on demand): slow tests plus the Strohmaier–Uski download and network tests.
+      - name: Check the golden certificates
+        # bolzakit_check exits 0 (all unconditionally VALID), 2 (no INVALID, some only conditionally VALID) or
+        # 1 (some INVALID). The golden set is expected to exit 2: lp_B_3.3_4.0 is conditional on lambda_1 >= 3.3 and
+        # lg_lower_n48 on lambda_4 >= 4.0, both discharged by hand by the count certificates.
+        shell: bash
+        run: |
+          set +e
+          python -m bolzakit_check proofs/bolza-local-max/certificates/*.json
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ] || [ "$rc" -eq 2 ]; then echo "checker exit $rc: OK"; else echo "checker exit $rc: FAIL"; exit 1; fi
+  slow:
+    # Weekly (and on demand): slow tests, the Strohmaier–Uski download and network tests, and the proof package's
+    # quick reproduction (checker on the golden set plus the n <= 24 analogues).
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
-      - run: pip install -e ".[dev,pari]"
+      - run: pip install -e ".[dev,cert,skfem,pari]"
       - run: pytest -q --runslow --runnetwork
+      - run: python proofs/bolza-local-max/reproduce.py --quick

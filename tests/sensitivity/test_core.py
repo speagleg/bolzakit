@@ -101,3 +101,18 @@ def test_sparse_generalized_matches_dense_second_order():
         assert np.allclose(rs.rates, rd.rates, rtol=1e-8, atol=1e-12)
         assert abs(rs.trace_hessian - rd.trace_hessian) < 1e-7 * max(1, abs(rd.trace_hessian))
         assert abs(rs.kyfan_upper - rd.kyfan_upper) < 1e-7 * max(1, abs(rd.kyfan_upper))
+
+
+def test_near_tie_rates_are_eig_A_not_branch_derivatives():
+    # R2 counterexample: a nearly (not exactly) degenerate cluster. rates = eig(A) at lam_bar = +-1, while the true
+    # branch derivatives are 0 (the diagonal of dK), however small delta is. tr A and the trace Hessian are exact.
+    d = 1e-6
+    K = np.diag([1.0, 1 + d, 3.0]); M = np.eye(3); Z = np.zeros((3, 3))
+    dK = np.array([[0, 1, 0], [1, 0, 0], [0, 0, 0.0]])
+    r = cluster_sensitivity(K, M, dK, Z, (0, 1), d2K=Z, d2M=Z)
+    assert np.allclose(np.sort(r.rates), [-1, 1])                 # eig(A): NOT the branch derivatives
+    import scipy.linalg as sl
+    h = 1e-9; ev = lambda t: sl.eigvalsh(K + t * dK)[:2]
+    assert np.allclose((ev(h) - ev(-h)) / (2 * h), [0, 0], atol=1e-2)   # true branch derivatives ~ 0
+    assert abs(np.trace(r.A)) < 1e-12                            # tr A = d/dt of the cluster sum: correct
+    assert abs(r.trace_hessian) < 1e-9                           # cluster-sum Hessian: correct (0 here)

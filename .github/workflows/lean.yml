@@ -20,6 +20,8 @@ jobs:
         run: lake build
       - name: Axiom gate
         working-directory: lean
+        # shell: bash runs with -eo pipefail, so a failing `lean` is not masked by `tee`
+        shell: bash
         run: |
           lake env lean BolzaKit/LocalMax.lean 2>&1 | tee axioms.log
           bash ../scripts/check_axioms.sh axioms.log
