@@ -70,8 +70,13 @@
       "statement": "lambda_4 >= 4.0 (no eigenvalue in (lambda_1, 4.0))"
     },
     {
+      "id": "D4",
+      "source": "FBP Lemmas 7.2 and 7.3 (quoted; PROOF.md Lemma 1c, \u00a7Dependencies D4)",
+      "statement": "lambda_1 has multiplicity exactly 3 (no 1- or 2-dimensional irreducible representation in the lambda_1-eigenspace), so dim E = 3 in the gap transfer"
+    },
+    {
       "id": "F1",
-      "source": "PROOF.md Lemma 2 (F1_PROOF.md)",
+      "source": "PROOF.md Lemma 2",
       "statement": "C^1 regularity of the lambda_1 cluster under the deformation (A is the first-order matrix of the cluster, traceless)"
     }
   ],
@@ -99,7 +104,7 @@
   "producer": {
     "bolzakit": "0.2.0",
     "flint": "0.9.0",
-    "git": "v0.1.0-31-g4c52155",
+    "git": "v0.1.0-37-g01232a6",
     "python": "3.12.3"
   },
   "schema": "bolzakit-cert/1",

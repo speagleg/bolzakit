@@ -24097,7 +24097,7 @@
   "producer": {
     "bolzakit": "0.2.0",
     "flint": "0.9.0",
-    "git": "v0.1.0-31-g4c52155",
+    "git": "v0.1.0-37-g01232a6",
     "python": "3.12.3"
   },
   "schema": "bolzakit-cert/1",

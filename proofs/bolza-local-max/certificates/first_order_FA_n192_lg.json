@@ -60,8 +60,8 @@
   },
   "dependencies": [
     {
-      "id": "D1",
-      "source": "Lehmann\u2013Goerisch lower bound (math-pursuits item 23 LB_RESULTS) + P2 upper bound",
+      "id": "D15",
+      "source": "lower end: Lehmann\u2013Goerisch bound, certificate lg_lower_n48.json (D15; math-pursuits item 23 LB_RESULTS); upper end: P2 Rayleigh-Ritz bound, certificate rr_p2_n96.json (min-max, D9)",
       "statement": "lambda_1 in [3.8388757010, 3.8388872830]"
     },
     {
@@ -70,8 +70,13 @@
       "statement": "lambda_4 >= 4.0 (no eigenvalue in (lambda_1, 4.0))"
     },
     {
+      "id": "D4",
+      "source": "FBP Lemmas 7.2 and 7.3 (quoted; PROOF.md Lemma 1c, \u00a7Dependencies D4)",
+      "statement": "lambda_1 has multiplicity exactly 3 (no 1- or 2-dimensional irreducible representation in the lambda_1-eigenspace), so dim E = 3 in the gap transfer"
+    },
+    {
       "id": "F1",
-      "source": "PROOF.md Lemma 2 (F1_PROOF.md)",
+      "source": "PROOF.md Lemma 2",
       "statement": "C^1 regularity of the lambda_1 cluster under the deformation (A is the first-order matrix of the cluster, traceless)"
     }
   ],
@@ -84,7 +89,7 @@
     },
     "lam1": {
       "lower": "3.8388757010",
-      "source": "Lehmann\u2013Goerisch lower bound (math-pursuits item 23 LB_RESULTS) + P2 upper bound",
+      "source": "lower end: Lehmann\u2013Goerisch bound, certificate lg_lower_n48.json (D15; math-pursuits item 23 LB_RESULTS); upper end: P2 Rayleigh-Ritz bound, certificate rr_p2_n96.json (min-max, D9)",
       "upper": "3.8388872830"
     },
     "n": 192,
@@ -99,9 +104,9 @@
   "producer": {
     "bolzakit": "0.2.0",
     "flint": "0.9.0",
-    "git": "v0.1.0-31-g4c52155",
+    "git": "v0.1.0-37-g01232a6",
     "python": "3.12.3"
   },
   "schema": "bolzakit-cert/1",
-  "sha256": "344e5ca002fae74e103a4e2648c1ee60f75f9de30656e0cc540f907515ec05cd"
+  "sha256": "76d957ef38281f7528cadc9e50d56e2c48ebb014de4b89e8b61b9c841798acea"
 }

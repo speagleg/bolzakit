@@ -86,7 +86,7 @@
     },
     "k": 3,
     "lam1_lower_enclosure": "[3.83887570105272461248061503671 +/- 3.8388761E-29]",
-    "nubar": "np.float64(-30.031942622361058)",
+    "nubar": "-30.031942622361058",
     "rho": "5",
     "shift": 1
   },
@@ -121,9 +121,9 @@
   "producer": {
     "bolzakit": "0.2.0",
     "flint": "0.9.0",
-    "git": "v0.1.0-34-g5f77f77-dirty",
+    "git": "v0.1.0-37-g01232a6",
     "python": "3.12.3"
   },
   "schema": "bolzakit-cert/1",
-  "sha256": "86b034a7298c436d104c405422c880f496d9065bfd56d37854c5ecd0a65ce06d"
+  "sha256": "5dc050956304d13a14b3d4b1eff239ff7feb579a40f73eb8a1b73b0be9adccd7"
 }

@@ -591,19 +591,24 @@
       "statement": "lambda_4 >= 4.0 (no eigenvalue in (lambda_1, 4.0))"
     },
     {
-      "id": "D10",
-      "source": "Ky Fan (D10)",
+      "id": "D4",
+      "source": "FBP Lemmas 7.2 and 7.3 (quoted; PROOF.md Lemma 1c, \u00a7Dependencies D4)",
+      "statement": "lambda_1 has multiplicity exactly 3 (no 1- or 2-dimensional irreducible representation in the lambda_1-eigenspace), so dim E = 3 in the gap transfer"
+    },
+    {
+      "id": "D9",
+      "source": "Ky Fan (PROOF.md \u00a7Dependencies D9: Moslehian arXiv:1108.1467, Fan 1950)",
       "statement": "Ky Fan: lambda_1+lambda_2+lambda_3 <= tr(G_m^-1 G_q) on any 4-dim space containing the constants (lambda_0 = 0)"
     },
     {
       "id": "F1",
-      "source": "PROOF.md Lemma 2 (F1_PROOF.md)",
+      "source": "PROOF.md Lemma 2",
       "statement": "C^2 regularity of Lambda = lambda_1+lambda_2+lambda_3 along the deformation"
     },
     {
       "id": "Lemma4",
-      "source": "dLambda=0 (Lemma 4)",
-      "statement": "dLambda = 0 at Bolza, so Lambda''(0) (<= g''(0) by Ky Fan) is D2 Lambda(v, v): independent of the curve's second-order term"
+      "source": "PROOF.md Lemma 4 (dLambda = 0)",
+      "statement": "dLambda = 0 at Bolza, so Lambda''(0) (<= g''(0) by Ky Fan) is the second derivative D^2 Lambda(v, v): independent of the curve's second-order term"
     }
   ],
   "inputs": {
@@ -630,7 +635,7 @@
   "producer": {
     "bolzakit": "0.2.0",
     "flint": "0.9.0",
-    "git": "v0.1.0-31-g4c52155",
+    "git": "v0.1.0-37-g01232a6",
     "python": "3.12.3"
   },
   "schema": "bolzakit-cert/1",
