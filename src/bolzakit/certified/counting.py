@@ -22,18 +22,15 @@ from fractions import Fraction
 import numpy as np
 from scipy.integrate import quad
 from scipy.optimize import linprog
-import sympy as sp
 import flint
 from flint import acb, arb, arb_poly
 
 from ..errors import CertificationFailed
-from ._arb import ball_str, prec
+from ._arb import ball_str, certainly_gt, certainly_lt, prec
 from .certificate import Certificate, Claim, Dependency, make_producer
 
 PRECISION_BITS = 200
 
-_y = sp.symbols("y")
-_x = sp.symbols("x")
 
 
 def _lengths():
@@ -94,6 +91,8 @@ def propose(N, s, mode, a, X, lengths_f, delta=1e-5, eta=0.02):
 # ---------------- exact / rigorous verification ----------------
 def hermite_even_in_y(n):
     """H_{2n}(sqrt y) as an exact polynomial in y."""
+    import sympy as sp
+    _y, _x = sp.symbols("y"), sp.symbols("x")
     p = sp.Poly(sp.hermite(2 * n, _x), _x)
     coeffs = {}
     for (k,), c in p.terms():
@@ -120,6 +119,8 @@ def arb_of(q):
 
 def no_root_on_ray(poly, y0, want_sign):
     """Exact: poly has no real root in [y0, inf) and has sign want_sign (+1/-1) at y0.  y0 rational."""
+    import sympy as sp
+    _y = sp.symbols("y")
     nroots = poly.count_roots(y0, None)  # exact count of distinct real roots in [y0, inf)
     val = poly.eval(y0)
     ok = (nroots == 0) and (sp.sign(val) == want_sign)
@@ -135,15 +136,19 @@ def acb_poly_eval(coeffs_low_to_high, z):
 
 
 def _coef_arb(c):
+    import sympy as sp
     c = sp.Rational(c)
     return arb_of(Fraction(int(c.p), int(c.q)))
 
 
 def certify(mode, a, X, N, s, dvec, target, lengths):
     """Rigorous verification (caller sets the working precision). Returns a dict of results."""
+    import sympy as sp
+    _y = sp.symbols("y")
     s_q = Fraction(s).limit_denominator(1000)
-    a_q = Fraction(a).limit_denominator(10000)
-    X_q = Fraction(X).limit_denominator(10000) if X is not None else None
+    # exact endpoints: the certified window is exactly the requested decimal window
+    a_q = Fraction(str(a))
+    X_q = Fraction(str(X)) if X is not None else None
     cs = rationalize(dvec, N)
     Hs = [hermite_even_in_y(n) for n in range(N + 1)]
     u = sum((sp.Rational(c.numerator, c.denominator) * H for c, H in zip(cs, Hs)), sp.Poly(0, _y))
@@ -154,8 +159,9 @@ def certify(mode, a, X, N, s, dvec, target, lengths):
     # (1) f <= 0 on [sys, inf): u(y) <= 0 for y >= l1^2/s^2.  Use a rational y0 <= l1^2/s^2 (safe: larger set).
     y0_arb = (lengths[0][0] ** 2) / (arb_of(s_q) ** 2)
     y0 = sp.Rational(Fraction(float(y0_arb.lower())).limit_denominator(10 ** 8)) - sp.Rational(1, 10 ** 6)
-    assert arb_of(Fraction(int(y0.p), int(y0.q))) < y0_arb
+    y0_ok = certainly_lt(arb_of(Fraction(int(y0.p), int(y0.q))), y0_arb)
     ok_u, msg_u = no_root_on_ray(u, y0, -1)
+    ok_u = bool(ok_u and y0_ok)
     out["u_nonpos_on_ray"] = bool(ok_u)
     out["u_msg"] = msg_u
     # (2) F >= 0 beyond the window: v(y) >= 0 for y >= s^2 (hi - 1/4)
@@ -174,14 +180,22 @@ def certify(mode, a, X, N, s, dvec, target, lengths):
     lo = Fraction(0) if mode == "A" else a_q
     M = 4000
     cmin = None
+    pieces_ok = True
     for i in range(M):
         l0 = lo + (hi - lo) * Fraction(i, M)
         l1_ = lo + (hi - lo) * Fraction(i + 1, M)
         ball = arb((arb_of(l0) + arb_of(l1_)) / 2, float(Fraction(l1_ - l0) / 2) * (1 + 1e-12))
         # the ball must contain the closed subinterval [l0, l1_] (checked in ball arithmetic, not assumed)
-        assert ball.lower() <= arb_of(l0).lower() and ball.upper() >= arb_of(l1_).upper(), "subinterval not covered"
+        if not (ball.lower() <= arb_of(l0).lower() and ball.upper() >= arb_of(l1_).upper()):
+            pieces_ok = False  # subinterval not covered by its ball: cannot trust this piece
         lb = F(ball).lower()
+        if not lb.is_finite():
+            pieces_ok = False
+            continue
         cmin = lb if cmin is None or lb < cmin else cmin
+    if cmin is None:
+        cmin = arb(0)
+        pieces_ok = False
     out["c_lower"] = float(cmin)
     # (4) integral term I = 2(g-1) int_0^inf r F~(r) tanh(pi r) dr, g = 2;  F~(r) = s v(s^2 r^2) e^{-s^2 r^2/2}
     #   part 1 (tanh -> 1): exact Gaussian moments
@@ -214,8 +228,8 @@ def certify(mode, a, X, N, s, dvec, target, lengths):
     out["bound"] = ball_str(bound)
     out["bound_upper"] = float(bound.upper())
     out["target"] = target
-    out["c_positive"] = bool(cmin > 0)
-    out["bound_below_target"] = bool(bound < target)
+    out["c_positive"] = bool(pieces_ok and certainly_gt(cmin, 0))
+    out["bound_below_target"] = bool(out["c_positive"] and certainly_lt(bound, target))
     out["c_coeffs"] = [str(c) for c in cs]
     return out
 
@@ -232,7 +246,13 @@ def count_eigenvalues(surface="bolza", window=(0, 3.3), N=21, strict=False, targ
     """Certified upper bound on the number of Laplace eigenvalues in a window, by the Selberg trace formula.
 
     window=(0, a): mode A, count in (0, a]; default target 1 (bound < 1 means there are none).
-    Otherwise mode B, count in [a, b]; default target 4 (needs a <= lambda_1).
+    Otherwise mode B, count in [a, b]; default target 4.
+
+    Mode A (Lemma A variant) is assumption-free. Mode B is FBP Lemma 3.2 verbatim and is conditional on the
+    hypothesis lambda_1 >= a, which this function does not prove: the certificate records it as dependency
+    "H_a" and in inputs["assumes"] (discharge it with a mode-A certificate for (0, a)).
+    The certified window is exactly the requested decimal window (endpoints taken as exact rationals,
+    recorded in inputs["window_exact"]).
     """
     if surface != "bolza":
         raise ValueError("counting needs exact length data; Bolza only in v0.2")
@@ -265,15 +285,24 @@ def count_eigenvalues(surface="bolza", window=(0, 3.3), N=21, strict=False, targ
             "lengths": lengths_data, "target": target, "mode": mode,
             "I": res["I"], "G_P": res["G_P"], "F0": res["F0"], "c_lower": res["c_lower"],
             "bound": res["bound"], "bound_upper": bound, "u_msg": res["u_msg"], "v_msg": res["v_msg"]}
+    lo_exact = "0" if mode == "A" else res["a"]
+    hi_exact = res["a"] if mode == "A" else res["X"]
+    inputs = {"surface": "bolza", "window": [window[0], window[1]], "N": N,
+              "window_exact": [lo_exact, hi_exact]}
+    deps = [Dependency("D2", "FBP trace formula (3.1), " + ("Lemma 3.2 (mode B)" if mode == "B"
+                                                              else "Lemma A variant (mode A)"),
+                       "Fortier Bourque-Petri, arXiv:2111.14699"),
+            Dependency("D3", "Bolza geodesic length data (48 geodesics of lengths l1, l2, l3)",
+                       "Fortier Bourque-Petri, arXiv:2111.14699, Sec. 7.4")]
+    if mode == "B":
+        inputs["assumes"] = f"lambda_1 >= {res['a']}"
+        deps.append(Dependency("H_a", "lambda_1 >= a (e.g. from a mode-A count certificate for (0, a))",
+                               "FBP Lemma 3.2 hypothesis"))
     cert = Certificate(
         kind="count",
-        inputs={"surface": "bolza", "window": [window[0], window[1]], "N": N},
+        inputs=inputs,
         claims=claims, data=data,
-        dependencies=[
-            Dependency("D2", "FBP trace formula (3.1), Lemma 3.2 variant", "Fortier Bourque-Petri, arXiv:2111.14699"),
-            Dependency("D3", "Bolza geodesic length data (48 geodesics of lengths l1, l2, l3)",
-                       "Fortier Bourque-Petri, arXiv:2111.14699, Sec. 7.4"),
-        ],
+        dependencies=deps,
         producer=make_producer())
     if strict and not certified:
         raise CertificationFailed("could not certify the eigenvalue count bound")
