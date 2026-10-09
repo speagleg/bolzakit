@@ -52,3 +52,9 @@ PROVED claims that rest on AI-written arguments should be treated accordingly un
 
 bolzakit's code, tests, documentation and Lean files were also written and reviewed by AI agents (Claude) under Gordon
 Speagle's direction; Gordon directed and approved the work.
+
+## Sub-project F (0.3.0): environment
+
+Local runs used the bolzakit venv (Python 3.12) with numpy 2.5.3, scipy 1.18.1, scikit-fem 12.0.2. The PyTorch and JAX
+layers were cut from sub-project F, so no torch/jax extras are declared. (A CPU torch 2.14.1 wheel happens to be present in the
+shared venv; it is unused.)
