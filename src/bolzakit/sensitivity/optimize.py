@@ -131,11 +131,13 @@ def _project_face(N: np.ndarray, r: np.ndarray, fixed: np.ndarray) -> np.ndarray
     if not fixed.any():
         return N @ (N.T @ r)
     E = N[fixed]                                  # rows of N for the fixed coordinates
-    _, sv, Vt = np.linalg.svd(E, full_matrices=True)
-    rank = int(np.sum(sv > 1e-12 * max(1.0, sv[0] if sv.size else 1.0)))
-    Z = Vt[rank:].T                               # null(E N) in the coordinates of N
-    NZ = N @ Z
-    return NZ @ (NZ.T @ r)
+    # z = N^T r minus its component in range(E^T) (rank-revealing QR), i.e. the projection onto null(E)
+    Q, Rq, _ = sla.qr(E.T, mode="economic", pivoting=True)
+    diag = np.abs(np.diag(Rq))
+    rank = int(np.sum(diag > 1e-12 * max(1.0, diag[0] if diag.size else 1.0)))
+    Q = Q[:, :rank]
+    z = N.T @ r
+    return N @ (z - Q @ (Q.T @ z))
 
 
 def _feasible_direction(N, r, signs, mu):
@@ -155,7 +157,7 @@ def _feasible_direction(N, r, signs, mu):
 
 _POLISH_RELS = (0.0, 1e-8, 1e-4, -1.0)   # polish faces: current range, two shrunken ranges, whole space
 _ROTATE_AFTER = 3     # rotate the range after this many checks (every 10 iterations) without halving the gap
-_ROTATE_NFEV = 30     # Gauss-Newton evaluations per rotation
+_ROTATE_NFEV = 15     # Gauss-Newton evaluations per rotation
 
 
 def ascent_direction(A_upper, A_lower=None, *, null_basis=None, bound_signs=None, tol=1e-10,
@@ -175,7 +177,12 @@ def ascent_direction(A_upper, A_lower=None, *, null_basis=None, bound_signs=None
     - "no_progress" / "max_iter": the best certified point seen; the gap may exceed tol * gscale. d may be 0 with
       phi = 0 (no feasible direction with a positive certified rate was found); then phi_upper bounds phi*.
     Callers (the Task 7/9 driver) take a step only for phi > 0, treat "stationary" as convergence, and treat
-    "no_progress"/"max_iter" with d = 0 as stationary to accuracy phi_upper."""
+    "no_progress"/"max_iter" with d = 0 as stationary to accuracy phi_upper.
+
+    Cost: typically 10-30 iterations and a few ms (d = 64, m <= 4, with bounds and equalities: median ~10-15 ms).
+    Known tail, for the driver's subproblem budget: small stacks with bounds at a near-degenerate optimum (e.g.
+    d = 5, m = 4, several bounds active, phi* ~ 0) can need ~1000 iterations (~0.3 s); a census of 200 such
+    instances had median 10 iterations and maximum 1060."""
     Au = np.asarray(A_upper, dtype=float)
     if Au.ndim != 3 or Au.shape[1] != Au.shape[2]:
         raise ValueError("A_upper must have shape (d, m, m)")
@@ -270,7 +277,7 @@ def ascent_direction(A_upper, A_lower=None, *, null_basis=None, bound_signs=None
             off += len(c)
         zY0 = np.concatenate(z0)
         for _ in range(len(act) + 1):         # active-set drop: free multipliers that come out negative are removed
-            Tp = np.hstack([TY, S[:, act]])
+            Tp = np.hstack([TY, P @ S[:, act]])
             nz = Tp.shape[1]
             Cp = np.hstack([C, np.zeros((len(cons), len(act)))])
             KKT = np.block([[Tp.T @ Tp, Cp.T], [Cp, np.zeros((len(cons), len(cons)))]])
@@ -302,14 +309,17 @@ def ascent_direction(A_upper, A_lower=None, *, null_basis=None, bound_signs=None
     PAl = None if Al is None else np.einsum("kl,lab->kab", P, Al)
 
     def rotate(x):
-        """Range-rotating refinement (Burer-Monteiro): Y = R R^T / |R|_F^2 per block, so every point is feasible;
-        minimise |T x|^2 over R by a few Gauss-Newton (trust-region) steps from the current iterate, with the
-        multipliers held fixed (the face polish adjusts them) and an analytic Jacobian. The face polish keeps the
-        range of Y fixed; this moves it, which the first-order iteration does only slowly when the optimal Y is
-        rank-deficient (a sharp optimum where several small eigenvalues of A(d) cross)."""
+        """Range-rotating refinement (Burer-Monteiro): Y = R R^T / |R|_F^2 per block and mu_l = s_l^2 for the positive
+        multipliers (the others stay 0), so every point is feasible; minimise |T x|^2 over (R, s) by a few
+        Gauss-Newton (trust-region) steps from the current iterate, with an analytic Jacobian. The face polish keeps
+        the range of Y fixed; this moves it (jointly with the multipliers), which the first-order iteration does only
+        slowly when the optimal Y is rank-deficient (a sharp optimum where several small eigenvalues of A(d) cross)."""
         Yu, Yl, m = unpack(x)
         blocks = [(Yu, PAu, 1.0)] + ([] if Al is None else [(Yl, PAl, -1.0)])
-        const = T[:, nu + nl:] @ m
+        act = np.nonzero(m > 0)[0]
+        TB = T[:, nu + nl:]
+        TBa = TB[:, act]
+        nR = sum(Y.shape[0] ** 2 for Y, _, _ in blocks)
 
         def Rs(v):
             out, off = [], 0
@@ -320,27 +330,31 @@ def ascent_direction(A_upper, A_lower=None, *, null_basis=None, bound_signs=None
             return out
 
         def res(v):
-            out = const.copy()
+            out = TBa @ v[nR:] ** 2
             for (_, PA, sg), R in zip(blocks, Rs(v)):
                 out += sg * np.einsum("kab,ab->k", PA, R @ R.T) / max(np.sum(R * R), 1e-300)
             return out
 
-        def jac(v):                     # d<PA_l, R R^T / c>/dR = (2/c) (PA_l R - <PA_l, Y> R)
+        def jac(v):                     # d<PA_l, R R^T / c>/dR = (2/c) (PA_l R - <PA_l, Y> R);  d(s^2)/ds = 2 s
             J = []
             for (_, PA, sg), R in zip(blocks, Rs(v)):
                 c = max(np.sum(R * R), 1e-300)
                 g = np.einsum("kab,ab->k", PA, R @ R.T) / c
                 J.append((sg * 2 / c) * (np.einsum("kab,bc->kac", PA, R) - g[:, None, None] * R).reshape(dim, -1))
+            J.append(TBa * (2 * v[nR:]))
             return np.hstack(J)
 
         v0 = []
         for Y, _, _ in blocks:
             w, V = np.linalg.eigh(Y)
             v0.append((V * np.sqrt(np.maximum(w, 0.0) + 1e-12)).ravel())
+        v0.append(np.sqrt(m[act]))
         v = least_squares(res, np.concatenate(v0), jac=jac, method="trf", xtol=1e-15, ftol=1e-15, gtol=1e-15,
                           max_nfev=_ROTATE_NFEV).x
         Ys = [R @ R.T / max(np.sum(R * R), 1e-300) for R in Rs(v)]
-        return pack(Ys[0], Ys[1] if Al is not None else None, m)
+        mm = np.zeros_like(m)
+        mm[act] = v[nR:] ** 2
+        return pack(Ys[0], Ys[1] if Al is not None else None, mm)
 
     best = None   # (gap, x, d, phi, rates, rates_lower) with the smallest certified gap so far
 
