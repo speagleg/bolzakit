@@ -1,4 +1,4 @@
-"""Certified Rayleigh-Ritz upper bounds for Laplace eigenvalues (P1 trial space, Bolza surface).
+"""Certified Rayleigh-Ritz upper bounds for Laplace eigenvalues (P1 / P2 trial space, any certified Surface).
 
 Ported from the Bolza lambda1 research code (cert_rr.py).  The float eigenvectors are untrusted; only their exact
 dyadic values enter the certified part: lambda_k <= mu_max(Kp, Mp) by min-max, and mu_max < t is certified by
@@ -68,7 +68,8 @@ def _project_p2(mesh, surface, k):
     """P2 Rayleigh-Ritz data: exact Gram matrices on span{1, x_1..x_k} of float FE eigenvectors (untrusted)."""
     space = forms.P2Space(mesh)
     X = positions_jet(mesh, [[J(c) for c in V] for V in surface.vertices_hyp])
-    elems = forms.compute_elements(mesh, X, order=0, sym=True)
+    # pi/2-rotation element cache: valid only for octagons invariant under V_k -> V_{k+2}
+    elems = forms.compute_elements(mesh, X, order=0, sym=surface.r2_invariant)
     Kf = forms.assemble_float(space, elems, 0, 0)
     Mf = forms.assemble_float(space, elems, 0, 1)
     w, U = sla.eigsh(Kf, k=k + 3, M=Mf, sigma=-0.5,
@@ -83,9 +84,9 @@ def _project_p2(mesh, surface, k):
 
 
 def certify_spectrum(surface, k=3, degree=2, n=48, strict=False) -> SpectrumResult:
-    """Certified upper bounds for lambda_1..lambda_k (Bolza surface; degree 1 or 2 trial space)."""
-    if degree not in (1, 2) or not surface.is_bolza:
-        raise NotImplementedError("only degree=1 or 2 on the Bolza surface is supported in this version")
+    """Certified upper bounds for lambda_1..lambda_k of a Surface (degree 1 or 2 trial space)."""
+    if degree not in (1, 2):
+        raise NotImplementedError("only degree=1 or 2 is supported in this version")
     cluster = None
     with prec(96):
         mesh = Mesh(n)

@@ -14,18 +14,23 @@ class J:
         self.e = arb(0) if e is None else e
 
     @staticmethod
-    def c(x):
+    def lift(x):
         return x if isinstance(x, J) else J(x)
 
+    @property
+    def c(self):
+        """Taylor coefficients (v, d, e)."""
+        return (self.v, self.d, self.e)
+
     def __add__(s, o):
-        o = J.c(o); return J(s.v + o.v, s.d + o.d, s.e + o.e)
+        o = J.lift(o); return J(s.v + o.v, s.d + o.d, s.e + o.e)
     __radd__ = __add__
 
     def __sub__(s, o):
-        o = J.c(o); return J(s.v - o.v, s.d - o.d, s.e - o.e)
+        o = J.lift(o); return J(s.v - o.v, s.d - o.d, s.e - o.e)
 
     def __rsub__(s, o):
-        return J.c(o) - s
+        return J.lift(o) - s
 
     def __neg__(s):
         return J(-s.v, -s.d, -s.e)
@@ -47,7 +52,7 @@ class J:
         return J(q0, q1, q2)
 
     def __rtruediv__(s, o):
-        return J.c(o) / s
+        return J.lift(o) / s
 
     def _f(s, f0, f1, f2h):
         """compose with f: f0 = f(v), f1 = f'(v), f2h = f''(v)/2."""
