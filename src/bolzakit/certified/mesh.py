@@ -238,6 +238,8 @@ def pairing_residual(mesh, X):
             w = (-Bm(u, u)).upper()  # -B(u,u) = 4 sinh^2(d/2) on the hyperboloid
             d = arb(0) if w <= 0 else 2 * (w.sqrt() / 2).asinh()
             d = arb(d.upper())
+            if not d.is_finite():
+                return arb("inf")  # NaN / indeterminate never passes a bound
             if d > worst:
                 worst = d
     return worst
