@@ -15,8 +15,12 @@ Ky Fan bound and the derivatives are statements about the eigenvalues of the mat
 about the eigenvalues of the continuous operator that the finite-element model discretises, and the
 discretisation error is not controlled. All results carry the label "NUMERICAL".
 
-If the cluster is near-degenerate rather than exactly degenerate, the formulas use the cluster mean lam_bar. They
-are then exact to within O(spread of the cluster).
+If the cluster is near-degenerate (spread g_in > 0) rather than exactly degenerate, the formulas use the cluster
+mean lam_bar. The trace quantities (tr A and trace_hessian) are then accurate to O(g_in). The rates eigvalsh(A) are
+NOT the t = 0 derivatives of the branches: they are the slopes of the reduced model
+    lambda_{i+r}(p + t v) = lam_bar + eig_r(Lambda_C - lam_bar I + t A) + O(t^2 + t g_in),
+i.e. the branch slopes for |t| >> g_in / ||A||. Example: K = diag(1, 1 + delta, 3), dK = e1 e2^T + e2 e1^T gives
+rates +-1, while both branch derivatives at t = 0 are 0.
 
 This module imports only numpy and scipy, and nothing from the rest of bolzakit.
 """
@@ -30,9 +34,16 @@ import scipy.linalg as sla
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-__all__ = ["ClusterSensitivity", "cluster_sensitivity", "directional", "from_callables"]
+from bolzakit.sensitivity.errors import (ClusterRangeError, ClusterSplitError, FiniteDifferenceWarning,
+                                         PencilError)
+
+__all__ = ["ClusterSensitivity", "cluster_sensitivity", "directional", "from_callables", "smallest_eigenpairs",
+           "DISCRETE_CAVEAT"]
 
 _PENCIL_MSG = "K and M must be symmetric with M positive definite"
+
+DISCRETE_CAVEAT = ("NUMERICAL: computed for the discrete pencil (K, M) as given; discretisation error relative to "
+                   "any continuum operator is not controlled.")
 
 
 @dataclass
@@ -44,6 +55,10 @@ class ClusterSensitivity:
     trace_hessian: float | None  # d^2/dt^2 of the sum of the cluster eigenvalues (needs d2K/d2M)
     kyfan_upper: float | None    # upper bound for d^2/dt^2 (lambda_0 + ... + lambda_j), discrete problem only
     label: str = "NUMERICAL"
+    cluster: tuple[int, int] | None = None   # (i, j) as passed
+    lam_bar: float | None = None             # mean of the cluster eigenvalues
+    gap_ratio: float | None = None           # g_out / max(gap_ratio_min |lam_bar|, 10 g_in); >= 1 when accepted
+    caveat: str = DISCRETE_CAVEAT
 
 
 # ----------------------------------------------------------------------------------------------- helpers
@@ -77,9 +92,9 @@ def _sparse_pd_by_lu(X) -> bool:
 
 def _validate(K, M, sparse: bool) -> None:
     if K.shape != M.shape or K.shape[0] != K.shape[1]:
-        raise ValueError(_PENCIL_MSG)
+        raise PencilError(_PENCIL_MSG)
     if not (_is_symmetric(K) and _is_symmetric(M)):
-        raise ValueError(_PENCIL_MSG)
+        raise PencilError(_PENCIL_MSG)
     if sparse:
         ok = _sparse_pd_by_lu(M)
         if ok:
@@ -95,31 +110,33 @@ def _validate(K, M, sparse: bool) -> None:
         except np.linalg.LinAlgError:
             ok = False
     if not ok:
-        raise ValueError(_PENCIL_MSG)
+        raise PencilError(_PENCIL_MSG)
 
 
-def _eigs(K, M, kmax: int, sparse: bool):
-    """The smallest kmax+1 eigenpairs (or all of them, if n is smaller), ascending, M-orthonormal."""
+def _eigs(K, M, count: int, sparse: bool):
+    """The smallest ``count`` eigenpairs (or all of them, if n is smaller), ascending, M-orthonormal."""
     n = K.shape[0]
-    if not sparse or kmax + 1 >= n - 1:
+    count = min(int(count), n)
+    if not sparse or count >= n - 1:
         Kd = K.toarray() if sp.issparse(K) else K
         Md = M.toarray() if sp.issparse(M) else M
         w, V = sla.eigh(Kd, Md)
-        return w[:kmax + 1], V[:, :kmax + 1]
+        return w[:count], V[:, :count]
+    v0 = np.random.default_rng(0).standard_normal(n)  # fixed start vector: reproducible runs (ARPACK's is random)
     # Find a shift below lambda_0: K - s M must be positive definite (checked by inertia).
     scale = max(_maxabs(K), 1e-300)
     s = -1e-8 * scale
     while not _sparse_pd_by_lu(K - s * M):
         s = 4.0 * s
         if s < -1e12 * scale:
-            raise ValueError(_PENCIL_MSG)
-    w, V = spla.eigsh(K, k=kmax + 1, M=M, sigma=s, which="LM")
+            raise PencilError(_PENCIL_MSG)
+    w, V = spla.eigsh(K, k=count, M=M, sigma=s, which="LM", v0=v0)
     o = np.argsort(w)
     w, V = w[o], V[:, o]
     # Move the shift to just below lambda_0, then re-solve.
     s2 = w[0] - 1e-6 * max(abs(w[0]), 1e-8 * scale)
     if s2 > s and _sparse_pd_by_lu(K - s2 * M):
-        w, V = spla.eigsh(K, k=kmax + 1, M=M, sigma=s2, which="LM")
+        w, V = spla.eigsh(K, k=count, M=M, sigma=s2, which="LM", v0=v0)
         o = np.argsort(w)
         w, V = w[o], V[:, o]
     # M-orthonormalise. eigsh does this only up to its tolerance, and it does not do it inside degenerate groups.
@@ -127,6 +144,58 @@ def _eigs(K, M, kmax: int, sparse: bool):
     L = np.linalg.cholesky((G + G.T) / 2)
     V = sla.solve_triangular(L, V.T, lower=True).T
     return w, V
+
+
+def _prepare(K, M):
+    """Normalise (K, M): sparse K selects the sparse path (both CSC); otherwise both dense float arrays."""
+    sparse = sp.issparse(K)
+    if sparse:
+        return sp.csc_matrix(K), sp.csc_matrix(M), True
+    K = np.asarray(K, dtype=float)
+    M = M.toarray() if sp.issparse(M) else np.asarray(M, dtype=float)
+    return K, M, False
+
+
+def _check_range(cluster, n: int) -> tuple[int, int]:
+    i, j = (int(c) for c in cluster)
+    if not (0 <= i <= j < n):
+        raise ClusterRangeError(f"cluster {tuple(cluster)} out of range for n = {n}")
+    return i, j
+
+
+def _gap(w, i: int, j: int, gap_ratio_min: float):
+    """Core gap rule (spec 5.1). Returns (lam_bar, g_in, g_out, thresh, ratio)."""
+    lam = w[i:j + 1]
+    lam_bar = float(lam.mean())
+    g_in = float(lam[-1] - lam[0])
+    outside = []
+    if i > 0:
+        outside.append(lam[0] - w[i - 1])
+    if j + 1 < len(w):
+        outside.append(w[j + 1] - lam[-1])
+    g_out = float(min(outside)) if outside else np.inf
+    thresh = max(gap_ratio_min * abs(lam_bar), 10 * g_in)
+    ratio = g_out / thresh if thresh > 0 else np.inf
+    return lam_bar, g_in, g_out, thresh, float(ratio)
+
+
+def _split_error(cluster, g_in, g_out, ratio):
+    return ClusterSplitError(f"cluster {tuple(cluster)} splits a (near-)degenerate group: gap ratio "
+                             f"g_out / max(gap_ratio_min*|lam_bar|, 10*g_in) = {ratio:.3g} < 1 "
+                             f"(g_in = {g_in:.3g}, g_out = {g_out:.3g})")
+
+
+def smallest_eigenpairs(K, M, count: int) -> tuple[np.ndarray, np.ndarray]:
+    """The ``count`` smallest eigenpairs of K x = lambda M x, ascending, with M-orthonormal eigenvectors.
+
+    Dense inputs use scipy.linalg.eigh; sparse K uses shift-invert eigsh with an inertia-certified shift below
+    lambda_0. Raises PencilError if K, M are not symmetric with M positive definite."""
+    K, M, sparse = _prepare(K, M)
+    n = K.shape[0]
+    if not 1 <= int(count) <= n:
+        raise ValueError(f"count must lie in [1, {n}]")
+    _validate(K, M, sparse)
+    return _eigs(K, M, int(count), sparse)
 
 
 def _as_op(X, sparse: bool, n: int):
@@ -178,40 +247,24 @@ def cluster_sensitivity(K, M, dK, dM, cluster, d2K=None, d2M=None, trial=None,
     correctors, and it remains valid for any trial. The prefix is a union of complete groups, because the gap
     check below guarantees a gap above lambda_j.
 
-    Raises ValueError if K or M is not symmetric, if M is not positive definite, or if the cluster splits a
-    (near-)degenerate group. That last check fails when g_out < max(gap_ratio_min |lam_bar|, 10 g_in), where g_in
-    is the spread inside the cluster and g_out the distance to the nearest eigenvalue outside it.
+    Raises PencilError if K or M is not symmetric or M is not positive definite, ClusterRangeError for a bad
+    ``cluster``, and ClusterSplitError if the cluster splits a (near-)degenerate group (all subclass ValueError).
+    The split check fails when g_out < max(gap_ratio_min |lam_bar|, 10 g_in), where g_in is the spread inside the
+    cluster and g_out the distance to the nearest eigenvalue outside it.
     """
-    i, j = (int(c) for c in cluster)
-    sparse = sp.issparse(K)
-    if sparse:
-        K, M = sp.csc_matrix(K), sp.csc_matrix(M)
-    else:
-        K = np.asarray(K, dtype=float)
-        M = M.toarray() if sp.issparse(M) else np.asarray(M, dtype=float)
+    K, M, sparse = _prepare(K, M)
     n = K.shape[0]
-    if not (0 <= i <= j < n):
-        raise ValueError(f"cluster {cluster} out of range for n = {n}")
+    i, j = _check_range(cluster, n)
     _validate(K, M, sparse)
     dK, dM = _as_op(dK, sparse, n), _as_op(dM, sparse, n)
     have_d2 = d2K is not None or d2M is not None
     d2K, d2M = _as_op(d2K, sparse, n), _as_op(d2M, sparse, n)
 
-    w, V = _eigs(K, M, j + 2, sparse)  # need lambda_{j+1} for the gap check
+    w, V = _eigs(K, M, j + 2, sparse)  # indices 0..j+1: lambda_{j+1} is needed for the gap check
     lam = w[i:j + 1]
-    lam_bar = float(lam.mean())
-    g_in = float(lam[-1] - lam[0])
-    outside = []
-    if i > 0:
-        outside.append(lam[0] - w[i - 1])
-    if j + 1 < len(w):
-        outside.append(w[j + 1] - lam[-1])
-    g_out = float(min(outside)) if outside else np.inf
-    thresh = max(gap_ratio_min * abs(lam_bar), 10 * g_in)
+    lam_bar, g_in, g_out, thresh, ratio = _gap(w, i, j, gap_ratio_min)
     if g_out < thresh:
-        raise ValueError(f"cluster {cluster} splits a (near-)degenerate group: gap ratio "
-                         f"g_out / max(gap_ratio_min*|lam_bar|, 10*g_in) = {g_out / thresh:.3g} < 1 "
-                         f"(g_in = {g_in:.3g}, g_out = {g_out:.3g})")
+        raise _split_error(cluster, g_in, g_out, ratio)
 
     U = V[:, i:j + 1]
     B = np.asarray(dK @ U) - lam_bar * np.asarray(dM @ U)
@@ -228,7 +281,8 @@ def cluster_sensitivity(K, M, dK, dM, cluster, d2K=None, d2M=None, trial=None,
         kyfan = _kyfan_upper(K, M, dK, dM, d2K, d2M, w[:j + 1], V[:, :j + 1], trial, sparse)
 
     return ClusterSensitivity(eigvals=lam.copy(), basis=U.copy(), A=A, rates=rates,
-                              trace_hessian=trace_hessian, kyfan_upper=kyfan)
+                              trace_hessian=trace_hessian, kyfan_upper=kyfan,
+                              cluster=(i, j), lam_bar=lam_bar, gap_ratio=ratio)
 
 
 def _kyfan_upper(K, M, dK, dM, d2K, d2M, lamW, W, trial, sparse) -> float:
@@ -275,10 +329,10 @@ def directional(K, M, dK, dM, cluster, v, d2K=None, d2M=None, **kw) -> ClusterSe
 
 def from_callables(Kfun, Mfun, p0, v, cluster, h=1e-4, **kw) -> ClusterSensitivity:
     """Sensitivity along p0 + t v, with dK, dM, d2K and d2M taken from central finite differences of K(p) and M(p)
-    (step h). This emits a UserWarning: finite-difference derivatives carry O(h^2) truncation error and
-    O(eps/h^2) round-off in the second derivatives."""
+    (step h). This emits a FiniteDifferenceWarning (a UserWarning): finite-difference derivatives carry O(h^2)
+    truncation error and O(eps/h^2) round-off in the second derivatives."""
     warnings.warn("finite-difference derivatives used in from_callables (O(h^2) truncation error)",
-                  UserWarning, stacklevel=2)
+                  FiniteDifferenceWarning, stacklevel=2)
     p0 = np.asarray(p0, dtype=float)
     v = np.asarray(v, dtype=float)
     K0, Kp, Km = Kfun(p0), Kfun(p0 + h * v), Kfun(p0 - h * v)

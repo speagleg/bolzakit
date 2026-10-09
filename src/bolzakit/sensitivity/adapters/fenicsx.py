@@ -10,6 +10,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from bolzakit.sensitivity.adapters._util import _dof_indices
+from bolzakit.sensitivity.errors import MissingExtra
 
 
 def _require_dolfinx():
@@ -18,7 +19,7 @@ def _require_dolfinx():
         import dolfinx.fem.petsc  # noqa: F401
         import ufl
     except ImportError as e:
-        raise ImportError(
+        raise MissingExtra(
             "dolfinx not available: install via conda or the dolfinx/dolfinx docker image") from e
     return ufl
 

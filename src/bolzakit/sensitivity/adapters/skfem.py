@@ -5,16 +5,19 @@ matrices (first derivative O(h^2), second derivative O(h^2) truncation plus O(ep
 """
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 
 from bolzakit.sensitivity.adapters._util import _dof_indices
+from bolzakit.sensitivity.errors import FiniteDifferenceWarning, MissingExtra
 
 
 def _require_skfem():
     try:
         import skfem
     except ImportError as e:  # local stand-in for bolzakit.provenance.require
-        raise ImportError("pip install bolzakit[skfem]") from e
+        raise MissingExtra("scikit-fem not available: pip install bolzakit[skfem]") from e
     return skfem
 
 
@@ -27,7 +30,9 @@ def from_forms(basis, stiffness_form, mass_form, p0: float, h: float = 1e-5, dir
     _require_skfem()
     from skfem import asm
     if not h > 0:
-        raise ValueError("h must be positive")
+        raise ValueError("h must be positive")  # a plain argument error, deliberately not a PencilError
+    warnings.warn("finite-difference derivatives used in the scikit-fem adapter (O(h^2) truncation error)",
+                  FiniteDifferenceWarning, stacklevel=2)
 
     def at(p):
         return asm(stiffness_form, basis, p=p), asm(mass_form, basis, p=p)

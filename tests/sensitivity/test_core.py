@@ -84,7 +84,8 @@ def test_sparse_rejects_indefinite_M_with_offdiagonal_pivots():
     # so a plain pytest.raises(ValueError) would accept a late Cholesky crash in the eigensolve.
     with pytest.raises(ValueError, match="K and M must be symmetric with M positive definite") as ei:
         cluster_sensitivity(K, M, K, 0 * K, (0, 0))
-    assert type(ei.value) is ValueError
+    from bolzakit.sensitivity.errors import PencilError
+    assert type(ei.value) is PencilError
 
 def test_sparse_generalized_matches_dense_second_order():
     # Non-identity M, nonzero dM, d2K, d2M; n large enough to take the eigsh + sparse bordered-solve path.
@@ -101,3 +102,30 @@ def test_sparse_generalized_matches_dense_second_order():
         assert np.allclose(rs.rates, rd.rates, rtol=1e-8, atol=1e-12)
         assert abs(rs.trace_hessian - rd.trace_hessian) < 1e-7 * max(1, abs(rd.trace_hessian))
         assert abs(rs.kyfan_upper - rd.kyfan_upper) < 1e-7 * max(1, abs(rd.kyfan_upper))
+
+
+@pytest.mark.parametrize("delta", [1e-3, 1e-6])
+def test_near_tie_rates_are_reduced_model_slopes_not_derivatives(delta):
+    # Review R2: K = diag(1, 1+delta, 3), dK = e1 e2^T + e2 e1^T passes the gap rule. eig A = +-1, but both branch
+    # derivatives at t = 0 are 0. Trace quantities are right; the reduced model matches the true branches.
+    import scipy.linalg as sl
+    K = np.diag([1.0, 1.0 + delta, 3.0]); dK = np.zeros((3, 3)); dK[0, 1] = dK[1, 0] = 1.0
+    r = cluster_sensitivity(K, np.eye(3), dK, None, (0, 1), d2K=np.zeros((3, 3)))
+    assert np.allclose(r.rates, [-1.0, 1.0], atol=1e-12)
+    fd = (sl.eigvalsh(K + 1e-9 * dK)[:2] - sl.eigvalsh(K - 1e-9 * dK)[:2]) / 2e-9
+    assert np.allclose(fd, 0.0, atol=1e-6)
+    assert abs(np.trace(r.A)) < 1e-12 and abs(r.trace_hessian) < 1e-12
+    lb = r.eigvals.mean()
+    for t in (1e-2, 1e-4, 1e-7):
+        red = lb + np.linalg.eigvalsh(np.diag(r.eigvals - lb) + t * r.A)
+        assert np.max(np.abs(sl.eigvalsh(K + t * dK)[:2] - red)) < 1e-14
+
+
+def test_eigensolve_count_is_j_plus_2(monkeypatch):
+    # Off-by-one regression (spec 4.1 item 2): v0.2 asked for j + 3 pairs.
+    import bolzakit.sensitivity.core as core
+    seen = []
+    real = core._eigs
+    monkeypatch.setattr(core, "_eigs", lambda K, M, count, sparse: (seen.append(count), real(K, M, count, sparse))[1])
+    cluster_sensitivity(np.diag([1.0, 2.0, 2.0, 5.0, 6.0]), np.eye(5), np.eye(5), None, (1, 2))
+    assert seen == [4]
