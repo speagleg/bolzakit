@@ -17,6 +17,7 @@ and |b(f,g)| <= beta_a q(f)^1/2 q(g)^1/2 + lambda1 beta_rho m(f)^1/2 m(g)^1/2 (e
 from __future__ import annotations
 
 import math
+from fractions import Fraction
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -51,11 +52,15 @@ class GapInput:
 class ClusterResult:
     A_float: list                      # eigenvalues of the float first-order matrix A (splitting rates per unit t;
                                        # degree 2: A_ij = b(x_i, x_j) on the P2 float eigenvectors)
-    b_ee_upper: float | None           # certified upper bound of min b(e,e)/m (first order)
+    b_ee_upper: float | None           # certified upper bound of min b(e,e)/m (first order), certificate-attested:
+                                       # >= the upper end of the stored ball data["b_ee_upper_over_m"]
     A_nonzero: bool
-    kyfan_upper: float | None          # certified upper bound of D2 Lambda(v,v) (degree 2, second order)
+    kyfan_upper: float | None          # certified upper bound of D2 Lambda(v,v) (degree 2, second order),
+                                       # certificate-attested: >= the upper end of the stored data["g2_enclosure"]
     certified: bool
     certificates: list = field(default_factory=list)
+    b_ee_upper_inprocess: float | None = None    # in-memory ball's upper end (<= b_ee_upper; fidelity pins)
+    kyfan_upper_inprocess: float | None = None   # in-memory ball's upper end (<= kyfan_upper; fidelity pins)
 
 
 # ------------------------------------------------------------------ element forms with t-derivative (dual numbers)
@@ -178,6 +183,24 @@ def _float_up(x):
     up = x.upper()
     f = float(up)
     while not arb(f) >= up:
+        f = math.nextafter(f, math.inf)
+    return f
+
+
+def _attested_upper(ball: str):
+    """Smallest-ish float >= the upper end of a stored ball string '[mid +/- rad]' (exact Fraction arithmetic, as
+    the checker reads it); None for a non-finite ball."""
+    s = ball.strip()
+    try:
+        if s.startswith("["):
+            mid, rad = s[1:-1].split("+/-")
+            q = Fraction(mid.strip()) + Fraction(rad.strip())
+        else:
+            q = Fraction(s)
+    except (ValueError, ZeroDivisionError, OverflowError):
+        return None
+    f = float(q)
+    while Fraction(f) < q:
         f = math.nextafter(f, math.inf)
     return f
 
@@ -605,6 +628,8 @@ def certify_cluster(direction="F_A", degree=1, n=96, lam1: Lam1Input = None, gap
     "F_B" or a 16-vector of Klein coordinates); see _kyfan for the g2_upper_v1 assembly formula.  sym=True (pi/2
     element cache) applies to the named, r2-invariant families only; it is forced False for vector directions.
     degree=2, second_order=False: float splitting rates A_float only (no certificate, certified=False).
+    b_ee_upper / kyfan_upper are certificate-attested: floats rounded up from the stored enclosure the checker
+    re-derives; the *_inprocess fields keep the (marginally tighter) in-memory values that the published goldens pin.
     Precision is set internally (96 bits)."""
     if lam1 is None or gap is None:
         raise ValueError("lam1 and gap inputs are required (spec §3.4)")
@@ -617,8 +642,10 @@ def certify_cluster(direction="F_A", degree=1, n=96, lam1: Lam1Input = None, gap
             A_float, g2_upper, ok, cert = _kyfan(direction, n, lam1, gap, sym, second_order)
         if strict and second_order and not ok:
             raise CertificationFailed("could not certify D2 Lambda(v, v) < 0 (Ky Fan, second order)")
-        return ClusterResult(A_float=A_float, b_ee_upper=None, A_nonzero=False, kyfan_upper=g2_upper,
-                             certified=ok, certificates=[cert] if cert is not None else [])
+        attested = None if g2_upper is None else _attested_upper(cert.data["g2_enclosure"])
+        return ClusterResult(A_float=A_float, b_ee_upper=None, A_nonzero=False, kyfan_upper=attested,
+                             certified=ok, certificates=[cert] if cert is not None else [],
+                             kyfan_upper_inprocess=g2_upper)
     if degree != 1:
         raise NotImplementedError("degree must be 1 or 2")
     if second_order:
@@ -630,5 +657,6 @@ def certify_cluster(direction="F_A", degree=1, n=96, lam1: Lam1Input = None, gap
         A_float, b_ee_upper, ok, cert = _first_order(n, lam1, gap, sym)
     if strict and not ok:
         raise CertificationFailed("could not certify b(e,e) < 0 (A != 0) at first order")
-    return ClusterResult(A_float=A_float, b_ee_upper=b_ee_upper, A_nonzero=ok, kyfan_upper=None, certified=ok,
-                         certificates=[cert])
+    attested = None if b_ee_upper is None else _attested_upper(cert.data["b_ee_upper_over_m"])
+    return ClusterResult(A_float=A_float, b_ee_upper=attested, A_nonzero=ok, kyfan_upper=None, certified=ok,
+                         certificates=[cert], b_ee_upper_inprocess=b_ee_upper)

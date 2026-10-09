@@ -5,7 +5,8 @@
     reproduce.py --full [--out DIR] regenerate the golden certificates (about 30-45 min on one core) into DIR
                                     (default: certificates/ next to this file); --only NAME... restricts the set
 
-Both modes print a markdown table: claim | certified value | published value | match.  "match" means the value
+Both modes print a markdown table: claim | certified value | published value | match.  The certified value is the
+certificate-attested bound.  "match" means the value (for API rows: the in-process value item 23 published)
 agrees with the published one to the stated tolerance AND the certificate's claims hold (or, for the one
 non-certifying n = 24 analogue, that they do not hold, as published).  The exit code is 0 iff every row matches
 (and, in --quick, no certificate is INVALID).
@@ -24,7 +25,8 @@ CERTS = HERE / "certificates"
 
 # Published values (spec §7.1; item-23 certificates and LB_RESULTS.md; the two Lehmann-Goerisch rows pin bolzakit's
 # own values, which use the outward decimal rounding 3.8388757010 of the LG lower bound).  name -> (claim, value, tolerance, relative).
-# rr rows compare the in-process bisection value (SpectrumResult.upper_inprocess), which is what item 23 published.
+# The table shows certificate-attested values; rr, first-order and Ky Fan rows are matched on the in-process values
+# (SpectrumResult.upper_inprocess, ClusterResult.*_upper_inprocess), which are what item 23 published.
 PUBLISHED = {
     "lp_A_3.3": ("LP count in (0, 3.3] < 1 (mode A)", 0.912612, 1e-6, False),
     "lp_B_3.3_4.0": ("LP count in [3.3, 4.0] < 4 (mode B, given lambda_1 >= 3.3)", 3.869661, 1e-6, False),
@@ -67,28 +69,32 @@ def _inputs():
 
 
 def compute(name):
-    """(value, certificate) for a golden or quick-analogue name, through the bolzakit API."""
+    """(attested, pinned, certificate) for a golden or quick-analogue name, through the bolzakit API.
+
+    attested: the certificate-attested bound (shown in the table); pinned: the value compared with the published
+    one (for rr / first-order / Ky Fan the in-process value item 23 published; otherwise the same as attested)."""
     from bolzakit.certified import Surface, certify_cluster, certify_rank, certify_spectrum, count_eigenvalues
     lam, gap = _inputs()
     if name.startswith("lp_"):
         window = (0, 3.3) if name == "lp_A_3.3" else (3.3, 4.0)
         r = count_eigenvalues("bolza", window=window)
-        return r.bound, r.certificate
+        return r.bound, r.bound, r.certificate
     if name.startswith("rr_"):
         degree, n = int(name[4]), int(name.split("_n")[1])
         r = certify_spectrum(Surface.bolza(), k=3, degree=degree, n=n)
-        return r.upper_inprocess[-1], r.certificate
+        return r.upper[-1], r.upper_inprocess[-1], r.certificate
     if name.startswith("first_order_FA_"):
         n, route = name.split("_n")[1].split("_")
         r = certify_cluster("F_A", degree=1, n=int(n), lam1=lam[route], gap=gap)
-        return r.b_ee_upper, r.certificates[0]
+        return r.b_ee_upper, r.b_ee_upper_inprocess, r.certificates[0]
     if name.startswith("kyfan_FB_"):
         n, route = name.split("_n")[1].split("_")
         r = certify_cluster("F_B", degree=2, n=int(n), lam1=lam[route], gap=gap, second_order=True)
-        return r.kyfan_upper, r.certificates[0]
+        return r.kyfan_upper, r.kyfan_upper_inprocess, r.certificates[0]
     if name == "rank":
         r = certify_rank()
-        return float(_arb(r.det).mid()), r.certificate
+        det = float(_arb(r.det).mid())
+        return det, det, r.certificate
     raise KeyError(name)
 
 
@@ -136,11 +142,12 @@ def full(out: pathlib.Path, only=None) -> bool:
         if only and name not in only:
             continue
         t0 = time.time()
-        value, cert = compute(name)
+        value, pinned, cert = compute(name)
         cert.save(out / f"{name}.json")
-        ok = cert.certified and _matches(value, pub, tol, rel)
+        ok = cert.certified and _matches(pinned, pub, tol, rel)
         all_ok &= ok
-        print(f"[{name}] {time.time() - t0:.0f} s, certified={cert.certified}, value={value!r}", flush=True)
+        print(f"[{name}] {time.time() - t0:.0f} s, certified={cert.certified}, attested={value!r}, "
+              f"pinned={pinned!r}", flush=True)
         rows.append(_row(claim, value, pub, ok))
     print("\n".join(rows))
     return all_ok
@@ -171,8 +178,8 @@ def quick() -> bool:
         all_ok &= ok
         rows.append(_row(claim + " [stored]", value, pub, ok))
     for name, (claim, pub, tol, rel) in QUICK.items():
-        value, cert = compute(name)
-        ok = (cert.certified != (name in EXPECT_UNCERTIFIED)) and _matches(value, pub, tol, rel)
+        value, pinned, cert = compute(name)
+        ok = (cert.certified != (name in EXPECT_UNCERTIFIED)) and _matches(pinned, pub, tol, rel)
         all_ok &= ok
         rows.append(_row(claim, value, pub, ok))
     print("\n".join(rows))

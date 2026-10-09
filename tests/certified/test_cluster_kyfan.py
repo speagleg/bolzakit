@@ -32,7 +32,7 @@ def fb24():
 
 def test_fb_n24_golden(fb24):
     r = fb24
-    assert r.certified and abs(r.kyfan_upper - FB24) < 1e-6
+    assert r.certified and abs(r.kyfan_upper_inprocess - FB24) < 1e-6
     assert r.b_ee_upper is None and len(r.A_float) == 3
 
 
@@ -49,7 +49,7 @@ def test_fb_n24_certificate(fb24):
     g2 = flint.arb(d["g2_enclosure"])
     # g2_upper_v1: the terms are additive, g2 = trNX + A_term + c1_term
     assert (t["trNX"] + t["A_term"] + t["c1_term"]).overlaps(g2)
-    assert fb24.kyfan_upper <= float(g2.upper())
+    assert fb24.kyfan_upper_inprocess <= float(g2.upper())
     assert "g2_central" in d["diagnostics"]
     # one-at-a-time error rows are diagnostics only (non-additive)
     diag = d["diagnostics"]
@@ -63,7 +63,7 @@ def test_fb_n24_certificate(fb24):
 
 def test_fb_n24_su13_exact_certifies():
     r = certify_cluster("F_B", degree=2, n=24, lam1=SU13, gap=GAP, second_order=True)
-    assert r.certified and abs(r.kyfan_upper - FB24) < 1e-4
+    assert r.certified and abs(r.kyfan_upper_inprocess - FB24) < 1e-4
 
 
 @pytest.mark.slow
@@ -71,20 +71,20 @@ def test_fb_n48_golden_and_nosym():
     r = certify_cluster("F_B", degree=2, n=48, lam1=LEGACY, gap=GAP, second_order=True)
     r0 = certify_cluster("F_B", degree=2, n=48, lam1=LEGACY, gap=GAP, second_order=True, sym=False)
     assert r.certified and r0.certified
-    assert abs(r.kyfan_upper - FB48) < 1e-6 and abs(r0.kyfan_upper - FB48_NOSYM) < 1e-6
-    assert abs(r0.kyfan_upper - r.kyfan_upper) < 1e-6
+    assert abs(r.kyfan_upper_inprocess - FB48) < 1e-6 and abs(r0.kyfan_upper_inprocess - FB48_NOSYM) < 1e-6
+    assert abs(r0.kyfan_upper_inprocess - r.kyfan_upper_inprocess) < 1e-6
 
 
 @pytest.mark.slow
 def test_fb_n96_golden():
     r = certify_cluster("F_B", degree=2, n=96, lam1=LEGACY, gap=GAP, second_order=True)
-    assert r.certified and abs(r.kyfan_upper - FB96) < 1e-6
+    assert r.certified and abs(r.kyfan_upper_inprocess - FB96) < 1e-6
 
 
 @pytest.mark.slow
 def test_fb_n96_lehmann_goerisch_lam1_certifies():
     r = certify_cluster("F_B", degree=2, n=96, lam1=LB, gap=GAP, second_order=True)
-    assert r.certified and r.kyfan_upper <= -9.3411 and abs(r.kyfan_upper - FB96_LB) < 1e-6
+    assert r.certified and r.kyfan_upper_inprocess <= -9.3411 and abs(r.kyfan_upper_inprocess - FB96_LB) < 1e-6
 
 
 def _rebuild_g2(cert):
@@ -217,3 +217,18 @@ def test_path_independence_named_vs_vector_fb(fb24):
     # NOT certified at n=24: the min-norm second-order Klein jet (surface.vertex_jets for vectors) has ~5x the
     # vertex curvature of the F_B family, so beta2 and the X2 transfer error are much larger (measured: +3.47)
     assert not r.certified
+
+
+def _stored_upper(ball):
+    """Exact upper end of a stored '[mid +/- rad]' ball string."""
+    from fractions import Fraction
+    mid, rad = ball.strip()[1:-1].split("+/-")
+    return Fraction(mid.strip()) + Fraction(rad.strip())
+
+
+def test_kyfan_upper_is_certificate_attested(fb24):
+    from fractions import Fraction
+    stored = _stored_upper(fb24.certificates[0].data["g2_enclosure"])
+    assert Fraction(fb24.kyfan_upper) >= stored
+    assert Fraction(fb24.kyfan_upper) >= Fraction(fb24.kyfan_upper_inprocess)
+    assert fb24.kyfan_upper - float(stored) < 1e-12 * max(1.0, abs(float(stored)))    # rounded up, not loosened
