@@ -1,0 +1,15 @@
+name: fenicsx
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 7 * * 1"
+jobs:
+  fenicsx:
+    runs-on: ubuntu-latest
+    container: dolfinx/dolfinx:stable
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install bolzakit
+        run: pip install -e . pytest
+      - name: Run FEniCSx adapter test
+        run: pytest tests/sensitivity/test_fenicsx.py -v
