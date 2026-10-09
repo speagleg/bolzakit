@@ -1,4 +1,4 @@
-# The Bolza surface is a strict local maximum of λ₁
+# The Bolza surface is a strict local maximum of λ₁ (computer-assisted, conditional on cited inputs)
 
 **Theorem.** Let B be the Bolza surface and T₂ the Teichmüller space of genus 2. There is a neighbourhood N of B
 in T₂ such that λ₁(X) < λ₁(B) for every X ∈ N ∖ {B}.
@@ -55,15 +55,15 @@ PROOF.md §2 has the details and §"Theorem: assembly" the assembly. In short:
 **Dependencies.** The complete list of external inputs (D1–D15, with where each is used and how weak it is) is
 PROOF.md [§Dependencies](PROOF.md#dependencies-complete-list-of-external-inputs). The load-bearing ones are FBP
 Lemmas 7.2–7.3 and §7.4 geodesic data, the Selberg trace formula in FBP's normalisation, the Lehmann–Goerisch
-theorem (quoted from secondary sources), and the trusted software (python-flint/Arb, sympy). SU13 (D1) is
-optional.
+theorem (quoted from secondary sources), and the trusted software (python-flint/Arb; sympy in the producer only).
+SU13 (D1) is optional.
 
 ## Reproduce
 
 From the repository root, with `pip install -e ".[cert]"`:
 
 ```bash
-python proofs/bolza-local-max/reproduce.py --quick     # a few minutes
+python proofs/bolza-local-max/reproduce.py --quick     # about 1–2 min
 python proofs/bolza-local-max/reproduce.py --full      # about 35–50 min on one core; rewrites certificates/
 python proofs/bolza-local-max/reproduce.py --full --out /tmp/certs --only rank lp_A_3.3
 python -m bolzakit_check proofs/bolza-local-max/certificates/*.json
@@ -77,9 +77,12 @@ python -m bolzakit_check proofs/bolza-local-max/certificates/*.json
   row matches. The provenance column names the item-23 file a value is published in, or marks it as a bolzakit
   regression pin (two rows: the Ky Fan LG n = 96 value and the n = 24 first-order value).
 - `bolzakit_check` exits 0 if every file is unconditionally VALID, 2 if none is INVALID but some is only
-  conditionally VALID, and 1 if any file is INVALID. On the golden set it exits 2: `lp_B_3.3_4.0` is a mode-B
-  count, which is valid *given* λ₁ ≥ 3.3, and that hypothesis is discharged by `lp_A_3.3`; `lg_lower_n48` is
-  valid *given* λ₄ ≥ 4.0, which is discharged by `lp_A_3.3` with `lp_B_3.3_4.0`.
+  conditionally VALID, and 1 if any file is INVALID. On the golden set it exits 2, with six conditional files:
+  `lp_B_3.3_4.0` is a mode-B count, which is valid *given* λ₁ ≥ 3.3, and that hypothesis is discharged by
+  `lp_A_3.3`; `lg_lower_n48` is valid *given* λ₄ ≥ 4.0, which is discharged by `lp_A_3.3` with `lp_B_3.3_4.0`;
+  the four first-order and Ky Fan certificates are valid *given* their λ₁ ball and λ₄ ≥ 4.0, and the checker
+  prints both, with the dependency id and source of the λ₁ ball (D15 for the `_lg` ones, discharged by
+  `lg_lower_n48` and `rr_p2_n96`; D1 = SU13 for the optional `_su13` ones).
 
 | Certificate | Claim | Certified value |
 |---|---|---|
@@ -98,13 +101,15 @@ The `_lg` certificates use exactly λ₁ ∈ [3.8388757010, 3.8388872830]. Their
 23's (−3.0383476 and −9.3411545), because item 23's scripts (`lb_cert_first_order.py`, `lb_cert_sign.py`) used the
 ball arb("3.83888149202636215", "5.791e-6"). That ball starts at 3.8388757010263, slightly above 3.8388757010 but
 still below the certified Lehmann–Goerisch bound 3.8388757010527 (`lg_lower_n48`). Both versions certify the sign.
-The `_lg` certificates' λ₁ input still names item 23's LB_RESULTS as its source; `lg_lower_n48` now attests a
-value above its lower end 3.8388757010. The "certified
+The `_lg` certificates' λ₁ input (dependency D15) names `lg_lower_n48.json` for its lower end, which attests a
+value above 3.8388757010, and `rr_p2_n96.json` for its upper end. The "certified
 value" column is the upper end of the ball stored in the certificate (rounded up), i.e. what the certificate attests
 and the checker re-derives.
 
 **Known errata in the copied documents.** PROOF.md Lemma 8 (line 495) attributes −9.341154560446736 to the λ ball
-[3.8388757010, 3.8388872830]. For exactly that ball, the certified value is −9.3411486 (`kyfan_FB_n96_lg.json`).
+[3.8388757010, 3.8388872830]. For exactly that ball, the in-process value is −9.3411487 (the pin −9.341148662), and
+`kyfan_FB_n96_lg.json` attests the slightly weaker ≤ −9.3411481 (the upper end of its stored enclosure, as in the
+table above).
 The −9.341154560 came from item 23's script ball, which starts at 3.8388757010263 (see above). The proof uses only
 the constant −9.3411, so it is unaffected. This will be corrected upstream in item 23. The copies here are
 unchanged.
@@ -120,10 +125,13 @@ recomputed.
   integral and the geodesic sum are recomputed from the test-function coefficients and closed-form geodesic
   lengths.
 - **Rank** is re-derived from the octagon coordinates and the trace words: the checker builds its own Jacobians
-  and recomputes the minors, the stacked determinant and the residual. A stored Jacobian is never trusted.
+  and recomputes the minors, the stacked determinant and the residual. A stored Jacobian is never trusted. The
+  checker calls the surface "bolza" only after checking that the stored Klein balls contain the exact Bolza octagon;
+  any other label is reported as unchecked.
 - **First-order and Ky Fan** are rebuilt from the stored raw sums and Gram matrices (q, m and their
   t-derivatives; the 7×7 Gram blocks, β bounds and the λ ball). The assembly into b(e,e)/m or g₂ is recomputed in
-  pure Arb. The checker reports these as "VALID given stored Gram data".
+  pure Arb. The λ₁ ball and the gap λ₄ ≥ 4.0 are hand-linked inputs, so the checker reports these as "VALID given
+  stored Gram data (conditional on lambda_1 in [...] [id: source]; lambda_4 >= 4.0 [gap: source])" (exit code 2).
 - **Rayleigh–Ritz** (`rr_*`): the checker re-checks positive definiteness of μM − K from the stored Gram matrices
   (also "VALID given stored Gram data").
 - **Lehmann–Goerisch** (`lg_lower_n48`): from the stored 3×3 Gram balls A0, A1, A2 and ρ, the checker does its own
@@ -137,7 +145,8 @@ recomputed.
 **What is trusted.**
 - **The element assembly behind the Gram data.** The checker does not re-integrate the finite-element forms over
   the whole mesh, so the stored Gram matrices and raw sums are trusted to be what the bolzakit producer computed.
-- **python-flint / Arb** (ball arithmetic, `acb.integral`) and sympy, in both the producer and the checker.
+- **python-flint / Arb** (ball arithmetic, `acb.integral`) in both the producer and the checker, and sympy in the
+  producer only (the checker does its own exact Sturm counts over `Fraction` and never imports sympy).
 - **The cited inputs** of PROOF.md §Dependencies: FBP's lemmas and geodesic data, the Selberg trace formula, the
   Lehmann–Goerisch theorem, and the standard facts.
 - **The λ₁ lower bound's Gram data and its ρ.** The Lehmann–Goerisch computation is regenerated by bolzakit

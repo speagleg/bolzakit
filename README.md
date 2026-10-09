@@ -34,13 +34,13 @@ Version 0.2 adds three things:
   with scikit-fem and FEniCSx adapters ([docs/sensitivity.md](docs/sensitivity.md));
 - the proof package [proofs/bolza-local-max/](proofs/bolza-local-max/): a computer-assisted proof that the Bolza
   surface is a strict local maximum of λ₁, with its golden certificates and `reproduce.py`, and a Lean 4 skeleton
-  of its logical chain ([below](#the-bolza-surface-is-a-strict-local-maximum-of-λ₁)).
+  of its logical chain ([below](#the-bolza-surface-is-a-strict-local-maximum-of-λ₁-computer-assisted-conditional-on-cited-inputs)).
 
 ## Contents
 
 - [Install](#install)
 - [Quick-start](#quick-start)
-- [The Bolza surface is a strict local maximum of λ₁](#the-bolza-surface-is-a-strict-local-maximum-of-λ₁)
+- [The Bolza surface is a strict local maximum of λ₁ (computer-assisted, conditional on cited inputs)](#the-bolza-surface-is-a-strict-local-maximum-of-λ₁-computer-assisted-conditional-on-cited-inputs)
 - [For software engineers](#for-software-engineers)
 - [For physicists](#for-physicists)
 - [For engineers](#for-engineers)
@@ -88,15 +88,16 @@ print(bk.systole())                         # 3.057141838961996
 print(bk.systole(with_provenance=True).label)   # NUMERICAL (float64 of the exact closed form 2·arccosh(1+√2))
 ```
 
-## The Bolza surface is a strict local maximum of λ₁
+## The Bolza surface is a strict local maximum of λ₁ (computer-assisted, conditional on cited inputs)
 
-[proofs/bolza-local-max/](proofs/bolza-local-max/) holds a computer-assisted proof that λ₁(X) < λ₁(B) for every
-surface X ≠ B in a neighbourhood of the Bolza surface B in the Teichmüller space of genus 2. The package contains
+[proofs/bolza-local-max/](proofs/bolza-local-max/) holds a computer-assisted proof, conditional on cited inputs, that
+λ₁(X) < λ₁(B) for every surface X ≠ B in a neighbourhood of the Bolza surface B in the Teichmüller space of genus 2. The package contains
 the integrated proof (PROOF.md), the paper, the review record, ten golden certificates and `reproduce.py`.
 
-**Status.** The proof is computer-assisted and conditional on the cited inputs listed in PROOF.md §Dependencies:
-Fortier Bourque–Petri's Lemmas 7.2–7.3 and geodesic data, the Selberg trace formula, the Lehmann–Goerisch theorem
-(quoted from secondary sources), and the trusted software (python-flint/Arb, sympy). The Strohmaier–Uski
+**Status.** The proof is computer-assisted and conditional on the cited inputs listed in PROOF.md §Dependencies,
+including Fortier Bourque–Petri's Lemmas 7.2–7.3 and geodesic data, the Selberg trace formula, the
+Lehmann–Goerisch theorem (quoted from secondary sources), and the trusted software (python-flint/Arb, sympy in the
+producer). The Strohmaier–Uski
 eigenvalue (SU13) is optional: λ₁ ≥ 3.8388757010 is certified in-house, and each SU13-based number has an
 SU13-free twin. No human expert has read the proof yet. Its "second reads" were done by AI reviewers. The checker
 re-derives the certified claims from stored Gram data, but it does not re-check the element assembly or the links
@@ -104,8 +105,8 @@ between certificates, which are made by hand ([trust model](docs/certified.md#tr
 under `lean/BolzaKit/LocalMax` checks the logical chain, conditional on the computational inputs.
 
 ```
-python -m bolzakit_check proofs/bolza-local-max/certificates/*.json   # exit 2: all VALID, two conditionally
-python proofs/bolza-local-max/reproduce.py --quick                     # a few minutes
+python -m bolzakit_check proofs/bolza-local-max/certificates/*.json   # exit 2: all VALID, six conditionally
+python proofs/bolza-local-max/reproduce.py --quick                     # about 1-2 min
 ```
 
 ## For software engineers

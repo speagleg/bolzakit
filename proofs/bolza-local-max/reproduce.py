@@ -82,10 +82,14 @@ STORED_SLACK_LOWER = {"lg_lower": 1e-15}
 def _inputs():
     from bolzakit.certified import GapInput, Lam1Input
     # SU13 as item 23's scripts used it: arb('3.8388872588', '1.0000001e-6') (the published SU13 numbers use this).
+    # dep_id follows the source (PROOF.md §Dependencies): D1 = SU13; D15 = the Lehmann-Goerisch theorem, whose
+    # instance here is the lg_lower_n48 certificate.
     su13 = Lam1Input(lower="3.8388862587999999", upper="3.8388882588000001",
-                     source="SU13 as used in item-23 scripts: arb('3.8388872588','1.0000001e-6')")
+                     source="SU13 as used in item-23 scripts: arb('3.8388872588','1.0000001e-6')", dep_id="D1")
     lg = Lam1Input("3.8388757010", "3.8388872830",
-                   "Lehmann–Goerisch lower bound (math-pursuits item 23 LB_RESULTS) + P2 upper bound")
+                   "lower end: Lehmann–Goerisch bound, certificate lg_lower_n48.json (D15; math-pursuits item 23 "
+                   "LB_RESULTS); upper end: P2 Rayleigh-Ritz bound, certificate rr_p2_n96.json (min-max, D9)",
+                   dep_id="D15")
     gap = GapInput(lower="4.0", source="trace-formula LP count (certified)")
     return {"su13": su13, "lg": lg}, gap
 
@@ -130,16 +134,18 @@ def _arb(s):
 
 
 def stored_value(cert: dict) -> float:
-    """The certified value a stored certificate attests (read from its data, not recomputed)."""
+    """The certified value a stored certificate attests (read from its data, not recomputed): upper bounds are rounded
+    up from the stored rational / ball (exact arithmetic), lower bounds rounded down."""
+    from bolzakit.certified._arb import attested_upper
     k, d = cert["kind"], cert["data"]
     if k == "count":
-        return float(d["bound_upper"])
+        return attested_upper(d["bound"])
     if k == "rr_upper":
-        return float(_arb(d["mu"]).upper())
+        return attested_upper(d["mu"])
     if k == "cluster_first_order":
-        return float(_arb(d["b_ee_upper_over_m"]).upper())
+        return attested_upper(d["b_ee_upper_over_m"])
     if k == "kyfan_second_order":
-        return float(_arb(d["g2_enclosure"]).upper())
+        return attested_upper(d["g2_enclosure"])
     if k == "lg_lower":
         from bolzakit.certified.lower_bounds import _attested_lower
         return _attested_lower(d["lam1_lower_enclosure"])

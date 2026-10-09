@@ -4,7 +4,16 @@ A port of the Bolza lambda1 research code (math-pursuits item 23: lb_core.py, lb
 review_lb_1.md, ACCEPT).  Changes from SRC: the precision (128 bits) and the series order (K = 14) are fixed and set
 internally, never at import; the precision-dependent tables are built lazily; the P2 shapes and polynomial helpers
 are reused from ``forms`` (identical code); every SRC ``assert`` is an explicit fail-closed check; non-finite element
-data and a non-negligible Green residual make the result uncertified.
+data and a non-negligible Green residual make the result uncertified.  Also changed (all on the untrusted float side
+or in diagnostics; the certified step is unchanged):
+  * the trial eigenvectors come from ``eigsh(k=5)`` (ntrial + 2) with a fixed start vector
+    ``v0 = RandomState(0).rand(np2)`` (SRC: ``k=6`` and ARPACK's random start), so the trial vectors, hence the
+    certificate, are reproducible;
+  * SRC's per-element cross-check of K, M against cert_rr_p2.element_p2 (a diagnostic, ``crosscheck_vs_cert_rr_p2_max``)
+    is dropped: the P2 shapes are the shared ``forms`` code, and the independent checker re-derives the LG step;
+  * the resulting enclosure differs from SRC's published one by about 2.6e-16 (other trial vectors in the degenerate
+    lambda_1 eigenspace); both are valid lower bounds;
+  * ``data["nubar"]`` is stored as a plain float string (``repr(float(x))``), not a numpy repr.
 
 Method (LB_PLAN.md §1(c), Liu-Plum arXiv:2512.23182 Thm 4.1/4.3, Behnke-Mertins-Plum-Wieners 2000 Thm 2.1).
 Shifted problem on D = H^1(B): M = q + m, N = m, X = L^2(TB) x L^2(B), T u = (grad u, u), b_G = L^2 product, so the
@@ -582,7 +591,7 @@ def _run(n, rho, gap, sym):
         "A0": [[ball_str(A0[i, j]) for j in range(3)] for i in range(3)],
         "A1": [[ball_str(A1[i, j]) for j in range(3)] for i in range(3)],
         "A2": [[ball_str(A2[i, j]) for j in range(3)] for i in range(3)],
-        "nubar": repr(res["nubar_max"]) if res["nubar_max"] is not None else None,
+        "nubar": repr(float(res["nubar_max"])) if res["nubar_max"] is not None else None,   # plain float string
         "lam1_lower_enclosure": ball_str(lb),
         "diagnostics": {
             "reason": res["reason"] or ("" if gok else "Green residual not negligible"),

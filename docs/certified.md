@@ -46,7 +46,9 @@ Contents: [Method](#method) · [API reference](#api-reference) · [The checker](
 
 ## API reference
 
-All functions set their Arb precision internally (96 bits; 128 bits for `certify_rank` and `certify_lam1_lower`).
+All functions set their Arb precision internally and restore it afterwards: 96 bits by default (Rayleigh–Ritz,
+cluster tests and `Surface` construction), 128 bits for `certify_rank`, `certify_lam1_lower` and `from_trace_coords`,
+and 200 bits for `count_eigenvalues`.
 With `strict=True`, a computation that does not separate its enclosures raises `CertificationFailed`. Otherwise
 the result has `certified=False`. Every result carries its certificate (`result.certificate`, or
 `result.certificates` for clusters). Write it with `cert.save(path)`.
@@ -62,7 +64,7 @@ the result has `certified=False`. Every result carries its certificate (`result.
 | `certify_lam1_lower(n=48, rho=5, gap=GapInput(...))` | `LowerBoundResult` | `lam1_lower ≤ λ₁(Bolza)`, conditional on the gap input. About 4 min |
 | `certify_cluster(direction, degree, n, lam1=Lam1Input(...), gap=GapInput(...), second_order=False)` | `ClusterResult` | degree 1 (F_A only): `b_ee_upper`, `A_nonzero`. degree 2, `second_order=True`: `kyfan_upper ≥ D²Λ(v,v)`. degree 2, `second_order=False`: float splitting rates `A_float` only, with no certificate. The `*_inprocess` fields keep the in-memory values |
 | `certify_rank(surface=None)` | `RankResult` | the rank of the trace map is 6 at the surface (default Bolza) |
-| `Lam1Input(lower, upper, source)`, `GapInput(lower, source)` | explicit inputs | recorded as certificate dependencies |
+| `Lam1Input(lower, upper, source, dep_id="lam1")`, `GapInput(lower, source)` | explicit inputs | recorded as certificate dependencies. `dep_id` names the λ₁ dependency: a PROOF.md §Dependencies number only when the source is that input (`"D1"` for SU13, `"D15"` for the Lehmann–Goerisch route), otherwise the unnumbered `"lam1"` |
 
 `lam1` and `gap` are always explicit. bolzakit never assumes a λ₁ ball or a gap. The values used in the proof are
 `Lam1Input("3.8388757010", "3.8388872830", ...)` (the Lehmann–Goerisch lower bound and the P2 Rayleigh–Ritz upper
@@ -89,14 +91,33 @@ each file. Exit codes:
 - 2: none is INVALID, but some is only conditionally VALID;
 - 1: some file is INVALID.
 
-On the golden set it exits **2**, as expected. `lp_B_3.3_4.0` is conditional on λ₁ ≥ 3.3, and `lg_lower_n48` is
-conditional on λ₄ ≥ 4.0. Never read "VALID" as "proved end to end". See the trust model below.
+On the golden set it exits **2**, as expected, with six conditional files: `lp_B_3.3_4.0` is conditional on
+λ₁ ≥ 3.3; `lg_lower_n48` on λ₄ ≥ 4.0; and the four first-order and Ky Fan certificates on their λ₁ ball and on
+λ₄ ≥ 4.0. For these the message names the λ₁ ball, its dependency id and source, and the gap with its source.
+Never read "VALID" as "proved end to end". See the trust model below.
+
+### Certificate fields by kind
+
+Schema `bolzakit-cert/1` is shared, but the attested quantity and the failure sentinel are named per kind (to be
+unified in a later schema version):
+
+| Kind | Attested quantity (in `data`) | On failure |
+|---|---|---|
+| `rr_upper` | `mu`, a rational string (λ_k ≤ mu) | `mu = "inf"` |
+| `count` | `bound` (Arb ball string) and `bound_upper`, a float rounded up from it | `bound_upper` is `"nan"` |
+| `cluster_first_order` | `b_ee_upper_over_m` (Arb ball string) | `"nan"` |
+| `kyfan_second_order` | `g2_enclosure` (Arb ball string) | `"nan"` |
+| `lg_lower` | `lam1_lower_enclosure` (Arb ball string); claim rhs is a rational string | `"nan"`; `A0`/`A1`/`A2` are `null` for non-finite element data, `nubar` is `null` when no ν̄ was found |
+| `rank` | `J` (the 6×6 minor), `stacked_det` (Arb ball strings) | `stacked_det` is `null` |
+
+Only `rank` records its working precision (`inputs["prec"]`).
 
 ## Trust model
 
 **Trusted** (not checked by anything in this repository):
-- python-flint / Arb (ball arithmetic, `acb.integral`), sympy (exact Sturm counts) and CPython, in both the
-  producer and the checker;
+- python-flint / Arb (ball arithmetic, `acb.integral`) and CPython, in both the producer and the checker; sympy
+  (exact Sturm counts, exact Q(ζ₂₄) arithmetic) in the producer only. The checker does its own Sturm counts over
+  `Fraction` and never imports sympy;
 - the cited inputs D1–D15 of [PROOF.md §Dependencies](../proofs/bolza-local-max/PROOF.md). These include the
   Selberg trace formula in FBP's normalisation, the FBP geodesic data and Lemmas 7.2–7.3, and the Lehmann–Goerisch
   theorem, quoted from secondary sources. D1 (Strohmaier–Uski) is optional.
@@ -107,10 +128,10 @@ own Arb code. A tampered claim fails even if the sha256 is recomputed.
 | Kind | Re-derived | Trusted |
 |---|---|---|
 | `count` | everything: Sturm sign conditions, the window minimum, the integral and the geodesic sum, from the rational coefficients and closed-form lengths | the trace formula and FBP geodesic data; mode B's hypothesis λ₁ ≥ a |
-| `rank` | the Jacobians (own dual numbers), the minors, the stacked determinant and the residual, from the 16 Klein balls and the words | nothing beyond Arb |
-| `rr_upper` | M ≻ 0 and μM − K ≻ 0 | the stored Gram balls K, M |
-| `cluster_first_order` | μ, B, E and B + E < 0, from the raw element sums | the raw sums; the λ₁ / gap inputs |
-| `kyfan_second_order` | g₂ from the raw 7×7 Gram matrices, weighted sums and β bounds | the raw Gram data; the λ₁ / gap inputs |
+| `rank` | the Jacobians (own dual numbers), the minors, the stacked determinant and the residual, from the 16 Klein balls and the words; the label "bolza" only if the Klein balls contain the exact Bolza octagon (otherwise reported as unchecked) | nothing beyond Arb |
+| `rr_upper` | M ≻ 0 and μM − K ≻ 0; degree 2 also tr(M⁻¹K) ≤ the cluster-sum claim (Ky Fan on the trial space) | the stored Gram balls K, M |
+| `cluster_first_order` | μ, B, E and B + E < 0, from the raw element sums | the raw sums; the λ₁ / gap inputs (always conditional) |
+| `kyfan_second_order` | g₂ from the raw 7×7 Gram matrices, weighted sums and β bounds | the raw Gram data; the λ₁ / gap inputs (always conditional) |
 | `lg_lower` | B ≻ 0, ν* < 0 and ν*B − A ≻ 0, from A0, A1, A2 and ρ (a Lehmann–Goerisch step written from the theorem) | the Gram balls, including the H(div) conformity of the RT₂ fluxes; the gap input |
 
 **Not checked:**
@@ -131,7 +152,8 @@ own Arb code. A tampered claim fails even if the sha256 is recomputed.
   so it depends on the scale of v. Pass unit vectors.
 - **Counting is Bolza-only.** `count_eigenvalues` uses the FBP geodesic data of the Bolza surface. Any other
   `surface` raises.
-- **Cluster tests are at Bolza.** `certify_cluster` perturbs the certified isolated triple cluster at Bolza. Its
+- **Cluster tests are at Bolza.** `certify_cluster` perturbs the isolated cluster of three eigenvalues at Bolza
+  (the isolation and the λ₁..λ₃ window are certified; multiplicity 3 is quoted, D4). Its
   degree-1 test is implemented for F_A only.
 - **Lower bounds come only from explicit inputs.** The one in-house lower bound is `certify_lam1_lower`, for Bolza,
   and it is itself conditional on a gap input. bolzakit never invents a λ₁ ball or a gap.
@@ -163,7 +185,7 @@ own Arb code. A tampered claim fails even if the sha256 is recomputed.
   - λ₄ ≥ 4.0, the gap input of the Lehmann–Goerisch, Ky Fan and first-order certificates. `lp_A_3.3` with
     `lp_B_3.3_4.0` discharges it. Confirm that the gap in the checker message is 4.0.
   - The λ₁ ball [3.8388757010, 3.8388872830] of the cluster certificates. `lg_lower_n48` and `rr_p2_n96` discharge
-    it.
+    it. Confirm that the checker message of each `_lg` certificate names this ball with dependency id D15.
 - **The LG computation cannot detect a wrong ρ.** ρ = 7.5 violates the hypothesis and still returns a plausible
   value below the true λ₁ (review_lb_1 row 4c). The validity of ρ = 5 rests entirely on the gap λ₄ ≥ 4.0. The
   checker checks ρ ≤ gap + 1 against the recorded gap input, and nothing else.

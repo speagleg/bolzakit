@@ -17,7 +17,7 @@ from bolzakit.certified import GapInput, Lam1Input, certify_cluster
 
 # Explicit inputs: the certified lambda_1 ball (Lehmann-Goerisch lower end, P2 Rayleigh-Ritz upper end) and the
 # lambda_4 >= 4.0 gap from the trace-formula counts. The certificates record them as dependencies.
-LAM1 = Lam1Input("3.8388757010", "3.8388872830", "lg_lower_n48 (lower) and rr_p2_n96 (upper)")
+LAM1 = Lam1Input("3.8388757010", "3.8388872830", "lg_lower_n48 (lower) and rr_p2_n96 (upper)", dep_id="D15")
 GAP = GapInput("4.0", "trace-formula counts lp_A_3.3 and lp_B_3.3_4.0")
 
 

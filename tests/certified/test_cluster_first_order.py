@@ -46,7 +46,10 @@ def test_n24_not_certified_and_certificate():
     assert "beta_a" in c.data["diagnostics"] and "beta_rho" in c.data["diagnostics"]
     assert c.claims[0].lhs == "b_ee_upper_over_m" and c.claims[0].op == "<" and c.claims[0].rhs == "0"
     srcs = [d.source for d in c.dependencies]
-    assert LEGACY.source in srcs and GAP.source in srcs and any(d.id == "F1" for d in c.dependencies)
+    assert LEGACY.source in srcs and GAP.source in srcs
+    # the lambda_1 id follows the input (default: the unnumbered "lam1"; never D1 unless the source is SU13)
+    assert [d.id for d in c.dependencies] == ["lam1", "gap", "D4", "F1"]
+    assert all("F1_PROOF" not in d.source for d in c.dependencies)
     # b_ee_upper_v1: the claim ball is the sum of the two terms
     s = flint.arb(c.data["terms"]["b_uu_over_m"]) + flint.arb(c.data["terms"]["transfer_err_over_m"])
     assert s.overlaps(flint.arb(c.data["b_ee_upper_over_m"]))

@@ -26,7 +26,7 @@ import flint
 from flint import acb, arb, arb_poly
 
 from ..errors import CertificationFailed
-from ._arb import ball_str, certainly_gt, certainly_lt, json_float, prec
+from ._arb import attested_upper, ball_str, certainly_gt, certainly_lt, json_float, prec
 from .certificate import Certificate, Claim, Dependency, make_producer
 
 PRECISION_BITS = 200
@@ -226,7 +226,8 @@ def certify(mode, a, X, N, s, dvec, target, lengths):
     out["F0"] = ball_str(F0)
     bound = (I + G - F0) / cmin
     out["bound"] = ball_str(bound)
-    out["bound_upper"] = float(bound.upper())
+    bu = attested_upper(out["bound"])          # rounded UP from the stored ball (the attested convention)
+    out["bound_upper"] = bu if bu is not None else float("nan")
     out["target"] = target
     out["c_positive"] = bool(pieces_ok and certainly_gt(cmin, 0))
     out["bound_below_target"] = bool(out["c_positive"] and certainly_lt(bound, target))

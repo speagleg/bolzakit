@@ -20,8 +20,9 @@ jobs:
       - run: pytest -q
       - name: Check the golden certificates
         # bolzakit_check exits 0 (all unconditionally VALID), 2 (no INVALID, some only conditionally VALID) or
-        # 1 (some INVALID). The golden set is expected to exit 2: lp_B_3.3_4.0 is conditional on lambda_1 >= 3.3 and
-        # lg_lower_n48 on lambda_4 >= 4.0, both discharged by hand by the count certificates.
+        # 1 (some INVALID). The golden set is expected to exit 2 (six conditional files): lp_B_3.3_4.0 is
+        # conditional on lambda_1 >= 3.3, lg_lower_n48 on lambda_4 >= 4.0, and the four first_order / kyfan
+        # certificates on their lambda_1 ball and lambda_4 >= 4.0, all discharged by hand by other certificates.
         shell: bash
         run: |
           set +e

@@ -17,7 +17,6 @@ and |b(f,g)| <= beta_a q(f)^1/2 q(g)^1/2 + lambda1 beta_rho m(f)^1/2 m(g)^1/2 (e
 from __future__ import annotations
 
 import math
-from fractions import Fraction
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -27,7 +26,7 @@ from flint import arb, arb_mat
 
 from ..errors import CertificationFailed, OutOfValidityRange
 from . import forms
-from ._arb import PM, ball_str, certainly_gt, certainly_lt, json_float, prec
+from ._arb import PM, attested_upper, ball_str, certainly_gt, certainly_lt, json_float, prec
 from ._hyp import Bm
 from .certificate import Certificate, Claim, Dependency, make_producer, trial_provenance
 from .jets import D
@@ -40,6 +39,10 @@ class Lam1Input:
     lower: str
     upper: str
     source: str          # decimal strings; e.g. SU13
+    # dep_id: the dependency id recorded in the certificate.  A PROOF.md §Dependencies number only when the source IS
+    # that input: "D1" for SU13, "D15" for the Lehmann-Goerisch route (lower end from the lg_lower certificate);
+    # otherwise "lam1" (an unnumbered hand-linked input)
+    dep_id: str = "lam1"
 
 
 @dataclass
@@ -178,6 +181,17 @@ def _all_finite(elem):
             and all(x.is_finite() for Mx in (Ke, Me, dKe, dMe) for row in Mx for x in row))
 
 
+def _cluster_deps(lam1_in, gap_in):
+    """Dependencies shared by both cluster kinds: the lambda_1 ball (id from its source, see Lam1Input.dep_id), the gap,
+    and D4 (FBP Lemmas 7.2-7.3: the lambda_1 eigenspace E has dimension 3, used for dim E = 3 in the gap transfer)."""
+    return [Dependency(lam1_in.dep_id, f"lambda_1 in [{lam1_in.lower}, {lam1_in.upper}]", lam1_in.source),
+            Dependency("gap", f"lambda_4 >= {gap_in.lower} (no eigenvalue in (lambda_1, {gap_in.lower}))",
+                       gap_in.source),
+            Dependency("D4", "lambda_1 has multiplicity exactly 3 (no 1- or 2-dimensional irreducible representation "
+                             "in the lambda_1-eigenspace), so dim E = 3 in the gap transfer",
+                       "FBP Lemmas 7.2 and 7.3 (quoted; PROOF.md Lemma 1c, §Dependencies D4)")]
+
+
 def _float_up(x):
     """smallest-ish float certainly >= the upper end of the finite ball x."""
     up = x.upper()
@@ -187,22 +201,7 @@ def _float_up(x):
     return f
 
 
-def _attested_upper(ball: str):
-    """Smallest-ish float >= the upper end of a stored ball string '[mid +/- rad]' (exact Fraction arithmetic, as
-    the checker reads it); None for a non-finite ball."""
-    s = ball.strip()
-    try:
-        if s.startswith("["):
-            mid, rad = s[1:-1].split("+/-")
-            q = Fraction(mid.strip()) + Fraction(rad.strip())
-        else:
-            q = Fraction(s)
-    except (ValueError, ZeroDivisionError, OverflowError):
-        return None
-    f = float(q)
-    while Fraction(f) < q:
-        f = math.nextafter(f, math.inf)
-    return f
+_attested_upper = attested_upper     # float >= the upper end of a stored ball string (see _arb.attested_upper)
 
 
 # ------------------------------------------------------------------ first-order test
@@ -258,11 +257,9 @@ def _first_order(n, lam1_in, gap_in, sym):
     inputs = {"direction": "F_A", "degree": 1, "n": n, "sym": sym, "surface": "bolza",
               "lam1": {"lower": lam1_in.lower, "upper": lam1_in.upper, "source": lam1_in.source},
               "gap": {"lower": gap_in.lower, "source": gap_in.source}}
-    deps = [Dependency("D1", f"lambda_1 in [{lam1_in.lower}, {lam1_in.upper}]", lam1_in.source),
-            Dependency("gap", f"lambda_4 >= {gap_in.lower} (no eigenvalue in (lambda_1, {gap_in.lower}))",
-                       gap_in.source),
+    deps = _cluster_deps(lam1_in, gap_in) + [
             Dependency("F1", "C^1 regularity of the lambda_1 cluster under the deformation (A is the first-order "
-                             "matrix of the cluster, traceless)", "PROOF.md Lemma 2 (F1_PROOF.md)")]
+                             "matrix of the cluster, traceless)", "PROOF.md Lemma 2")]
     if not finite:
         # NaN / infinite element data: no float model and no certified bound (fail closed)
         cert = Certificate(kind="cluster_first_order", inputs=inputs,
@@ -435,15 +432,15 @@ def _kyfan(direction, n, lam1_in, gap_in, sym, second_order):
         vT = np.array([float((V[i] / V[0]).d.mid()) for V in Vj for i in (1, 2)])   # Klein tangent of the jets
         inputs["tangent_projected"] = [repr(float(t)) for t in vT]
         inputs["projection_residual"] = repr(float(np.linalg.norm(d - vT)))
-    deps = [Dependency("D1", f"lambda_1 in [{lam1_in.lower}, {lam1_in.upper}]", lam1_in.source),
-            Dependency("gap", f"lambda_4 >= {gap_in.lower} (no eigenvalue in (lambda_1, {gap_in.lower}))",
-                       gap_in.source),
-            Dependency("D10", "Ky Fan: lambda_1+lambda_2+lambda_3 <= tr(G_m^-1 G_q) on any 4-dim space containing "
-                              "the constants (lambda_0 = 0)", "Ky Fan (D10)"),
+    deps = _cluster_deps(lam1_in, gap_in) + [
+            Dependency("D9", "Ky Fan: lambda_1+lambda_2+lambda_3 <= tr(G_m^-1 G_q) on any 4-dim space containing "
+                             "the constants (lambda_0 = 0)",
+                       "Ky Fan (PROOF.md §Dependencies D9: Moslehian arXiv:1108.1467, Fan 1950)"),
             Dependency("F1", "C^2 regularity of Lambda = lambda_1+lambda_2+lambda_3 along the deformation",
-                       "PROOF.md Lemma 2 (F1_PROOF.md)"),
-            Dependency("Lemma4", "dLambda = 0 at Bolza, so Lambda''(0) (<= g''(0) by Ky Fan) is D2 Lambda(v, v): "
-                                 "independent of the curve's second-order term", "dLambda=0 (Lemma 4)")]
+                       "PROOF.md Lemma 2"),
+            Dependency("Lemma4", "dLambda = 0 at Bolza, so Lambda''(0) (<= g''(0) by Ky Fan) is the second derivative "
+                                 "D^2 Lambda(v, v): independent of the curve's second-order term",
+                       "PROOF.md Lemma 4 (dLambda = 0)")]
     claim_false = [Claim(lhs="g2_upper", op="<", rhs="0", holds=False)]
     if not all(np.isfinite(F[k].data).all() for k in F):
         # NaN / infinite element data: no float model and no certified bound (fail closed)

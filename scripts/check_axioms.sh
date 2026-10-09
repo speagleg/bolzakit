@@ -5,9 +5,16 @@
 # those lines are fine but do not count toward the "at least one" requirement.
 # Lean wraps long axiom lists across lines, so the log is joined into one line before it is parsed. A list whose
 # closing bracket is missing (a truncated log) fails the gate.
+# The log must also report the headline theorem (REQUIRE_THEOREM, default Bolza.bolza_strict_local_max), and must
+# contain no Lean `error:` line (independently of pipefail in the caller).
 set -euo pipefail
 log="${1:?usage: check_axioms.sh LOGFILE}"
+main="${REQUIRE_THEOREM:-Bolza.bolza_strict_local_max}"
 joined="$(tr '\r\n' '  ' < "$log")"
+if grep -q 'error:' "$log"; then echo "Lean error in $log:" >&2; grep 'error:' "$log" >&2; exit 1; fi
+if ! grep -qE "'${main//./\\.}' (depends on axioms|does not depend on any axioms)" <<< "$joined"; then
+  echo "no axiom report for $main in $log" >&2; exit 1
+fi
 opened="$(grep -o 'depends on axioms: \[' <<< "$joined" | wc -l || true)"
 n=0; bad=0
 while IFS= read -r item; do

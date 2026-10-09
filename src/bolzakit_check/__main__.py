@@ -1,8 +1,9 @@
 """python -m bolzakit_check FILE... [--deep]: prints 'FILE: VALID...' / 'FILE: INVALID: <reason>'.
 
 Exit code: 0 if every file is unconditionally VALID; 2 if none is INVALID but at least one is only conditionally
-VALID (a mode-B count, conditional on lambda_1 >= a; an lg_lower bound, conditional on its gap input); 1 if any file
-is INVALID."""
+VALID (a mode-B count, conditional on lambda_1 >= a; an lg_lower bound, conditional on its gap input; a
+cluster_first_order or kyfan_second_order bound, conditional on its lambda_1 ball and gap inputs); 1 if any file is
+INVALID."""
 import argparse
 import sys
 

@@ -27,7 +27,7 @@ class Dependency:
 
 @dataclass
 class Certificate:
-    kind: str  # "rr_upper" | "count" | "cluster_first_order" | "kyfan_second_order" | "rank"
+    kind: str  # "rr_upper" | "count" | "cluster_first_order" | "kyfan_second_order" | "rank" | "lg_lower"
     inputs: dict
     claims: list
     data: dict
@@ -84,11 +84,19 @@ def make_producer() -> dict:
     import flint
     # Not a static import: the certified layer may not import the top-level bolzakit package (layering test).
     __version__ = importlib.import_module("bolzakit").__version__
-    repo = Path(__file__).resolve().parent
+    here = Path(__file__).resolve()
+    git = "unknown"
     try:
-        r = subprocess.run(["git", "describe", "--always", "--dirty"], cwd=repo, capture_output=True, text=True)
-        git = r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else "unknown"
-    except OSError:
+        # Only describe a checkout that actually tracks this file: a non-editable install inside an unrelated git
+        # checkout (e.g. a venv in some other repository) must not record that repository's describe.
+        tracked = subprocess.run(["git", "ls-files", "--error-unmatch", here.name], cwd=here.parent,
+                                 capture_output=True, text=True, timeout=10)
+        if tracked.returncode == 0:
+            r = subprocess.run(["git", "describe", "--always", "--dirty"], cwd=here.parent, capture_output=True,
+                               text=True, timeout=10)
+            if r.returncode == 0 and r.stdout.strip():
+                git = r.stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
         git = "unknown"
     return {"bolzakit": __version__, "git": git, "flint": flint.__version__,
             "python": platform.python_version()}

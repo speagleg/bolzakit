@@ -38,12 +38,12 @@ def test_cluster_sum_upper_is_rigorous_and_claimed(monkeypatch):
         return out
     monkeypatch.setattr(rr, "_project_p2", spy)
     r = certify_spectrum(Surface.bolza(), k=3, degree=2, n=12)
-    flint.ctx.prec = 96
+    old_prec, flint.ctx.prec = flint.ctx.prec, 96
     try:
         kyfan = seen["GM"].solve(seen["GK"]).trace()
         rhs_ok = arb(r.certificate.claims[-1].rhs) >= kyfan.upper()
     finally:
-        flint.ctx.prec = 53
+        flint.ctx.prec = old_prec
     assert arb(r.cluster_sum_upper) >= kyfan.upper()      # certain comparison: float is an outward-rounded bound
     c = r.certificate.claims[-1]
     assert c.lhs == "lambda_1+lambda_2+lambda_3" and c.op == "<=" and c.holds

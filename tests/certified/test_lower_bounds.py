@@ -90,6 +90,9 @@ def test_bolza_n24(n24):
     assert float(c.claims[0].rhs) <= r.lam1_lower
     assert set(c.inputs["trial"]) == {"arpack_v0", "sha256"}
     assert check_file(p) == (True, VALID_MSG)
+    # nubar is a plain float string (not "np.float64(...)", which depends on the numpy version and is in the sha)
+    assert isinstance(c.data["nubar"], str) and float(c.data["nubar"]) < 0
+    assert c.data["nubar"] == repr(float(c.data["nubar"]))
 
 
 @pytest.mark.slow

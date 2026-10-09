@@ -220,10 +220,36 @@ def _int_cols(cols, n, size):
 CANONICAL_WORDS = ["g0g1", "g0G2", "g1g2", "g1g3", "g1G3", "g2g3"]
 
 
-def describe(inputs):
+def bolza_vertices():
+    """The exact Bolza octagon in the Klein model (computed here, independently of the producer): the regular octagon
+    with vertex k at R (cos k pi/4, sin k pi/4), R = tanh(d), cosh d = 3 + 2 sqrt 2, i.e. R = sqrt(c^2 - 1) / c.
+    The angular factors are exact (0, +-1, +-sqrt(2)/2), so axis coordinates are the exact 0."""
+    c = 3 + 2 * arb(2).sqrt()
+    R = (c * c - 1).sqrt() / c
+    h = arb(2).sqrt() / 2
+    trig = [(1, 0), (h, h), (0, 1), (-h, h), (-1, 0), (-h, -h), (0, -1), (h, -h)]
+    return [R * t for cs in trig for t in cs]
+
+
+def is_bolza(x0) -> bool:
+    """Every stored Klein ball contains the corresponding exact Bolza vertex coordinate."""
+    return len(x0) == 16 and all(x.is_finite() and x.contains(v) for x, v in zip(x0, bolza_vertices()))
+
+
+def describe(inputs, ball):
+    """Message tail.  The label "bolza" is reported only when the stored Klein balls contain the exact Bolza octagon
+    (checked here); any other label is echoed as unchecked."""
     w = inputs["words"]
     tag = "" if w == CANONICAL_WORDS else "non-canonical words "
-    return f"rank 6 for {tag}{','.join(w)}, surface {inputs.get('surface')}"
+    label = inputs.get("surface")
+    if label == "bolza":
+        if is_bolza([ball(x) for x in inputs["klein"]]):
+            surf = "surface bolza (Klein vertices checked against the exact octagon)"
+        else:
+            surf = "surface custom (label 'bolza' rejected: the Klein balls do not contain the exact Bolza octagon)"
+    else:
+        surf = f"surface {label} (label unchecked)"
+    return f"rank 6 for {tag}{','.join(w)}, {surf}"
 
 
 def derive(inputs, data, ball):

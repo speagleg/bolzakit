@@ -74,3 +74,22 @@ def test_examples_run(ex):
     pytest.importorskip("flint"); pytest.importorskip("skfem")
     r = subprocess.run([sys.executable, str(ROOT / "examples" / ex)], capture_output=True, text=True, timeout=600)
     assert r.returncode == 0, r.stderr
+
+
+def _slug(heading):
+    # GitHub's heading anchors: lower case, punctuation dropped (letters, digits, '-', '_' and spaces kept), spaces -> '-'
+    return re.sub(r"[^\w\- ]", "", heading.strip().lower()).replace(" ", "-")
+
+
+def test_readme_in_page_anchors_resolve():
+    t = (ROOT / "README.md").read_text(encoding="utf-8")
+    slugs = {_slug(h) for h in re.findall(r"^#{1,6} (.+)$", t, re.M)}
+    links = re.findall(r"\]\(#([^)]+)\)", t)
+    assert links and [a for a in links if a not in slugs] == []
+
+
+def test_theorem_headings_are_conditional():
+    t = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "## The Bolza surface is a strict local maximum of λ₁ (computer-assisted, conditional on cited inputs)" in t
+    first = (ROOT / "proofs" / "bolza-local-max" / "README.md").read_text(encoding="utf-8").splitlines()[0]
+    assert "computer-assisted, conditional" in first

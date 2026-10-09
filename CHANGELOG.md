@@ -19,7 +19,10 @@
   - `certify_rank`: rank 6 of the trace-coordinate chart at Bolza.
 - `bolzakit_check`, an independent checker (`python -m bolzakit_check FILE... [--deep]`) that imports nothing from
   `bolzakit`. It re-derives each claim per certificate kind. Exit codes: 0 = all VALID, 2 = some only conditionally
-  VALID, 1 = some INVALID. VALID messages state their trust boundary ("VALID given stored Gram data").
+  VALID (mode-B counts, lg_lower, and the first-order / Ky Fan certificates, which rest on hand-linked λ₁ and gap
+  inputs), 1 = some INVALID. VALID messages state their trust boundary ("VALID given stored Gram data") and their
+  conditions. The rank checker calls the surface "bolza" only after checking the Klein balls against the exact
+  Bolza octagon.
 - `bolzakit.sensitivity`, a standalone module that depends only on numpy and scipy. `cluster_sensitivity`
   computes the splitting rates, the cluster-sum Hessian and an exact Ky Fan prefix bound for a symmetric pencil.
   It also provides `directional` and `from_callables`, and scikit-fem and FEniCSx adapters.
@@ -51,7 +54,7 @@
 
 - Regenerating the golden set (`reproduce.py --full`) takes about 36 min. Per certificate: P1 n = 192 Rayleigh–Ritz
   419 s, P2 n = 96 65 s, first order n = 192 about 680 s each, Ky Fan n = 96 125–150 s, the LP counts 4–21 s,
-  rank 1 s, Lehmann–Goerisch n = 48 about 4 min. `reproduce.py --quick` takes about 1 min.
+  rank 1 s, Lehmann–Goerisch n = 48 about 4 min. `reproduce.py --quick` takes about 1–2 min (79 s measured).
 
 ### Known limitations
 

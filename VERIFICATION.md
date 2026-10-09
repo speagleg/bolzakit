@@ -46,8 +46,8 @@ cannot be evidence. State the data provenance.
 
 There is one row for each certified claim of the Bolza local-maximum proof. The golden certificates are in
 `proofs/bolza-local-max/certificates/`. "Checker status" is the output of
-`python -m bolzakit_check proofs/bolza-local-max/certificates/*.json`, which exits 2 on this set, as expected (two
-conditional certificates). For what each status re-derives and what it trusts, see
+`python -m bolzakit_check proofs/bolza-local-max/certificates/*.json`, which exits 2 on this set, as expected (six
+conditional certificates; the cluster rows abbreviate the λ₁ / gap sources the checker prints). For what each status re-derives and what it trusts, see
 [docs/certified.md](docs/certified.md#trust-model). "Hand-linked" names the conditions that a person, not a tool,
 discharges with another row.
 
@@ -58,11 +58,11 @@ discharges with another row.
 | λ₃ ≤ 3.8391848048 (P1 Rayleigh–Ritz, n = 192) | `rr_p1_n192.json` | 3.8391848048 | VALID given stored Gram data | — |
 | λ₃ ≤ 3.8388872830 and λ₁+λ₂+λ₃ ≤ 11.5166618386 (P2 Rayleigh–Ritz, n = 96) | `rr_p2_n96.json` | 3.8388872830 | VALID given stored Gram data | — |
 | λ₁ ≥ 3.83887570105 (Lehmann–Goerisch, n = 48, ρ = 5) | `lg_lower_n48.json` | 3.8388757010527… | VALID given stored Gram data (conditional on λ₄ ≥ 4.0) | λ₄ ≥ 4.0 ← `lp_A_3.3` + `lp_B_3.3_4.0`; the computation cannot detect a wrong ρ |
-| A ≠ 0: b(e,e)/m < 0 along F_A (P1, n = 192, LG λ₁ ball) | `first_order_FA_n192_lg.json` | ≤ −3.0383475 | VALID given stored Gram data | λ₁ ∈ [3.8388757010, 3.8388872830] ← `lg_lower_n48` + `rr_p2_n96`; λ₄ ≥ 4.0 ← counts |
-| the same with the SU13 λ₁ ball (optional cross-check) | `first_order_FA_n192_su13.json` | ≤ −3.0875694 | VALID given stored Gram data | λ₁ ball from SU13 (D1, quoted); λ₄ ≥ 4.0 ← counts |
-| D²Λ(v,v) < 0 along F_B (Ky Fan, P2, n = 96, LG λ₁ ball) | `kyfan_FB_n96_lg.json` | ≤ −9.3411481 | VALID given stored Gram data | λ₁ ball ← `lg_lower_n48` + `rr_p2_n96`; λ₄ ≥ 4.0 ← counts |
-| the same with the SU13 λ₁ ball (optional cross-check) | `kyfan_FB_n96_su13.json` | ≤ −12.8504761 | VALID given stored Gram data | λ₁ ball from SU13 (D1, quoted); λ₄ ≥ 4.0 ← counts |
-| the trace chart has rank 6 at Bolza (non-zero 6×6 minor) | `rank.json` | det ≈ 7.8724e18 | VALID (rank 6 …, surface bolza) | — |
+| A ≠ 0: b(e,e)/m < 0 along F_A (P1, n = 192, LG λ₁ ball) | `first_order_FA_n192_lg.json` | ≤ −3.0383475 | VALID given stored Gram data (conditional on λ₁ ∈ [3.8388757010, 3.8388872830] [D15: …]; λ₄ ≥ 4.0 [gap: …]) | λ₁ ∈ [3.8388757010, 3.8388872830] ← `lg_lower_n48` + `rr_p2_n96`; λ₄ ≥ 4.0 ← counts |
+| the same with the SU13 λ₁ ball (optional cross-check) | `first_order_FA_n192_su13.json` | ≤ −3.0875694 | VALID given stored Gram data (conditional on the SU13 λ₁ ball [D1: …]; λ₄ ≥ 4.0 [gap: …]) | λ₁ ball from SU13 (D1, quoted); λ₄ ≥ 4.0 ← counts |
+| D²Λ(v,v) < 0 along F_B (Ky Fan, P2, n = 96, LG λ₁ ball) | `kyfan_FB_n96_lg.json` | ≤ −9.3411481 | VALID given stored Gram data (conditional on λ₁ ∈ [3.8388757010, 3.8388872830] [D15: …]; λ₄ ≥ 4.0 [gap: …]) | λ₁ ball ← `lg_lower_n48` + `rr_p2_n96`; λ₄ ≥ 4.0 ← counts |
+| the same with the SU13 λ₁ ball (optional cross-check) | `kyfan_FB_n96_su13.json` | ≤ −12.8504761 | VALID given stored Gram data (conditional on the SU13 λ₁ ball [D1: …]; λ₄ ≥ 4.0 [gap: …]) | λ₁ ball from SU13 (D1, quoted); λ₄ ≥ 4.0 ← counts |
+| the trace chart has rank 6 at Bolza (non-zero 6×6 minor) | `rank.json` | det ≈ 7.8724e18 | VALID (rank 6 …, surface bolza (Klein vertices checked against the exact octagon)) | — |
 
 The checker's `first_order` and `kyfan` formulas transliterate the producer's derivation (independent code, the same
 derivation). The `count` and `lg_lower` re-derivations are derivation-independent. No row covers the element
