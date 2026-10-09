@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bolzakit"
-version = "0.1.0"
+version = "0.2.0"
 description = "Exact and provenance-labelled computations on the Bolza surface (genus-2 hyperbolic surface)"
 readme = "README.md"
 license = "MIT"
@@ -19,7 +19,9 @@ classifiers = ["Programming Language :: Python :: 3",
 sym = ["sympy>=1.12"]
 pari = ["cypari2>=2.2"]
 flint = ["python-flint>=0.6"]
-dev = ["pytest>=7", "sympy>=1.12"]
+cert = ["python-flint>=0.6", "sympy>=1.12"]
+skfem = ["scikit-fem>=9"]
+dev = ["pytest>=7", "sympy>=1.12", "scikit-fem>=9", "python-flint>=0.6"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

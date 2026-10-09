@@ -15,3 +15,7 @@ class DataUnavailable(BolzakitError, RuntimeError):
 
 class OptionalDependencyMissing(BolzakitError, ImportError):
     """An optional dependency (pip extra) is not installed."""
+
+
+class CertificationFailed(BolzakitError):
+    """A certified computation did not separate its enclosures (raised only when strict=True)."""
