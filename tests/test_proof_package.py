@@ -46,6 +46,14 @@ def test_golden_lam1_sources():
         assert c["certified"] and src in c["inputs"]["lam1"]["source"], name
 
 
+HEADLINE = ("PROVED (computer-assisted), conditional on the cited inputs in work/PROOF.md §Dependencies: FBP Lemmas "
+            "7.2–7.3 and §7.4 geodesic data, the Selberg trace formula, the Lehmann–Goerisch theorem (quoted from "
+            "secondary sources), and standard facts. No longer depends on Strohmaier–Uski (SU13): λ₁ ≥ 3.8388757010 is "
+            "now certified in-house (review_lb_1: ACCEPT). Every component second-read; integrated proof read: "
+            "ACCEPT-WITH-FIXES, fixes applied.")
+
+
 def test_headline_is_conditional():
     t = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert HEADLINE in t                      # verbatim from item 23's README Status row (SRC 53bc014)
     assert "PROVED (computer-assisted)" in t and "conditional" in t and "Strohmaier" in t

@@ -26,10 +26,10 @@ review.
 | [reviews/](reviews/) | The review record (`review_*.md`), one file per review round |
 | [paper/](paper/) | The paper: `main.tex`, `refs.bib`, `NOTES.md`, and the built `main.pdf` |
 | [certificates/](certificates/) | The golden `bolzakit-cert/1` JSON certificates, regenerated through the bolzakit API |
-| [reproduce.py](reproduce.py) | Checks or regenerates the certificates and prints claim / certified / published / match |
+| [reproduce.py](reproduce.py) | Checks or regenerates the certificates and prints claim / certified / published / provenance / match |
 
-The documents are copied from math-pursuits item 23 (`work/`, `paper/`) as of 2026-10-09. They refer to item-23
-script and output names (`lp_count.py`, `cert_sign_48_96.json`, …); the certificates here are their bolzakit
+The documents are copied from math-pursuits item 23 (`work/`, `paper/`) as of 2026-10-09 (math-pursuits commit
+53bc014). They refer to item-23 script and output names (`lp_count.py`, `cert_sign_48_96.json`, …); the certificates here are their bolzakit
 regenerations.
 
 ## The chain, in one screen
@@ -73,7 +73,9 @@ python -m bolzakit_check proofs/bolza-local-max/certificates/*.json
   out of each, and then re-runs the n ≤ 24 analogues (P1 and P2 Rayleigh–Ritz at n = 24, the n = 24 first-order
   test, which does *not* certify, as published, and the n = 24 Ky Fan test).
 - `--full` regenerates the golden set through the bolzakit API.
-- Both print a table of claim | certified value | published value | match, and exit 0 only if every row matches.
+- Both print a table of claim | certified value | published value | provenance | match, and exit 0 only if every
+  row matches. The provenance column names the item-23 file a value is published in, or marks it as a bolzakit
+  regression pin (two rows: the Ky Fan LG n = 96 value and the n = 24 first-order value).
 - `bolzakit_check` exits 0 if every file is unconditionally VALID, 2 if none is INVALID but some is only
   conditionally VALID, and 1 if any file is INVALID. On the golden set it exits 2: `lp_B_3.3_4.0` is a mode-B
   count, which is valid *given* λ₁ ≥ 3.3, and that hypothesis is discharged by `lp_A_3.3`.
@@ -90,10 +92,18 @@ python -m bolzakit_check proofs/bolza-local-max/certificates/*.json
 | `kyfan_FB_n96_su13.json` | the same with the SU13 ball (optional cross-check) | ≤ −12.8504761 |
 | `rank.json` | a 6×6 minor of the trace-coordinate Jacobian is non-zero | det ≈ 7.8724e18 |
 
-The `_lg` certificates use λ₁ ∈ [3.8388757010, 3.8388872830], the outward decimal rounding of the
-Lehmann–Goerisch enclosure, so their bounds are slightly weaker than item 23's (−3.0383476 and −9.3411546, which
-used the unrounded lower end); both certify the sign. The "certified value" column is the upper end of the ball
-stored in the certificate (rounded up), i.e. what the certificate attests and the checker re-derives.
+The `_lg` certificates use exactly λ₁ ∈ [3.8388757010, 3.8388872830]. Their bounds are slightly weaker than item
+23's (−3.0383476 and −9.3411545), because item 23's scripts (`lb_cert_first_order.py`, `lb_cert_sign.py`) used the
+ball arb("3.83888149202636215", "5.791e-6"). That ball starts at 3.8388757010263, slightly above 3.8388757010 but
+still below the certified Lehmann–Goerisch bound 3.8388757010527. Both versions certify the sign. The "certified
+value" column is the upper end of the ball stored in the certificate (rounded up), i.e. what the certificate attests
+and the checker re-derives.
+
+**Known errata in the copied documents.** PROOF.md Lemma 8 (line 495) attributes −9.341154560446736 to the λ ball
+[3.8388757010, 3.8388872830]. For exactly that ball, the certified value is −9.3411486 (`kyfan_FB_n96_lg.json`).
+The −9.341154560 came from item 23's script ball, which starts at 3.8388757010263 (see above). The proof uses only
+the constant −9.3411, so it is unaffected. This will be corrected upstream in item 23. The copies here are
+unchanged.
 
 ## Trust model
 
@@ -125,6 +135,11 @@ recomputed.
 - **The λ₁ lower bound itself.** 3.8388757010 enters the `_lg` certificates as an explicit input whose source
   string names item 23's LB_RESULTS. Its Lehmann–Goerisch computation (`lb_bolza.py` in item 23) is not
   regenerated or checked by bolzakit v0.2.
+- **The other hand-linked inputs.** The checker takes the λ₁ upper end 3.8388872830 and the gap λ₄ ≥ 4.0 as given
+  inputs of the first-order and Ky Fan certificates. They are discharged by `rr_p2_n96` and by `lp_A_3.3` with
+  `lp_B_3.3_4.0` respectively, but a person makes that link, not a tool. Likewise, `lp_B`'s hypothesis
+  λ₁ ≥ 3.3 is discharged by hand by `lp_A`. The β bounds in the cluster certificates are stored data, trusted
+  like the Gram data.
 - **The non-certificate steps.** Lemmas 2–4, 6–7, 10–11 and the assembly are written arguments or exact
   computations in item 23. They are not certificates and the checker does not see them. Lean
   (see [LEAN.md](LEAN.md)) machine-checks the logical chain, conditional on these computational inputs.
