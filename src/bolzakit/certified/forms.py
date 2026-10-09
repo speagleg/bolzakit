@@ -14,7 +14,7 @@ import scipy.sparse as sp
 from flint import arb, arb_mat
 
 from ..errors import OutOfValidityRange
-from ._arb import certainly_lt
+from ._arb import certainly_gt, certainly_lt
 from ._hyp import Bm, det3
 from .jets import J
 
@@ -291,10 +291,15 @@ def peval(p, a, b):
     return sum((c * a ** i * b ** j for (i, j), c in p.items()), arb(0))
 
 
+_INF = arb("inf")
+
+
 def element_p2(P0, P1, P2, order=2):
     """P2 element on the triangle with jet vertices P0, P1, P2.
     Returns K, M: lists [K0, K1, K2] of 6x6 arb lists (Taylor coefficients in p; K1 = q', 2*K2 = q''), and
-    betas = (beta1, beta1r, beta2, beta2r) (upper bounds, floats rounded up) when order == 2."""
+    betas = (beta1, beta1r, beta2, beta2r) (upper bounds, arb) when order == 2; all +inf if a relative bound cannot
+    be certified (never a pass downstream).  Raises OutOfValidityRange for an element whose orientation or series
+    bound cannot be certified."""
     tb = _tables()
     W1 = [P0[i] - P2[i] for i in range(3)]; W2 = [P1[i] - P2[i] for i in range(3)]
     G11, G12, G22 = Bm(W1, W1), Bm(W1, W2), Bm(W2, W2)
@@ -303,12 +308,12 @@ def element_p2(P0, P1, P2, order=2):
     L1 = {(0, 0): b1, (1, 0): G11, (0, 1): G12}
     L2 = {(0, 0): b2, (1, 0): G12, (0, 1): G22}
     det = det3(P0, P1, P2)
-    if det.v > 0:
+    if certainly_gt(det.v, 0):
         Dj = det
-    elif det.v < 0:
+    elif certainly_lt(det.v, 0):
         Dj = -det
     else:
-        raise RuntimeError("degenerate triangle")
+        raise OutOfValidityRange("degenerate element: orientation not certain")
     Nj = [padd(pmul(L2, L2), pscale(Qj, G22), -1), padd(pscale(Qj, G12), pmul(L1, L2), -1),
           padd(pmul(L1, L1), pscale(Qj, G11), -1)]           # N11, N12, N22
     comp = lambda P, a: {k: getattr(c, a) for k, c in P.items()}
@@ -386,7 +391,10 @@ def element_p2(P0, P1, P2, order=2):
         rho = Dj / (Qb * Qb.sqrt())
         n11, n12, n22 = Nb[0].v, Nb[1].v, Nb[2].v
         dN = n11 * n22 - n12 * n12
-        assert dN > 0 and n11 > 0, "N not positive definite on box"
+        if not (certainly_gt(dN, 0) and certainly_gt(n11, 0)):
+            # N not certainly positive definite on the box (SRC asserted): no relative bound, the element is
+            # marked non-finite so that no certificate built on it can pass (fail closed, survives python -O)
+            return Ks, Ms, (_INF, _INF, _INF, _INF)
         Ninv = [[n22 / dN, -n12 / dN], [-n12 / dN, n11 / dN]]
         Nm1 = [[Nb[0].d, Nb[1].d], [Nb[1].d, Nb[2].d]]
         Nm2 = [[Nb[0].e, Nb[1].e], [Nb[1].e, Nb[2].e]]
@@ -398,7 +406,8 @@ def element_p2(P0, P1, P2, order=2):
         fro = lambda A: arb(sum((A[i][j] ** 2 for i in range(2) for j in range(2)), arb(0)).abs_upper()).sqrt()
         v1, v2 = fro(A1).upper(), fro(A2).upper()
         w1, w2 = abs(rho.d / rho.v).upper(), abs(2 * rho.e / rho.v).upper()
-        assert all(x.is_finite() for x in (v1, v2, w1, w2)), "non-finite beta bound"
+        if not all(x.is_finite() for x in (v1, v2, w1, w2)):
+            return Ks, Ms, (_INF, _INF, _INF, _INF)      # non-finite beta bound: fail closed (SRC asserted)
         b1m = v1 if v1 > b1m else b1m; b2m = v2 if v2 > b2m else b2m
         b1r = w1 if w1 > b1r else b1r; b2r = w2 if w2 > b2r else b2r
     return Ks, Ms, (b1m, b1r, b2m, b2r)

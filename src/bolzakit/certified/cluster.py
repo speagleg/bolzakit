@@ -22,15 +22,16 @@ from dataclasses import dataclass, field
 import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as sla
-from flint import arb
+from flint import arb, arb_mat
 
 from ..errors import CertificationFailed, OutOfValidityRange
 from . import forms
-from ._arb import ball_str, certainly_gt, certainly_lt, prec
+from ._arb import PM, ball_str, certainly_gt, certainly_lt, prec
 from ._hyp import Bm
 from .certificate import Certificate, Claim, Dependency, make_producer
 from .jets import D
-from .mesh import Mesh, positions_dual, vertices_dual
+from .mesh import Mesh, positions_dual, positions_jet, vertices_dual
+from .surface import Surface
 
 
 @dataclass
@@ -48,10 +49,11 @@ class GapInput:
 
 @dataclass
 class ClusterResult:
-    A_float: list                      # eigenvalues of the float first-order matrix (splitting rates per unit t)
+    A_float: list                      # eigenvalues of the float first-order matrix A (splitting rates per unit t;
+                                       # degree 2: A_ij = b(x_i, x_j) on the P2 float eigenvectors)
     b_ee_upper: float | None           # certified upper bound of min b(e,e)/m (first order)
     A_nonzero: bool
-    kyfan_upper: float | None          # Task 9
+    kyfan_upper: float | None          # certified upper bound of D2 Lambda(v,v) (degree 2, second order)
     certified: bool
     certificates: list = field(default_factory=list)
 
@@ -309,21 +311,261 @@ def _first_order(n, lam1_in, gap_in, sym):
     return ev.tolist(), b_ee_upper, ok, cert
 
 
+# ------------------------------------------------------------------ second-order Ky Fan bound (P2)
+def _ub(x):
+    """float >= the upper end of x (rounded outward); NaN for a non-finite ball (never a pass downstream)."""
+    return _float_up(x) if x.is_finite() else math.nan
+
+
+def _kyfan(direction, n, lam1_in, gap_in, sym, second_order):
+    """Certified upper bound g2_upper >= g''(0) >= D2 Lambda(v, v), Lambda = lambda1 + lambda2 + lambda3 along the
+    deformation `direction` ("F_A", "F_B" or a 16-vector in Klein coordinates) at Bolza; P2 trial space on Mesh(n).
+
+    Port of the Bolza lambda1 research code (cert_sign.main), the F_B vertex source generalised to
+    Surface.bolza().vertex_jets(direction).  Ky Fan: lambda_0 = 0, so for V(p) = span{1, e_i + p psi_i} (e_i a basis
+    of the exact lambda1-eigenspace E, psi_i fixed P2 correctors) Lambda(p) <= g(p) = tr(G_m(p)^-1 G_q(p)) with
+    equality at p = 0; with Lambda C^2 (F1) and dLambda = 0 at Bolza (Lemma 4), Lambda''(0) <= g''(0), and
+       g''(0) = tr(N X) - 2 tr(N M1 N A) + 2 lam c1^T N c1 / m(1,1),   N = M0^-1,
+       X_ij  = (q''-lam m'')(e_i,e_j) + 2 b(psi_i,e_j) + 2 b(e_i,psi_j) + 2 (q-lam m)(psi_i,psi_j),
+       A_ij  = b(e_i,e_j),  b = q' - lam m',  M0_ij = m(e_i,e_j),
+       M1_ij = m'(e_i,e_j) + m(psi_i,e_j) + m(e_i,psi_j),   c1_i = m'(e_i,1) + m(psi_i,1).
+    Each matrix entry at e_i = P_E u_i (u_i = float FE eigenvector made exactly m-orthogonal to 1) is the same entry
+    at u plus a +-ball bounding the cross terms in w_i = u_i - e_i (gap transfer with lam in the lam1 input ball and
+    lambda4 >= gap.lower:  m(w_i) <= (q(u_i) - lam m(u_i))/(lambda4 - lam),  q(w_i) <= that * lambda4, and the
+    elementwise relative derivative bounds beta of forms.element_p2).
+
+    Certificate data (assembly "g2_upper_v1"), all Arb ball strings:
+      data["terms"]["trNX"]    = tr(N X)
+      data["terms"]["A_term"]  = -2 tr(N M1 N A)
+      data["terms"]["c1_term"] = 2 lam c1^T N c1 / m(1,1)
+          (N, X, M1, A, c1 the transfer-error-inflated 3x3 / 3x1 ball matrices, so these already include the
+          transfer error)
+      data["g2_enclosure"] = g2 = trNX + A_term + c1_term   (Arb ball addition; exactly how g2 is computed)
+      data["terms"]["g2_central"]   = the same formula with every transfer-error ball set to 0
+      data["terms"]["transfer_err"] = g2 - g2_central (joint transfer-error ball; g2_central + transfer_err ⊇ g2)
+      claim: g2_upper < 0, i.e. the upper end of g2 = trNX + A_term + c1_term is certainly negative.
+    data["diagnostics"] holds untrusted / non-additive information: the one-at-a-time error rows
+    error_breakdown_upper_minus_central (each row includes ONE error group; they do NOT sum to g2_upper - g2_central),
+    beta bounds, eta (gap-transfer) data, float estimates.  NaN or infinite data never pass.
+
+    second_order=False: float pass only (A_float = eigenvalues of the float A = [b(x_i, x_j)]), no certificate.
+    Returns (A_float, g2_upper or None, ok, certificate or None)."""
+    surface = Surface.bolza()
+    d = Surface._direction(direction)
+    named = isinstance(d, str)
+    sym = bool(sym) and named          # the pi/2 element cache is valid only for r2-invariant (named) families
+    mesh = Mesh(n); space = forms.P2Space(mesh)
+    X = positions_jet(mesh, surface.vertex_jets(d))
+    elems = forms.compute_elements(mesh, X, order=2, sym=sym)
+    F = {}
+    for wh, nm in ((0, "K"), (1, "M")):
+        for o in range(3):
+            F[nm + str(o)] = forms.assemble_float(space, elems, o, wh)
+    inputs = {"direction": d if named else [repr(float(x)) for x in d], "degree": 2, "n": n, "sym": sym,
+              "surface": "bolza",
+              "lam1": {"lower": lam1_in.lower, "upper": lam1_in.upper, "source": lam1_in.source},
+              "gap": {"lower": gap_in.lower, "source": gap_in.source}}
+    deps = [Dependency("D1", f"lambda_1 in [{lam1_in.lower}, {lam1_in.upper}]", lam1_in.source),
+            Dependency("gap", f"lambda_4 >= {gap_in.lower} (no eigenvalue in (lambda_1, {gap_in.lower}))",
+                       gap_in.source),
+            Dependency("D10", "Ky Fan: lambda_1+lambda_2+lambda_3 <= tr(G_m^-1 G_q) on any 4-dim space containing "
+                              "the constants (lambda_0 = 0)", "Ky Fan (D10)"),
+            Dependency("F1", "C^2 regularity of Lambda = lambda_1+lambda_2+lambda_3 along the deformation",
+                       "PROOF.md Lemma 2 (F1_PROOF.md)"),
+            Dependency("Lemma4", "dLambda = 0 at Bolza, so Lambda''(0) <= g''(0) and the bound depends only on the "
+                                 "tangent direction", "dLambda=0 (Lemma 4)")]
+    claim_false = [Claim(lhs="g2_upper", op="<", rhs="0", holds=False)]
+    if not all(np.isfinite(F[k].data).all() for k in F):
+        # NaN / infinite element data: no float model and no certified bound (fail closed)
+        if not second_order:
+            return [], None, False, None
+        cert = Certificate(kind="kyfan_second_order", inputs=inputs, claims=claim_false,
+                           data={"assembly": "g2_upper_v1", "terms": {}, "g2_enclosure": "nan",
+                                 "diagnostics": {"non_additive": True, "error": "non-finite element data"}},
+                           dependencies=deps, producer=make_producer())
+        return [], None, False, cert
+    K0, K1, K2, M0, M1, M2 = (F[k] for k in ("K0", "K1", "K2", "M0", "M1", "M2"))
+    one = np.ones(space.ndof)
+    w, U = sla.eigsh(K0, k=6, M=M0, sigma=-0.5,
+                     v0=np.random.RandomState(0).rand(space.ndof))  # fixed start: reproducible eigenvectors
+    o = np.argsort(w); w, U = w[o], U[:, o]
+    x = U[:, 1:4].copy()
+    x -= np.outer(one, (one @ (M0 @ x)) / (one @ (M0 @ one)))
+    G = x.T @ (M0 @ x); L = np.linalg.cholesky(G); x = x @ np.linalg.inv(L).T    # M-orthonormalise (float)
+    lamf = float(np.trace(x.T @ (K0 @ x)) / 3)
+    B1 = (K1 - lamf * M1).tocsr()
+    Af = x.T @ (B1 @ x)
+    A_float = sorted(np.linalg.eigvalsh((Af + Af.T) / 2).tolist())
+    if not second_order:
+        return A_float, None, False, None
+    # ---- correctors (float, untrusted): (K - lam M) psi_i = -(K' - lam M') x_i  on the M-complement of {x, 1}
+    Cb = M0 @ np.column_stack([x, one])
+    Abig = sp.bmat([[K0 - lamf * M0, sp.csr_matrix(Cb)], [sp.csr_matrix(Cb.T), None]]).tocsc()
+    lu = sla.splu(Abig)
+    psi = np.zeros((space.ndof, 3))
+    for i in range(3):
+        rhs = np.concatenate([-(B1 @ x[:, i]), np.zeros(4)])
+        psi[:, i] = lu.solve(rhs)[:space.ndof]
+    alpha = -0.5 * (x.T @ (M1 @ x))
+    psi += x @ alpha.T
+    m11f = one @ (M0 @ one)
+    gam = -(x.T @ (M1 @ one)) / m11f
+    psi += np.outer(one, gam)
+    # float estimate of g''(0) (u = x), diagnostics only
+    Xf = (2 * x.T @ ((K2 - lamf * M2) @ x) + 2 * (psi.T @ (B1 @ x) + x.T @ (B1 @ psi))
+          + 2 * psi.T @ ((K0 - lamf * M0) @ psi))
+    M1f = x.T @ (M1 @ x) + psi.T @ (M0 @ x) + x.T @ (M0 @ psi)
+    c1f = x.T @ (M1 @ one) + psi.T @ (M0 @ one)
+    T2f = float(np.trace(2 * x.T @ ((K2 - lamf * M2) @ x)))
+    g2f = float(np.trace(Xf) - 2 * np.trace(M1f @ Af) + 2 * lamf * c1f @ c1f / m11f)
+    # ---- certified pass: exact Gram matrices of the 7 float vectors [x_1..x_3, psi_1..psi_3, 1]
+    V = np.column_stack([x, psi, one])
+    nv = 7
+    Gs = {k: arb_mat(nv, nv) for k in ("K0", "K1", "K2", "M0", "M1", "M2", "W1q", "W1m", "W2q", "W2m")}
+    bmax = [arb(0)] * 4
+    finite = True
+    cache = {}
+    for t, e in enumerate(elems):
+        key = id(e)
+        if key not in cache:
+            Ks, Ms, bet = e
+            cache[key] = ([arb_mat(Ks[o_]) for o_ in range(3)], [arb_mat(Ms[o_]) for o_ in range(3)],
+                          [arb(b) for b in bet])
+        Km, Mm, bet = cache[key]
+        Vl = arb_mat(V[space.loc[t]].tolist()); Vt = Vl.transpose()
+        gk = [Vt * (Km[o_] * Vl) for o_ in range(3)]
+        gm = [Vt * (Mm[o_] * Vl) for o_ in range(3)]
+        for o_ in range(3):
+            Gs["K" + str(o_)] += gk[o_]; Gs["M" + str(o_)] += gm[o_]
+        Gs["W1q"] += (bet[0] * bet[0]) * gk[0]; Gs["W1m"] += (bet[1] * bet[1]) * gm[0]
+        Gs["W2q"] += (bet[2] * bet[2]) * gk[0]; Gs["W2m"] += (bet[3] * bet[3]) * gm[0]
+        for j in range(4):
+            if not bet[j].is_finite():
+                finite = False                      # SRC asserted; a NaN would be skipped by the max below
+            elif bet[j] > bmax[j]:
+                bmax[j] = bet[j]
+    del cache
+    if not finite:
+        bmax = [arb("inf")] * 4                     # fail closed: every bound built on bmax is infinite
+    # transform to u_i = x_i - c_i 1, c_i = m(x_i,1)/m(1,1) exactly
+    c = [Gs["M0"][i, 6] / Gs["M0"][6, 6] for i in range(3)]
+    Tm = arb_mat(nv, nv)
+    for i in range(nv):
+        Tm[i, i] = arb(1)
+    for i in range(3):
+        Tm[i, 6] = -c[i]
+    Gu = {k: Tm * (g * Tm.transpose()) for k, g in Gs.items()}
+    lam = arb(lam1_in.lower).union(arb(lam1_in.upper))
+    lam4 = arb(gap_in.lower)
+    B1u = Gu["K1"] - lam * Gu["M1"]                    # b = q' - lam m'
+    B2u = 2 * (Gu["K2"] - lam * Gu["M2"])              # q'' - lam m''
+    Su = Gu["K0"] - lam * Gu["M0"]                     # q - lam m
+    U_, PS, ONE = [0, 1, 2], [3, 4, 5], 6
+    # gap argument (a negative or NaN excess gives NaN square roots: never a pass)
+    sq, sm, eta = [], [], []
+    for i in range(3):
+        exc = Gu["K0"][i, i] - lam * Gu["M0"][i, i]
+        mw = exc / (lam4 - lam); qw = exc * lam4 / (lam4 - lam)
+        sm.append(arb(_ub(mw)).sqrt()); sq.append(arb(_ub(qw)).sqrt())
+        eta.append(dict(mu=ball_str(Gu["K0"][i, i] / Gu["M0"][i, i]), m_u=ball_str(Gu["M0"][i, i]),
+                        sqrt_q_w_le=_ub(sq[-1]), sqrt_m_w_le=_ub(sm[-1])))
+    nrm = lambda G_, f: arb(_ub(G_[f, f])).sqrt()     # sqrt of an upper bound of a (nonneg) weighted sum
+    W1q = [nrm(Gu["W1q"], f) for f in range(7)]; W1m = [nrm(Gu["W1m"], f) for f in range(7)]
+    W2q = [nrm(Gu["W2q"], f) for f in range(7)]; W2m = [nrm(Gu["W2m"], f) for f in range(7)]
+    mps = [nrm(Gu["M0"], f) for f in range(7)]
+    b1, b1r, b2, b2r = bmax
+    lamU = arb(_ub(lam))
+
+    def build(groups):
+        """g2 and its three top-level parts; groups = the transfer-error groups included (diagnostic rows)."""
+        M0e = arb_mat(3, 3); Ae = arb_mat(3, 3); Xe = arb_mat(3, 3); M1e = arb_mat(3, 3)
+        c1e = arb_mat(3, 1)
+        for i in range(3):
+            for j in range(3):
+                ui, uj, pi_, pj = U_[i], U_[j], PS[i], PS[j]
+                r = sm[i] * sm[j]
+                M0e[i, j] = Gu["M0"][ui, uj] + (r * PM if "M0" in groups else 0)
+                r = (W1q[ui] * sq[j] + lamU * W1m[ui] * sm[j] + W1q[uj] * sq[i] + lamU * W1m[uj] * sm[i]
+                     + b1 * sq[i] * sq[j] + lamU * b1r * sm[i] * sm[j])
+                Ae[i, j] = B1u[ui, uj] + (r * PM if "A" in groups else 0)
+                r2 = (W2q[ui] * sq[j] + lamU * W2m[ui] * sm[j] + W2q[uj] * sq[i] + lamU * W2m[uj] * sm[i]
+                      + b2 * sq[i] * sq[j] + lamU * b2r * sm[i] * sm[j])
+                r1 = (2 * (W1q[pi_] * sq[j] + lamU * W1m[pi_] * sm[j])
+                      + 2 * (W1q[pj] * sq[i] + lamU * W1m[pj] * sm[i]))
+                Xe[i, j] = (B2u[ui, uj] + 2 * B1u[pi_, uj] + 2 * B1u[ui, pj] + 2 * Su[pi_, pj]
+                            + (r2 * PM if "X2" in groups else 0) + (r1 * PM if "X1" in groups else 0))
+                r = (W1m[ui] * sm[j] + W1m[uj] * sm[i] + b1r * sm[i] * sm[j] + mps[pi_] * sm[j] + mps[pj] * sm[i])
+                M1e[i, j] = (Gu["M1"][ui, uj] + Gu["M0"][pi_, uj] + Gu["M0"][ui, pj]
+                             + (r * PM if "M1" in groups else 0))
+            c1e[i, 0] = (Gu["M1"][U_[i], ONE] + Gu["M0"][PS[i], ONE]
+                         + (W1m[ONE] * sm[i] * PM if "c1" in groups else 0))
+        m11 = Gu["M0"][ONE, ONE]
+        try:
+            N = M0e.inv()
+        except ZeroDivisionError:                    # M0e not provably invertible (e.g. NaN): never a pass
+            nan = arb("nan")
+            return nan, dict(trNX=nan, A_term=nan, c1_term=nan)
+        parts = dict(trNX=(N * Xe).trace(), A_term=-2 * (N * M1e * N * Ae).trace(),
+                     c1_term=2 * lam * (c1e.transpose() * N * c1e)[0, 0] / m11)
+        return parts["trNX"] + parts["A_term"] + parts["c1_term"], parts
+    ALL = {"M0", "A", "X2", "X1", "M1", "c1"}
+    g2, parts = build(ALL)
+    g2_0, _ = build(set())
+    ok = certainly_lt(g2, 0)                           # NaN / infinite never pass
+    g2_upper = _float_up(g2) if g2.is_finite() else None
+    breakdown = {grp: _ub(build({grp})[0]) - float(g2_0.mid()) for grp in sorted(ALL)}
+    terms = {k: ball_str(v) for k, v in parts.items()}
+    terms["g2_central"] = ball_str(g2_0)
+    terms["transfer_err"] = ball_str(g2 - g2_0)
+    data = {
+        "assembly": "g2_upper_v1",
+        "terms": terms,
+        "g2_enclosure": ball_str(g2),
+        "diagnostics": {
+            "non_additive": True,
+            "error_breakdown_upper_minus_central": breakdown,
+            "beta_max": dict(beta1=_ub(b1), beta1r=_ub(b1r), beta2=_ub(b2), beta2r=_ub(b2r)),
+            "eta": eta, "area_over_4pi": ball_str(Gu["M0"][ONE, ONE] / (4 * arb.pi())),
+            "float_cluster": w[1:4].tolist(), "float_g2": g2f, "float_T2": T2f, "float_A_eigs": A_float,
+            "A_e_enclosure_diag": [ball_str(B1u[i, i]) for i in range(3)],
+            "B2_uu_diag": [ball_str(B2u[i, i]) for i in range(3)],
+        },
+    }
+    cert = Certificate(kind="kyfan_second_order", inputs=inputs,
+                       claims=[Claim(lhs="g2_upper", op="<", rhs="0", holds=ok)],
+                       data=data, dependencies=deps, producer=make_producer())
+    return A_float, g2_upper, ok, cert
+
+
 def certify_cluster(direction="F_A", degree=1, n=96, lam1: Lam1Input = None, gap: GapInput = None,
                     second_order=False, sym=True, strict=False) -> ClusterResult:
-    """Certified first-order test of the lambda_1 cluster at Bolza (A != 0).
+    """Certified perturbation tests of the lambda_1 cluster at Bolza.
 
     lam1, gap: required explicit inputs (lambda_1 ball and lambda_4 lower bound), recorded with their sources.
-    degree=1: the published P1 test for direction "F_A"; see _first_order for the certified quantity and the
-    certificate's b_ee_upper_v1 assembly formula.  Precision is set internally (96 bits)."""
+    degree=1: the published P1 first-order test (A != 0) for direction "F_A"; see _first_order for the certified
+    quantity and the certificate's b_ee_upper_v1 assembly formula.
+    degree=2, second_order=True: the certified Ky Fan bound kyfan_upper >= D2 Lambda(v, v) along direction ("F_A",
+    "F_B" or a 16-vector of Klein coordinates); see _kyfan for the g2_upper_v1 assembly formula.  sym=True (pi/2
+    element cache) applies to the named, r2-invariant families only; it is forced False for vector directions.
+    degree=2, second_order=False: float splitting rates A_float only (no certificate, certified=False).
+    Precision is set internally (96 bits)."""
     if lam1 is None or gap is None:
         raise ValueError("lam1 and gap inputs are required (spec §3.4)")
     if float(lam1.lower) > float(lam1.upper):
         raise ValueError(f"lam1 interval is empty: lower {lam1.lower} > upper {lam1.upper}")
     if float(gap.lower) <= float(lam1.upper):
         raise ValueError(f"gap lower bound {gap.lower} must exceed lam1 upper {lam1.upper}")
-    if degree != 1 or second_order:
-        raise NotImplementedError("degree=2 / second-order cluster test is Task 9")
+    if degree == 2:
+        with prec(96):
+            A_float, g2_upper, ok, cert = _kyfan(direction, n, lam1, gap, sym, second_order)
+        if strict and second_order and not ok:
+            raise CertificationFailed("could not certify D2 Lambda(v, v) < 0 (Ky Fan, second order)")
+        return ClusterResult(A_float=A_float, b_ee_upper=None, A_nonzero=False, kyfan_upper=g2_upper,
+                             certified=ok, certificates=[cert] if cert is not None else [])
+    if degree != 1:
+        raise NotImplementedError("degree must be 1 or 2")
+    if second_order:
+        raise NotImplementedError("the second-order (Ky Fan) test needs degree=2")
     if direction != "F_A":
         raise NotImplementedError("first-order P1 test is published for F_A; use degree=2 via Task 9 for other "
                                   "directions")
