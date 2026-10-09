@@ -317,6 +317,11 @@ def _ub(x):
     return _float_up(x) if x.is_finite() else math.nan
 
 
+def _sqrt_up(x):
+    """exact float point (as arb) >= sqrt(upper(x)); NaN if x is non-finite or certainly-not-nonnegative at the top."""
+    return arb(_ub(arb(_ub(x)).sqrt()))
+
+
 def _kyfan(direction, n, lam1_in, gap_in, sym, second_order):
     """Certified upper bound g2_upper >= g''(0) >= D2 Lambda(v, v), Lambda = lambda1 + lambda2 + lambda3 along the
     deformation `direction` ("F_A", "F_B" or a 16-vector in Klein coordinates) at Bolza; P2 trial space on Mesh(n).
@@ -324,7 +329,8 @@ def _kyfan(direction, n, lam1_in, gap_in, sym, second_order):
     Port of the Bolza lambda1 research code (cert_sign.main), the F_B vertex source generalised to
     Surface.bolza().vertex_jets(direction).  Ky Fan: lambda_0 = 0, so for V(p) = span{1, e_i + p psi_i} (e_i a basis
     of the exact lambda1-eigenspace E, psi_i fixed P2 correctors) Lambda(p) <= g(p) = tr(G_m(p)^-1 G_q(p)) with
-    equality at p = 0; with Lambda C^2 (F1) and dLambda = 0 at Bolza (Lemma 4), Lambda''(0) <= g''(0), and
+    equality at p = 0; with Lambda and g C^2 (F1), g - Lambda >= 0 has a minimum at 0, so Lambda''(0) <= g''(0);
+    dLambda = 0 at Bolza (Lemma 4) makes Lambda''(0) = D2 Lambda(v, v) for every curve with tangent v.  Here
        g''(0) = tr(N X) - 2 tr(N M1 N A) + 2 lam c1^T N c1 / m(1,1),   N = M0^-1,
        X_ij  = (q''-lam m'')(e_i,e_j) + 2 b(psi_i,e_j) + 2 b(e_i,psi_j) + 2 (q-lam m)(psi_i,psi_j),
        A_ij  = b(e_i,e_j),  b = q' - lam m',  M0_ij = m(e_i,e_j),
@@ -334,19 +340,44 @@ def _kyfan(direction, n, lam1_in, gap_in, sym, second_order):
     lambda4 >= gap.lower:  m(w_i) <= (q(u_i) - lam m(u_i))/(lambda4 - lam),  q(w_i) <= that * lambda4, and the
     elementwise relative derivative bounds beta of forms.element_p2).
 
-    Certificate data (assembly "g2_upper_v1"), all Arb ball strings:
-      data["terms"]["trNX"]    = tr(N X)
-      data["terms"]["A_term"]  = -2 tr(N M1 N A)
-      data["terms"]["c1_term"] = 2 lam c1^T N c1 / m(1,1)
-          (N, X, M1, A, c1 the transfer-error-inflated 3x3 / 3x1 ball matrices, so these already include the
-          transfer error)
-      data["g2_enclosure"] = g2 = trNX + A_term + c1_term   (Arb ball addition; exactly how g2 is computed)
-      data["terms"]["g2_central"]   = the same formula with every transfer-error ball set to 0
-      data["terms"]["transfer_err"] = g2 - g2_central (joint transfer-error ball; g2_central + transfer_err ⊇ g2)
-      claim: g2_upper < 0, i.e. the upper end of g2 = trNX + A_term + c1_term is certainly negative.
-    data["diagnostics"] holds untrusted / non-additive information: the one-at-a-time error rows
-    error_breakdown_upper_minus_central (each row includes ONE error group; they do NOT sum to g2_upper - g2_central),
-    beta bounds, eta (gap-transfer) data, float estimates.  NaN or infinite data never pass.
+    Certificate data (assembly "g2_upper_v1").  All values are Arb ball strings unless noted; the checker works at
+    96 bits.  PM = [0 +/- 1].
+      data["raw"]: the complete input of the final assembly
+        lam  = [lo, hi]  (decimal strings; lam := arb(lo).union(arb(hi)), the lam1 input ball)
+        lam4 = decimal string (lam4 := arb(lam4), the gap input)
+        lamU = float string with lamU >= upper(lam)
+        G[k], k in K0 K1 K2 M0 M1 M2: 7x7 Gram matrices of the forms q, q', q''/2, m, m', m''/2 on the vectors
+             f = 0..6 = [u_1, u_2, u_3, psi_1, psi_2, psi_3, 1]   (u_i = x_i - c_i 1 exactly m-orthogonal to 1)
+        Wdiag[k], k in W1q W1m W2q W2m: 7-vectors, sum_T beta_T^2 q_T(f) resp. m_T(f) (beta1, beta1r, beta2, beta2r)
+        bmax = [b1, b1r, b2, b2r]: max over elements of the four relative bounds (float points)
+        W, sq, sm: the producer's float-point values of the derived radii below (informational; each is >= the
+             checker's value up to the rounding of the stored strings)
+      Rebuild, pure Arb from the above.  Derived radii (sqrt(upper(.)) of a ball = arb(upper).sqrt()):
+        W[k]_f = sqrt(upper(Wdiag[k]_f))  (k in W1q W1m W2q W2m),   mps_f = sqrt(upper(G[M0]_ff)),
+        exc_i = G[K0]_ii - lam G[M0]_ii,  sm_i = sqrt(upper(exc_i / (lam4 - lam))),
+        sq_i = sqrt(upper(exc_i lam4 / (lam4 - lam)))   (exc_i < 0 gives NaN: never a pass)
+      Then (i, j = 0..2;  u = i, p = 3 + i, P = 3 + j, ONE = 6;  B1 = G[K1] - lam G[M1],
+      B2 = 2 (G[K2] - lam G[M2]),  S = G[K0] - lam G[M0]):
+        M0e_ij = G[M0]_ij + sm_i sm_j PM
+        Ae_ij  = B1_ij + (W1q_i sq_j + lamU W1m_i sm_j + W1q_j sq_i + lamU W1m_j sm_i + b1 sq_i sq_j
+                          + lamU b1r sm_i sm_j) PM
+        Xe_ij  = B2_ij + 2 B1_pj + 2 B1_iP + 2 S_pP
+                 + (W2q_i sq_j + lamU W2m_i sm_j + W2q_j sq_i + lamU W2m_j sm_i + b2 sq_i sq_j + lamU b2r sm_i sm_j) PM
+                 + (2 (W1q_p sq_j + lamU W1m_p sm_j) + 2 (W1q_P sq_i + lamU W1m_P sm_i)) PM
+        M1e_ij = G[M1]_ij + G[M0]_pj + G[M0]_iP + (W1m_i sm_j + W1m_j sm_i + b1r sm_i sm_j + mps_p sm_j + mps_P sm_i) PM
+        c1e_i  = G[M1]_i,ONE + G[M0]_p,ONE + W1m_ONE sm_i PM
+        N = M0e^-1,  m11 = G[M0]_ONE,ONE
+        trNX = tr(N Xe),  A_term = -2 tr(N M1e N Ae),  c1_term = 2 lam (c1e^T N c1e) / m11
+        g2 = trNX + A_term + c1_term
+      data["terms"] = {trNX, A_term, c1_term}: an additive set, sum = data["g2_enclosure"] = g2 (no double counting;
+        the transfer errors are already inside each term).
+      claim: g2_upper < 0, i.e. the upper end of g2 is certainly negative.
+    data["diagnostics"] holds untrusted / non-additive information: g2_central (all PM terms dropped), the
+    one-at-a-time error rows error_breakdown_upper_minus_central (each row includes ONE error group; they do NOT sum to
+    g2_upper - g2_central), eta (gap-transfer) data, float estimates.  NaN or infinite data never pass.
+
+    Vector directions: only the 2-jet of the vertex curve enters g''(0); (v_T, w) is the 2-jet of a curve in C
+    (implicit function theorem, rank DC = 5).  inputs record v, the projected tangent v_T and |v - v_T|.
 
     second_order=False: float pass only (A_float = eigenvalues of the float A = [b(x_i, x_j)]), no certificate.
     Returns (A_float, g2_upper or None, ok, certificate or None)."""
@@ -355,7 +386,8 @@ def _kyfan(direction, n, lam1_in, gap_in, sym, second_order):
     named = isinstance(d, str)
     sym = bool(sym) and named          # the pi/2 element cache is valid only for r2-invariant (named) families
     mesh = Mesh(n); space = forms.P2Space(mesh)
-    X = positions_jet(mesh, surface.vertex_jets(d))
+    Vj = surface.vertex_jets(d)
+    X = positions_jet(mesh, Vj)
     elems = forms.compute_elements(mesh, X, order=2, sym=sym)
     F = {}
     for wh, nm in ((0, "K"), (1, "M")):
@@ -365,6 +397,10 @@ def _kyfan(direction, n, lam1_in, gap_in, sym, second_order):
               "surface": "bolza",
               "lam1": {"lower": lam1_in.lower, "upper": lam1_in.upper, "source": lam1_in.source},
               "gap": {"lower": gap_in.lower, "source": gap_in.source}}
+    if not named:
+        vT = np.array([float((V[i] / V[0]).d.mid()) for V in Vj for i in (1, 2)])   # Klein tangent of the jets
+        inputs["tangent_projected"] = [repr(float(t)) for t in vT]
+        inputs["projection_residual"] = repr(float(np.linalg.norm(d - vT)))
     deps = [Dependency("D1", f"lambda_1 in [{lam1_in.lower}, {lam1_in.upper}]", lam1_in.source),
             Dependency("gap", f"lambda_4 >= {gap_in.lower} (no eigenvalue in (lambda_1, {gap_in.lower}))",
                        gap_in.source),
@@ -372,15 +408,15 @@ def _kyfan(direction, n, lam1_in, gap_in, sym, second_order):
                               "the constants (lambda_0 = 0)", "Ky Fan (D10)"),
             Dependency("F1", "C^2 regularity of Lambda = lambda_1+lambda_2+lambda_3 along the deformation",
                        "PROOF.md Lemma 2 (F1_PROOF.md)"),
-            Dependency("Lemma4", "dLambda = 0 at Bolza, so Lambda''(0) <= g''(0) and the bound depends only on the "
-                                 "tangent direction", "dLambda=0 (Lemma 4)")]
+            Dependency("Lemma4", "dLambda = 0 at Bolza, so Lambda''(0) (<= g''(0) by Ky Fan) is D2 Lambda(v, v): "
+                                 "independent of the curve's second-order term", "dLambda=0 (Lemma 4)")]
     claim_false = [Claim(lhs="g2_upper", op="<", rhs="0", holds=False)]
     if not all(np.isfinite(F[k].data).all() for k in F):
         # NaN / infinite element data: no float model and no certified bound (fail closed)
         if not second_order:
             return [], None, False, None
         cert = Certificate(kind="kyfan_second_order", inputs=inputs, claims=claim_false,
-                           data={"assembly": "g2_upper_v1", "terms": {}, "g2_enclosure": "nan",
+                           data={"assembly": "g2_upper_v1", "raw": {}, "terms": {}, "g2_enclosure": "nan",
                                  "diagnostics": {"non_additive": True, "error": "non-finite element data"}},
                            dependencies=deps, producer=make_producer())
         return [], None, False, cert
@@ -466,10 +502,10 @@ def _kyfan(direction, n, lam1_in, gap_in, sym, second_order):
     for i in range(3):
         exc = Gu["K0"][i, i] - lam * Gu["M0"][i, i]
         mw = exc / (lam4 - lam); qw = exc * lam4 / (lam4 - lam)
-        sm.append(arb(_ub(mw)).sqrt()); sq.append(arb(_ub(qw)).sqrt())
+        sm.append(_sqrt_up(mw)); sq.append(_sqrt_up(qw))
         eta.append(dict(mu=ball_str(Gu["K0"][i, i] / Gu["M0"][i, i]), m_u=ball_str(Gu["M0"][i, i]),
                         sqrt_q_w_le=_ub(sq[-1]), sqrt_m_w_le=_ub(sm[-1])))
-    nrm = lambda G_, f: arb(_ub(G_[f, f])).sqrt()     # sqrt of an upper bound of a (nonneg) weighted sum
+    nrm = lambda G_, f: _sqrt_up(G_[f, f])           # point >= sqrt of the upper end of a (nonneg) weighted sum
     W1q = [nrm(Gu["W1q"], f) for f in range(7)]; W1m = [nrm(Gu["W1m"], f) for f in range(7)]
     W2q = [nrm(Gu["W2q"], f) for f in range(7)]; W2m = [nrm(Gu["W2m"], f) for f in range(7)]
     mps = [nrm(Gu["M0"], f) for f in range(7)]
@@ -514,15 +550,23 @@ def _kyfan(direction, n, lam1_in, gap_in, sym, second_order):
     ok = certainly_lt(g2, 0)                           # NaN / infinite never pass
     g2_upper = _float_up(g2) if g2.is_finite() else None
     breakdown = {grp: _ub(build({grp})[0]) - float(g2_0.mid()) for grp in sorted(ALL)}
-    terms = {k: ball_str(v) for k, v in parts.items()}
-    terms["g2_central"] = ball_str(g2_0)
-    terms["transfer_err"] = ball_str(g2 - g2_0)
+    # raw inputs keep all 30 mid digits (short ball_str folds the mid rounding into a much wider radius)
+    bs = lambda x: x.str(30, radius=True, more=True)
+    vec = lambda xs: [bs(x) for x in xs]
+    raw = {"lam": [lam1_in.lower, lam1_in.upper], "lam4": gap_in.lower, "lamU": repr(_ub(lam)),
+           "G": {k: [[bs(Gu[k][a, b]) for b in range(nv)] for a in range(nv)]
+                 for k in ("K0", "K1", "K2", "M0", "M1", "M2")},
+           "Wdiag": {k: vec(Gu[k][f, f] for f in range(nv)) for k in ("W1q", "W1m", "W2q", "W2m")},
+           "W": {"W1q": vec(W1q), "W1m": vec(W1m), "W2q": vec(W2q), "W2m": vec(W2m), "mps": vec(mps)},
+           "bmax": vec(bmax), "sq": vec(sq), "sm": vec(sm)}
     data = {
         "assembly": "g2_upper_v1",
-        "terms": terms,
+        "raw": raw,
+        "terms": {k: ball_str(v) for k, v in parts.items()},
         "g2_enclosure": ball_str(g2),
         "diagnostics": {
             "non_additive": True,
+            "g2_central": ball_str(g2_0),
             "error_breakdown_upper_minus_central": breakdown,
             "beta_max": dict(beta1=_ub(b1), beta1r=_ub(b1r), beta2=_ub(b2), beta2r=_ub(b2r)),
             "eta": eta, "area_over_4pi": ball_str(Gu["M0"][ONE, ONE] / (4 * arb.pi())),
