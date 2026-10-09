@@ -9,7 +9,7 @@ pytest.importorskip("flint")
 ROOT = pathlib.Path(__file__).resolve().parents[1] / "proofs" / "bolza-local-max"
 GOLDEN = {"lp_A_3.3.json", "lp_B_3.3_4.0.json", "rr_p1_n192.json", "rr_p2_n96.json",
           "first_order_FA_n192_su13.json", "first_order_FA_n192_lg.json",
-          "kyfan_FB_n96_su13.json", "kyfan_FB_n96_lg.json", "rank.json"}
+          "kyfan_FB_n96_su13.json", "kyfan_FB_n96_lg.json", "rank.json", "lg_lower_n48.json"}
 
 
 def _check(*files):
@@ -37,6 +37,14 @@ def test_golden_certificates_valid():
 def test_lp_b_is_conditional():
     r = _check(ROOT / "certificates" / "lp_B_3.3_4.0.json")
     assert r.returncode == 2 and "conditional" in r.stdout, r.stdout
+
+
+def test_lg_lower_is_conditional():
+    r = _check(ROOT / "certificates" / "lg_lower_n48.json")
+    assert r.returncode == 2, r.stdout
+    assert "VALID given stored Gram data (conditional on lambda_4 >= 4.0)" in r.stdout, r.stdout
+    c = json.loads((ROOT / "certificates" / "lg_lower_n48.json").read_text(encoding="utf-8"))
+    assert c["certified"] and float(c["claims"][0]["rhs"]) >= 3.8388757010   # covers the _lg certificates' lam1 input
 
 
 def test_golden_lam1_sources():

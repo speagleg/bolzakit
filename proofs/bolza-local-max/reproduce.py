@@ -2,7 +2,7 @@
 """Reproduce the certified computations behind "the Bolza surface is a strict local maximum of lambda_1".
 
     reproduce.py --quick            check certificates/*.json with bolzakit_check, then re-run the n <= 24 analogues
-    reproduce.py --full [--out DIR] regenerate the golden certificates (about 30-45 min on one core) into DIR
+    reproduce.py --full [--out DIR] regenerate the golden certificates (about 35-50 min on one core) into DIR
                                     (default: certificates/ next to this file); --only NAME... restricts the set
 
 Both modes print a markdown table: claim | certified value | published value | provenance | match.
@@ -29,8 +29,9 @@ CERTS = HERE / "certificates"
 # Reference values.  name -> (claim, value, tolerance, relative, provenance).  provenance says where the value comes
 # from: an item-23 file (math-pursuits items/23-bolza-lambda1-extremality/work/, SRC commit 53bc014), or a bolzakit
 # regression pin (this implementation, fixed ARPACK start vector) with the ruling that sanctions it.
-# The table shows certificate-attested values; rr, first-order and Ky Fan rows from the API are matched on the
-# in-process values (SpectrumResult.upper_inprocess, ClusterResult.*_upper_inprocess), which is what item 23 published.
+# The table shows certificate-attested values; rr, first-order, Ky Fan and LG rows from the API are matched on the
+# in-process values (SpectrumResult.upper_inprocess, ClusterResult.*_upper_inprocess,
+# LowerBoundResult.lam1_lower_inprocess), which is what item 23 published.
 I23 = "item 23 "
 PUBLISHED = {
     "lp_A_3.3": ("LP count in (0, 3.3] < 1 (mode A)", 0.912612, 1e-6, False, I23 + "lp_A_3.3.json"),
@@ -53,6 +54,10 @@ PUBLISHED = {
                         -9.341148662380872, 1e-6, False, "bolzakit pin (v0.2 ruling, Task 9 LB golden)"),
     "rank": ("rank d(pi) = 6: det of the chosen 6x6 minor != 0", 7872428136359854080.0, 1e-6, True,
              I23 + "cert_dpi_rank.json"),
+    # item 23 publishes float(lb.lower()) rounded to nearest (review_lb_1 F2: ~2.5e-16 above the Arb endpoint); the
+    # in-process value here is rounded down, and the stored row is the attested (rounded-down) enclosure end.
+    "lg_lower_n48": ("lambda_1 >= (Lehmann-Goerisch, P2 + RT2, n=48, rho=5, given lambda_4 >= 4.0)",
+                     3.8388757010527246, 1e-12, False, I23 + "lb_bolza_48.json"),
 }
 # n <= 24 analogues for --quick.  The n=24 first-order test does NOT certify (b(e,e)/m > 0).  Its value is a bolzakit
 # regression pin: no item-23 file has it (cert_first_order_24_48.json predates the energy-weighted transfer bound).
@@ -69,6 +74,9 @@ EXPECT_UNCERTIFIED = {"first_order_FA_n24_su13"}
 # 7-digit outward-rounded radius of the stored enclosure for first-order / Ky Fan.  Stored rows are therefore matched
 # one-sidedly: reference - tol <= stored <= reference + tol + slack.
 STORED_SLACK = {"rr_upper": 1e-9, "cluster_first_order": 1e-6, "kyfan_second_order": 1e-6}
+# A stored lower bound (lg_lower) attests the enclosure's lower end rounded down: matched one-sidedly the other way,
+# reference - tol - slack <= stored <= reference + tol.
+STORED_SLACK_LOWER = {"lg_lower": 1e-15}
 
 
 def _inputs():
@@ -105,6 +113,10 @@ def compute(name):
         n, route = name.split("_n")[1].split("_")
         r = certify_cluster("F_B", degree=2, n=int(n), lam1=lam[route], gap=gap, second_order=True)
         return r.kyfan_upper, r.kyfan_upper_inprocess, r.certificates[0]
+    if name.startswith("lg_lower_n"):
+        from bolzakit.certified.lower_bounds import certify_lam1_lower
+        r = certify_lam1_lower(n=int(name.split("_n")[1]), rho=5, gap=gap)
+        return r.lam1_lower, r.lam1_lower_inprocess, r.certificate
     if name == "rank":
         r = certify_rank()
         det = float(_arb(r.det).mid())
@@ -128,6 +140,9 @@ def stored_value(cert: dict) -> float:
         return float(_arb(d["b_ee_upper_over_m"]).upper())
     if k == "kyfan_second_order":
         return float(_arb(d["g2_enclosure"]).upper())
+    if k == "lg_lower":
+        from bolzakit.certified.lower_bounds import _attested_lower
+        return _attested_lower(d["lam1_lower_enclosure"])
     if k == "rank":
         from flint import arb_mat
         return float(arb_mat([[_arb(x) for x in row] for row in d["J"]]).det().mid())
@@ -186,6 +201,8 @@ def quick() -> bool:
         value = stored_value(cert)
         if cert["kind"] in STORED_SLACK:    # attested upper bound: at or above the reference, within the slack
             ok = pub - tol <= value <= pub + tol + STORED_SLACK[cert["kind"]]
+        elif cert["kind"] in STORED_SLACK_LOWER:    # attested lower bound: at or below the reference
+            ok = value is not None and pub - tol - STORED_SLACK_LOWER[cert["kind"]] <= value <= pub + tol
         else:
             ok = _matches(value, pub, tol, rel)
         ok = ok and cert["certified"]

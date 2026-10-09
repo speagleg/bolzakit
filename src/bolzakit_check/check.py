@@ -6,7 +6,9 @@ check_file(path, deep=False) -> (ok, message).  A certificate is VALID iff
     re-derived here from the certificate's inputs and data (a claim that cannot be re-derived is INVALID);
   * every claim holds (and the stored `certified` flag says so).
 Messages: "VALID", "VALID given stored Gram data" (the claim is re-derived, but from Gram / element-sum data that
-the checker cannot recompute), "VALID (conditional on lambda_1 >= a)" (mode-B count), or "INVALID: <reason>".
+the checker cannot recompute), "VALID (conditional on lambda_1 >= a)" (mode-B count), "VALID given stored Gram data
+(conditional on lambda_4 >= g)" (lg_lower), or "INVALID: <reason>".  A message containing "(conditional on" is a
+conditional VALID (exit code 2 of python -m bolzakit_check).
 
 Trust boundary per kind (what is re-derived / what is trusted):
   rr_upper            re-derived: M and mu M - K positive definite (own LDL^T, Sylvester fallback); degree 2:
@@ -22,6 +24,12 @@ Trust boundary per kind (what is re-derived / what is trusted):
                       mu, B, E and B + E < 0.  Trusted: the raw sums (Gram data) and the lam1 / gap dependencies.
   kyfan_second_order  re-derived: g2 rebuilt from data["raw"] < 0.  Trusted: the raw Gram matrices / weighted sums and
                       the lam1 / gap dependencies.
+  lg_lower            re-derived from A0, A1, A2 and rho only (lg.py, own Lehmann-Goerisch step written from the
+                      theorem): B > 0, nu* < 0 and nu* B - A > 0 at the nu* that gives the lower end of the stored
+                      enclosure; claim rhs <= that end; rho > 0 and rho <= gap + 1.  Trusted: the stored Gram balls
+                      (element integration and H(div) conformity of the RT2 fluxes), the Lehmann-Goerisch theorem
+                      (D15), and the gap input lambda_4 >= g, which is the ONLY check of rho (the computation cannot
+                      detect a wrong rho), hence always conditional.
 """
 from __future__ import annotations
 
@@ -29,7 +37,7 @@ import random
 
 from flint import arb
 
-from . import assembly, deep as deep_mod, hermitian, lp, rank
+from . import assembly, deep as deep_mod, hermitian, lg, lp, rank
 from ._cert import SCHEMA, CheckError, arb_q, ball, core_hash, frac, load, lt, matrix, precision
 
 
@@ -81,9 +89,13 @@ def _kyfan(raw):
     return [("g2_upper", "<", "0", lt(g, 0))], None
 
 
-GRAM_KINDS = ("rr_upper", "cluster_first_order", "kyfan_second_order")
+def _lg(raw):
+    return lg.verify(raw)
+
+
+GRAM_KINDS = ("rr_upper", "cluster_first_order", "kyfan_second_order", "lg_lower")
 KINDS = {"rr_upper": _rr, "count": _count, "rank": _rank, "cluster_first_order": _first_order,
-         "kyfan_second_order": _kyfan}
+         "kyfan_second_order": _kyfan, "lg_lower": _lg}
 
 
 def _check_sample_selection(raw):
@@ -130,7 +142,9 @@ def _check(raw, deep):
     failed = [f"{lhs} {op} {rhs}" for lhs, op, rhs, t in derived if not t]
     if failed:
         return False, "INVALID: not certified (re-derivation agrees): " + "; ".join(failed) + " does not hold"
-    if note is not None:
+    if note is not None and kind in GRAM_KINDS:
+        msg = f"VALID given stored Gram data (conditional on {note})"
+    elif note is not None:
         msg = f"VALID (conditional on {note})"
     elif kind in GRAM_KINDS:
         msg = "VALID given stored Gram data"
