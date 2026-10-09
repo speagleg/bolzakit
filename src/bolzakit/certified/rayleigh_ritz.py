@@ -18,7 +18,8 @@ from ..errors import CertificationFailed
 from . import forms
 from ._arb import ball_str, certainly_gt, prec, rational_upper
 from .certificate import Certificate, Claim, Dependency, make_producer
-from .mesh import Mesh, positions_arb
+from .jets import J
+from .mesh import Mesh, positions_arb, positions_jet
 
 
 def is_pd(A):
@@ -31,21 +32,21 @@ def is_pd(A):
     return True
 
 
-def certified_upper(Kp, Mp, guess):
+def certified_upper(Kp, Mp, guess, step0=1e-6, iters=40):
     """smallest t (by bisection from guess) with t*Mp - Kp certified positive definite => mu_max < t."""
     m = len(Kp)
     def ok(t):
         ta = arb(t)
         return is_pd([[ta * Mp[i][j] - Kp[i][j] for j in range(m)] for i in range(m)])
-    step = 1e-6
+    step = step0
     hi = guess * (1 + step)
     while not ok(hi):
         step *= 2
         hi = guess * (1 + step)
         if step > 1:
             raise RuntimeError("could not certify an upper bound")
-    lo = guess * (1 - 1e-6)
-    for _ in range(40):
+    lo = guess * (1 - step0)
+    for _ in range(iters):
         mid = (lo + hi) / 2
         if ok(mid): hi = mid
         else: lo = mid
@@ -59,26 +60,50 @@ class SpectrumResult:
     area_over_4pi: str
     certified: bool
     certificate: Certificate
+    cluster_sum_upper: float | None = None   # degree 2: upper bound of lambda_1+..+lambda_k (Ky Fan)
+
+
+def _project_p2(mesh, surface, k):
+    """P2 Rayleigh-Ritz data: exact Gram matrices on span{1, x_1..x_k} of float FE eigenvectors (untrusted)."""
+    space = forms.P2Space(mesh)
+    X = positions_jet(mesh, [[J(c) for c in V] for V in surface.vertices_hyp])
+    elems = forms.compute_elements(mesh, X, order=0, sym=True)
+    Kf = forms.assemble_float(space, elems, 0, 0)
+    Mf = forms.assemble_float(space, elems, 0, 1)
+    w, U = sla.eigsh(Kf, k=k + 3, M=Mf, sigma=-0.5,
+                     v0=np.random.RandomState(0).rand(space.ndof))  # fixed start: reproducible eigenvectors
+    o = np.argsort(w); U = U[:, o]
+    vecs = [np.ones(space.ndof)] + [U[:, i] for i in range(1, k + 1)]
+    GK, GM = forms.gram(space, forms.to_arbmats(elems, 1, 1), vecs, 0, 0)
+    m = k + 1
+    Kp = [[GK[i, j] for j in range(m)] for i in range(m)]
+    Mp = [[GM[i, j] for j in range(m)] for i in range(m)]
+    return Kp, Mp, GK, GM
 
 
 def certify_spectrum(surface, k=3, degree=2, n=48, strict=False) -> SpectrumResult:
-    """Certified upper bounds for lambda_1..lambda_k.  Only degree=1 on the Bolza surface is supported so far."""
-    if degree != 1 or not surface.is_bolza:
-        raise NotImplementedError("only degree=1 on the Bolza surface is supported in this version")
+    """Certified upper bounds for lambda_1..lambda_k (Bolza surface; degree 1 or 2 trial space)."""
+    if degree not in (1, 2) or not surface.is_bolza:
+        raise NotImplementedError("only degree=1 or 2 on the Bolza surface is supported in this version")
+    cluster = None
     with prec(96):
         mesh = Mesh(n)
-        X = positions_arb(mesh, surface.vertices_hyp)
-        elems, Kf, Mf, _ = forms.assemble_p1(mesh, X)
-        w, U = sla.eigsh(Kf, k=k + 3, M=Mf, sigma=-0.5,
-                         v0=np.random.RandomState(0).rand(mesh.Nf))  # fixed start: reproducible eigenvectors
-        o = np.argsort(w); w, U = w[o], U[:, o]
-        vecs = [np.ones(mesh.Nf)] + [U[:, i] for i in range(1, k + 1)]
-        Kp, Mp = forms.project_p1(mesh, elems, vecs)
+        if degree == 1:
+            X = positions_arb(mesh, surface.vertices_hyp)
+            elems, Kf, Mf, _ = forms.assemble_p1(mesh, X)
+            w, U = sla.eigsh(Kf, k=k + 3, M=Mf, sigma=-0.5,
+                             v0=np.random.RandomState(0).rand(mesh.Nf))  # fixed start: reproducible eigenvectors
+            o = np.argsort(w); w, U = w[o], U[:, o]
+            vecs = [np.ones(mesh.Nf)] + [U[:, i] for i in range(1, k + 1)]
+            Kp, Mp = forms.project_p1(mesh, elems, vecs)
+            step0, iters = 1e-6, 40
+        else:
+            Kp, Mp, GK, GM = _project_p2(mesh, surface, k)
+            step0, iters = 1e-9, 50
         Kpf = np.array([[float(x.mid()) for x in r] for r in Kp])
         Mpf = np.array([[float(x.mid()) for x in r] for r in Mp])
         mus = sl.eigh(Kpf, Mpf, eigvals_only=True)
         area = Mp[0][0] / (4 * arb.pi())
-        m = k + 1
         data = {"K": [[ball_str(x) for x in r] for r in Kp], "M": [[ball_str(x) for x in r] for r in Mp]}
         upper, ok = [], True
         try:
@@ -86,11 +111,16 @@ def certify_spectrum(surface, k=3, degree=2, n=48, strict=False) -> SpectrumResu
             for j in range(1, k + 1):
                 sub_mus = sl.eigh(Kpf[:j + 1, :j + 1], Mpf[:j + 1, :j + 1], eigvals_only=True)
                 upper.append(certified_upper([r[:j + 1] for r in Kp[:j + 1]], [r[:j + 1] for r in Mp[:j + 1]],
-                                             float(sub_mus[-1])))
+                                             float(sub_mus[-1]), step0, iters))
             mu = rational_upper(arb(upper[-1]))
         except RuntimeError:
             ok = False
             mu = "inf"
+        if degree == 2:
+            # Ky Fan: lambda_1 + .. + lambda_k <= tr(M^-1 K) on the (k+1)-dim space (lambda_0 = 0 is exact)
+            kyfan = GM.solve(GK).trace()
+            cluster = float(kyfan.upper())
+            data["cluster_sum"] = ball_str(kyfan)
         data["mu"] = mu
         claim = Claim(lhs=f"lambda_{k}", op="<=", rhs=mu, holds=ok)
         cert = Certificate(
@@ -104,4 +134,4 @@ def certify_spectrum(surface, k=3, degree=2, n=48, strict=False) -> SpectrumResu
     if not ok and strict:
         raise CertificationFailed("could not certify a Rayleigh-Ritz upper bound")
     return SpectrumResult(upper=upper, float_eigs=[float(x) for x in mus],
-                          area_over_4pi=area_s, certified=ok, certificate=cert)
+                          area_over_4pi=area_s, certified=ok, certificate=cert, cluster_sum_upper=cluster)
