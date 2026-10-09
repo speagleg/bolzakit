@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from bolzakit.sensitivity.adapters._util import _dof_indices
+
 
 def _require_skfem():
     try:
@@ -14,26 +16,6 @@ def _require_skfem():
     except ImportError as e:  # local stand-in for bolzakit.provenance.require
         raise ImportError("pip install bolzakit[skfem]") from e
     return skfem
-
-
-def _dof_indices(spec, n: int):
-    """Normalise a Dirichlet-dof specification to a sorted unique int array, validated against range(n)."""
-    if spec is None:
-        return np.array([], dtype=int)
-    if isinstance(spec, dict):
-        parts = [_dof_indices(v, n) for v in spec.values()]
-        return np.unique(np.concatenate(parts)) if parts else np.array([], dtype=int)
-    if not isinstance(spec, (np.ndarray, list, tuple)) and hasattr(spec, "all"):  # skfem DofsView
-        spec = spec.all()
-    arr = np.asarray(spec)
-    if arr.size == 0:
-        return np.array([], dtype=int)
-    if arr.dtype.kind not in "iu":
-        raise TypeError("dirichlet_dofs must hold integer dof indices")
-    arr = arr.astype(int).ravel()
-    if arr.min() < 0 or arr.max() >= n:
-        raise ValueError(f"dirichlet_dofs indices must lie in [0, {n})")
-    return np.unique(arr)
 
 
 def from_forms(basis, stiffness_form, mass_form, p0: float, h: float = 1e-5, dirichlet_dofs=None):

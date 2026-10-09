@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 import scipy.sparse as sp
 
-from bolzakit.sensitivity.adapters.skfem import _dof_indices
+from bolzakit.sensitivity.adapters._util import _dof_indices
 
 
 def _require_dolfinx():
@@ -23,9 +23,13 @@ def _require_dolfinx():
     return ufl
 
 
-def _bc_dofs(bcs):
-    parts = [np.asarray(bc.dof_indices()[0], dtype=int) for bc in (bcs or [])]
-    return np.unique(np.concatenate(parts)) if parts else np.array([], dtype=int)
+def _bc_dofs(bcs, n: int):
+    """Normalise ``bcs`` (None, an index array/list, or DirichletBC-like objects with ``dof_indices()``) to dofs."""
+    if bcs is None:
+        return np.array([], dtype=int)
+    if isinstance(bcs, (list, tuple)) and len(bcs) > 0 and all(hasattr(b, "dof_indices") for b in bcs):
+        return _dof_indices(np.concatenate([np.asarray(b.dof_indices()[0], dtype=int) for b in bcs]), n)
+    return _dof_indices(bcs, n)
 
 
 def from_forms(V, a, m, p, bcs=None):
@@ -59,6 +63,6 @@ def from_forms(V, a, m, p, bcs=None):
         forms += [f, d1, ufl.diff(d1, p)]
     K, dK, d2K, M, dM, d2M = (build(f) for f in forms)
     n = K.shape[0]
-    drop = _dof_indices(_bc_dofs(bcs) if bcs and hasattr(bcs[0], "dof_indices") else bcs, n)
+    drop = _bc_dofs(bcs, n)
     keep = np.setdiff1d(np.arange(n), drop)
     return tuple(X[keep][:, keep].tocsr() for X in (K, M, dK, dM, d2K, d2M))
