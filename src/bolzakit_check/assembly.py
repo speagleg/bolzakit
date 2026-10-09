@@ -38,10 +38,17 @@ def b_ee(data, inputs):
         lam, lam4 = _lam_inputs(inputs)
         r = {k: ball(data["raw"][k]) for k in ("q_xx", "m_xx", "m_x1", "m_11", "dq_xx", "dm_xx", "dm_x1", "dm_11",
                                                "c", "Sa", "Sr", "beta_a", "beta_rho")}
+        for name in ("beta_a", "beta_rho", "Sa", "Sr"):
+            if not (r[name].is_finite() and r[name] >= 0):
+                raise CheckError(f"raw {name} is not certainly >= 0")
+        if not (r["m_11"].is_finite() and r["m_11"] > 0):
+            raise CheckError("raw m_11 is not certainly > 0")
         c = r["m_x1"] / r["m_11"]
         if not r["c"].overlaps(c):
             raise CheckError("raw c is not m_x1/m_11")
         m_u = r["m_xx"] - c * r["m_x1"]
+        if not (m_u.is_finite() and m_u > 0):
+            raise CheckError("m_u = m_xx - c m_x1 is not certainly > 0")
         q_u = r["q_xx"]
         mu = q_u / m_u
         b_uu = (r["dq_xx"] - lam * r["dm_xx"]) + 2 * c * lam * r["dm_x1"] - c * c * lam * r["dm_11"]

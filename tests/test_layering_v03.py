@@ -2,9 +2,15 @@ import ast, importlib.util, os, pathlib, subprocess, sys
 import pytest
 SRC = pathlib.Path(__file__).resolve().parents[1] / "src"
 
+def _under(m, prefixes):
+    """m is one of the packages in prefixes or a submodule of one (dot boundary: bolzakit.certifiedX is not under
+    bolzakit.certified)."""
+    return any(m == p or m.startswith(p + ".") for p in prefixes)
+
 def _imports(pkgdir):
     out = set()
-    for f in pkgdir.rglob("*.py"):
+    files = pkgdir.rglob("*.py") if pkgdir.is_dir() else [pkgdir]
+    for f in files:
         tree = ast.parse(f.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
@@ -19,7 +25,7 @@ def _imports(pkgdir):
 
 def test_sensitivity_is_standalone():
     bad = [(f, m) for f, m in _imports(SRC / "bolzakit" / "sensitivity")
-           if m.startswith("bolzakit") and not m.startswith("bolzakit.sensitivity")]
+           if _under(m, ("bolzakit",)) and not _under(m, ("bolzakit.sensitivity",))]
     assert bad == []
 
 def test_checker_never_imports_bolzakit():
@@ -30,14 +36,17 @@ def test_checker_never_imports_bolzakit():
 def test_certified_layering():
     allowed = ("bolzakit.certified", "bolzakit.exact", "bolzakit.geometry", "bolzakit.provenance", "bolzakit.errors")
     bad = [(f, m) for f, m in _imports(SRC / "bolzakit" / "certified")
-           if m.startswith("bolzakit") and not m.startswith(allowed)]
+           if _under(m, ("bolzakit",)) and not _under(m, allowed)]
     assert bad == []
 
 def test_v01_modules_do_not_import_v02():
-    v01 = [p for p in (SRC / "bolzakit").iterdir() if p.is_dir() and p.name not in ("certified", "sensitivity", "__pycache__", "data")]
+    # v0.1 subpackages and the top-level modules (__init__, errors, provenance)
+    v01 = [p for p in (SRC / "bolzakit").iterdir()
+           if (p.is_dir() and p.name not in ("certified", "sensitivity", "__pycache__", "data")) or p.suffix == ".py"]
+    assert SRC / "bolzakit" / "__init__.py" in v01
     bad = []
     for d in v01:
-        bad += [(f, m) for f, m in _imports(d) if m.startswith(("bolzakit.certified", "bolzakit.sensitivity"))]
+        bad += [(f, m) for f, m in _imports(d) if _under(m, ("bolzakit.certified", "bolzakit.sensitivity"))]
     assert bad == []
 
 def test_version_and_error():

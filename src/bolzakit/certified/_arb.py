@@ -1,8 +1,10 @@
 """NaN-safe Arb ball helpers shared by the certified modules."""
 from __future__ import annotations
 
+import math
 from contextlib import contextmanager
 from decimal import ROUND_CEILING, Decimal, localcontext
+from fractions import Fraction
 
 import flint
 from flint import arb
@@ -66,6 +68,24 @@ def json_float(x):
     if x in (float("inf"), float("-inf")):
         return "inf" if x > 0 else "-inf"
     return x
+
+
+def attested_upper(ball: str):
+    """Smallest-ish float >= the upper end of a stored ball string '[mid +/- rad]' or exact decimal string (exact
+    Fraction arithmetic, as the checker reads it); None for a non-finite or unparsable string."""
+    s = ball.strip()
+    try:
+        if s.startswith("["):
+            mid, rad = s[1:-1].split("+/-")
+            q = Fraction(mid.strip()) + Fraction(rad.strip())
+        else:
+            q = Fraction(s)
+    except (ValueError, ZeroDivisionError, OverflowError):
+        return None
+    f = float(q)
+    while Fraction(f) < q:
+        f = math.nextafter(f, math.inf)
+    return f
 
 
 def parse_ball(s) -> arb:

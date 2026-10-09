@@ -196,9 +196,13 @@ class P2Space:
         self.Ne = len(ekey)
         self.ndof = mesh.Nf + self.Ne
         chi = mesh.Nf - self.Ne + len(mesh.T)
-        assert chi == -2, f"Euler characteristic {chi}"
-        assert all(v == 2 for v in cnt.values()), "edge not shared by exactly 2 triangles"
-        assert not any(L[0] == L[1] or L[1] == L[2] or L[0] == L[2] for L in loc), "degenerate triangle labels"
+        # structural mesh checks: explicit raises (a bare assert is stripped under python -O)
+        if chi != -2:
+            raise ValueError(f"Euler characteristic {chi}")
+        if not all(v == 2 for v in cnt.values()):
+            raise ValueError("edge not shared by exactly 2 triangles")
+        if any(L[0] == L[1] or L[1] == L[2] or L[0] == L[2] for L in loc):
+            raise ValueError("degenerate triangle labels")
 
 
 def mons(d):

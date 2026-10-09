@@ -1,0 +1,112 @@
+{
+  "certified": true,
+  "claims": [
+    {
+      "holds": true,
+      "lhs": "b_ee_upper_over_m",
+      "op": "<",
+      "rhs": "0"
+    }
+  ],
+  "data": {
+    "assembly": "b_ee_upper_v1",
+    "b_ee_upper_over_m": "[-3.09229765618049068365280618309 +/- 4.7282388E-3]",
+    "diagnostics": {
+      "beta_a": 32.992299496656756,
+      "beta_rho": 0.607071574893334,
+      "beta_rms_a": "[5.44681126497487379462328349611 +/- 5.1781339E-11]",
+      "beta_rms_rho": "[0.176216588317532776974755060714 +/- 2.2858635E-17]",
+      "float_A_eigs_per_unit_t": [
+        -4.806174809305468,
+        2.445984030310163e-15,
+        4.8061748093054755
+      ],
+      "float_cluster": [
+        3.839086294669621,
+        3.839086294669678,
+        3.8391848040180534
+      ],
+      "non_additive": true
+    },
+    "raw": {
+      "Sa": "[113.897063768010541494037036477 +/- 2.1618817E-9]",
+      "Sr": "[0.0310522859982708137490747425696 +/- 6.3897906E-18]",
+      "beta_a": "[32.9922994966567559438752519579 +/- 3.2992303E-28]",
+      "beta_rho": "[0.607071574893333955386858599326 +/- 6.0707164E-30]",
+      "c": "[-2.41305026716190011801688869442e-15 +/- 1.4149390E-17]",
+      "dm_11": "[-3.82695228939724851582480839059e-26 +/- 3.0569455E-16]",
+      "dm_x1": "[-6.09678097332226472139953222121e-16 +/- 4.4837885E-17]",
+      "dm_xx": "[-0.0746612704169160392024582697866 +/- 1.1393963E-17]",
+      "dq_xx": "[-5.09280832091669661810163750532 +/- 1.2661871E-13]",
+      "m_11": "[12.5663706143591729538502723038 +/- 8.9864130E-16]",
+      "m_x1": "[-3.03232839613088873162994438280e-14 +/- 1.7780636E-16]",
+      "m_xx": "[0.999999999999999503255092334304 +/- 5.3654809E-17]",
+      "q_xx": "[3.83908629466960250424859854434 +/- 1.2230379E-13]"
+    },
+    "terms": {
+      "b_uu_over_m": "[-4.80619212118737859640305032372 +/- 7.4662547E-8]",
+      "transfer_err_over_m": "[1.71389446500688791275024414063 +/- 4.7281641E-3]"
+    },
+    "transfer_terms": {
+      "Sa_over_m": "[113.897063768010598068525229820 +/- 2.1619208E-9]",
+      "Sr_over_m": "[0.0310522859982708291741396795491 +/- 8.0560181E-18]",
+      "beta_a": "[32.9922994966567559438752519579 +/- 3.2992303E-28]",
+      "beta_rho": "[0.607071574893333955386858599326 +/- 6.0707164E-30]",
+      "m_u": "[0.999999999999999503255092334228 +/- 5.3654809E-17]",
+      "m_w_over_m": "[0.00123538259049382759258151054382 +/- 6.2145134E-6]",
+      "mu": "[3.83908629466960441129496121263 +/- 1.2251165E-13]",
+      "q_w_over_m": "[0.00494153036197531037032604217529 +/- 2.4858054E-5]"
+    }
+  },
+  "dependencies": [
+    {
+      "id": "D1",
+      "source": "SU13 as used in item-23 scripts: arb('3.8388872588','1.0000001e-6')",
+      "statement": "lambda_1 in [3.8388862587999999, 3.8388882588000001]"
+    },
+    {
+      "id": "gap",
+      "source": "trace-formula LP count (certified)",
+      "statement": "lambda_4 >= 4.0 (no eigenvalue in (lambda_1, 4.0))"
+    },
+    {
+      "id": "D4",
+      "source": "FBP Lemmas 7.2 and 7.3 (quoted; PROOF.md Lemma 1c, \u00a7Dependencies D4)",
+      "statement": "lambda_1 has multiplicity exactly 3 (no 1- or 2-dimensional irreducible representation in the lambda_1-eigenspace), so dim E = 3 in the gap transfer"
+    },
+    {
+      "id": "F1",
+      "source": "PROOF.md Lemma 2",
+      "statement": "C^1 regularity of the lambda_1 cluster under the deformation (A is the first-order matrix of the cluster, traceless)"
+    }
+  ],
+  "inputs": {
+    "degree": 1,
+    "direction": "F_A",
+    "gap": {
+      "lower": "4.0",
+      "source": "trace-formula LP count (certified)"
+    },
+    "lam1": {
+      "lower": "3.8388862587999999",
+      "source": "SU13 as used in item-23 scripts: arb('3.8388872588','1.0000001e-6')",
+      "upper": "3.8388882588000001"
+    },
+    "n": 192,
+    "surface": "bolza",
+    "sym": true,
+    "trial": {
+      "arpack_v0": "RandomState(0).rand(Nf)",
+      "sha256": "ea804a40b9f362b4fead1169881bbdeb6b2574d28ff9c32add9b019128e10ef7"
+    }
+  },
+  "kind": "cluster_first_order",
+  "producer": {
+    "bolzakit": "0.2.0",
+    "flint": "0.9.0",
+    "git": "v0.1.0-37-g01232a6",
+    "python": "3.12.3"
+  },
+  "schema": "bolzakit-cert/1",
+  "sha256": "1f9ae845b6525bb4b2d789d7a8400988e1e7ac79d74a5f807460dac1fd378749"
+}

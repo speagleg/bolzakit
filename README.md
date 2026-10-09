@@ -25,10 +25,25 @@ golden-geodesic criterion and the Salem-norm identity). Every public function li
 [docs/provenance.md](docs/provenance.md) carries a provenance label (EXACT, PROVED, CERTIFIED, NUMERICAL or QUOTED) —
 ask for it with `with_provenance=True`.
 
+Version 0.2 adds three things:
+- a **certified layer** (`bolzakit.certified`): Arb-ball Rayleigh–Ritz upper bounds, trace-formula eigenvalue counts,
+  a Lehmann–Goerisch lower bound, certified cluster perturbation tests and a certified trace chart, for Bolza and
+  for small deformations of it. Every result comes with a JSON certificate, and the independent checker
+  `bolzakit_check` re-derives the claims ([docs/certified.md](docs/certified.md));
+- a standalone **sensitivity** module (`bolzakit.sensitivity`) for repeated eigenvalues of any finite-element pencil,
+  with scikit-fem and FEniCSx adapters ([docs/sensitivity.md](docs/sensitivity.md));
+- the proof package [proofs/bolza-local-max/](proofs/bolza-local-max/): a computer-assisted proof that the Bolza
+  surface is a strict local maximum of λ₁, with its golden certificates and `reproduce.py`, and a Lean 4 skeleton
+  of its logical chain ([below](#the-bolza-surface-is-a-strict-local-maximum-of-λ₁-computer-assisted-conditional-on-cited-inputs)).
+
 ## Contents
 
 - [Install](#install)
 - [Quick-start](#quick-start)
+- [The Bolza surface is a strict local maximum of λ₁ (computer-assisted, conditional on cited inputs)](#the-bolza-surface-is-a-strict-local-maximum-of-λ₁-computer-assisted-conditional-on-cited-inputs)
+- [For software engineers](#for-software-engineers)
+- [For physicists](#for-physicists)
+- [For engineers](#for-engineers)
 - [Use cases](#use-cases)
   - [(a) Hyperbolic band theory](#a-hyperbolic-band-theory)
   - [(b) Circuit-QED and electric-circuit lattices](#b-circuit-qed-and-electric-circuit-lattices)
@@ -40,7 +55,7 @@ ask for it with `with_provenance=True`.
 - [Provenance labels](#provenance-labels)
 - [Results and corrections](#results-and-corrections)
 - [Limitations](#limitations)
-- [Roadmap (v0.2)](#roadmap-v02)
+- [Roadmap](#roadmap)
 - [Documentation](#documentation)
 - [References](#references)
 - [Citing](#citing)
@@ -53,6 +68,8 @@ ask for it with `with_provenance=True`.
 pip install bolzakit                 # core: numpy, scipy, mpmath
 pip install "bolzakit[pari]"         # curve arithmetic via cypari2
 pip install "bolzakit[sym,flint]"    # sympy and python-flint extras
+pip install "bolzakit[cert]"         # certified layer: python-flint and sympy
+pip install "bolzakit[skfem]"        # scikit-fem adapter for bolzakit.sensitivity
 ```
 
 You need Python 3.10 or later. The Strohmaier–Uski eigenvalue file is not bundled. It is downloaded from arXiv on first
@@ -71,12 +88,100 @@ print(bk.systole())                         # 3.057141838961996
 print(bk.systole(with_provenance=True).label)   # NUMERICAL (float64 of the exact closed form 2·arccosh(1+√2))
 ```
 
+## The Bolza surface is a strict local maximum of λ₁ (computer-assisted, conditional on cited inputs)
+
+[proofs/bolza-local-max/](proofs/bolza-local-max/) holds a computer-assisted proof, conditional on cited inputs, that
+λ₁(X) < λ₁(B) for every surface X ≠ B in a neighbourhood of the Bolza surface B in the Teichmüller space of genus 2. The package contains
+the integrated proof (PROOF.md), the paper, the review record, ten golden certificates and `reproduce.py`.
+
+**Status.** The proof is computer-assisted and conditional on the cited inputs listed in PROOF.md §Dependencies,
+including Fortier Bourque–Petri's Lemmas 7.2–7.3 and geodesic data, the Selberg trace formula, the
+Lehmann–Goerisch theorem (quoted from secondary sources), and the trusted software (python-flint/Arb, sympy in the
+producer). The Strohmaier–Uski
+eigenvalue (SU13) is optional: λ₁ ≥ 3.8388757010 is certified in-house, and each SU13-based number has an
+SU13-free twin. No human expert has read the proof yet. Its "second reads" were done by AI reviewers. The checker
+re-derives the certified claims from stored Gram data, but it does not re-check the element assembly or the links
+between certificates, which are made by hand ([trust model](docs/certified.md#trust-model)). The Lean 4 skeleton
+under `lean/BolzaKit/LocalMax` checks the logical chain, conditional on the computational inputs.
+
+```
+python -m bolzakit_check proofs/bolza-local-max/certificates/*.json   # exit 2: all VALID, six conditionally
+python proofs/bolza-local-max/reproduce.py --quick                     # about 1-2 min
+```
+
+## For software engineers
+
+**Use case: checking a certificate you did not compute.** Each certified computation writes a JSON certificate
+(schema `bolzakit-cert/1`, with a sha256 of its canonical core). `bolzakit_check` imports nothing from `bolzakit`. It
+re-derives every claim from the stored inputs and data in its own Arb code, so a tampered claim fails even if the
+sha256 is recomputed. On the command line it exits 0 (all VALID), 2 (some only conditionally VALID) or 1 (some
+INVALID). CI runs it on the golden set and accepts 0 or 2. Run this from the repository root:
+
+```python
+# requires: cert
+import glob
+from bolzakit_check.check import check_file
+for f in sorted(glob.glob("proofs/bolza-local-max/certificates/*.json")):
+    ok, msg = check_file(f)                   # e.g. "VALID given stored Gram data"
+    assert ok, msg
+```
+
+"VALID given stored Gram data" means that the checker trusts the element integrals. `--deep` re-integrates a sample
+of elements, as a consistency check only. See [docs/certified.md](docs/certified.md#trust-model).
+
+## For physicists
+
+**Use case: rigorous eigenvalue bounds for a hyperbolic surface.** `certify_spectrum` gives certified upper bounds
+on λ₁..λ_k for Bolza or a deformation of it (|t| ≤ 0.05), and `count_eigenvalues` gives certified Selberg
+trace-formula counts for Bolza. The snippet below certifies that a small F_A deformation lowers λ₁ below the
+certified lower bound λ₁(Bolza) ≥ 3.8388757010 (about 15 s):
+
+```python
+# requires: cert
+from bolzakit.certified import Surface, certify_spectrum, count_eigenvalues
+assert count_eigenvalues("bolza", window=(0, 3.3)).bound < 1         # certified: no eigenvalue in (0, 3.3]
+r = certify_spectrum(Surface.bolza().deform("F_A", 0.02), k=3, degree=2, n=12)
+print(r.upper)                    # certified upper bounds on lambda_1..3: [3.74456, 3.84164, 3.93680]
+assert r.certified and r.upper[0] < 3.8388757010
+```
+
+[examples/bolza_deform.py](examples/bolza_deform.py) does this for three directions, and
+[examples/bolza_strain_rates.py](examples/bolza_strain_rates.py) prints the splitting rates of the triple
+eigenvalue and a certified Ky Fan bound. The validity limits (deformations near Bolza only, counting for Bolza
+only, weak certificates for arbitrary vector directions) are in
+[docs/certified.md](docs/certified.md#known-limitations).
+
+## For engineers
+
+**Use case: design sensitivity of a repeated natural frequency.** Symmetric structures (square plates and
+membranes, rings, rotors) have repeated eigenvalues. Their individual branches are not differentiable, but the sum
+over the cluster is. `cluster_sensitivity` takes the stiffness K, the mass M and their design derivatives from any
+FE code, and returns the splitting rates, the Hessian of the cluster sum and a Ky Fan bound. It needs only numpy
+and scipy:
+
+```python
+import numpy as np
+from bolzakit.sensitivity import cluster_sensitivity
+K, M = np.diag([2.0, 2.0, 5.0]), np.eye(3)            # a repeated eigenvalue 2
+dK = np.array([[1, 1, 0], [1, -1, 1], [0, 1, 0.0]])    # derivative of K along a design change
+r = cluster_sensitivity(K, M, dK, 0 * M, (0, 1), d2K=0 * M, d2M=0 * M)
+print(r.rates, r.trace_hessian)                       # [-1.414 1.414] (+-sqrt 2) -0.667 (= 2/(2-5))
+```
+
+The results are NUMERICAL and belong to the discrete pencil, not to the continuum. For a nearly (not exactly)
+repeated eigenvalue, the rates are eig(A) and not the branch derivatives, but the cluster-sum derivatives remain
+correct. [examples/membrane_repeated_frequency.py](examples/membrane_repeated_frequency.py) runs the scikit-fem
+adapter on a stretched membrane and checks the results against the exact values. There is also a FEniCSx adapter
+with exact UFL derivatives ([docs/sensitivity.md](docs/sensitivity.md)).
+
 ## Use cases
 
-Every snippet below runs as written: `tests/test_readme_snippets.py` executes each one. Blocks marked
+Every Python snippet in this README, including those in the audience sections above, runs as written:
+`tests/test_readme_snippets.py` executes each one (from the repository root). Blocks marked
 `# requires: network` need the Strohmaier–Uski file (downloaded once); the test suite runs them only when that file is
 already cached or with `pytest --runnetwork`. Blocks marked `# requires: slow` take from seconds to a few minutes
-(`pytest --runslow`). Blocks marked `# requires: pari` need `bolzakit[pari]`.
+(`pytest --runslow`). Blocks marked `# requires: pari` need `bolzakit[pari]`, and blocks marked `# requires: cert`
+need `bolzakit[cert]`.
 
 ### (a) Hyperbolic band theory
 
@@ -314,8 +419,11 @@ Details and sources are in [docs/results-and-corrections.md](docs/results-and-co
 
 More detail is in [docs/limitations.md](docs/limitations.md).
 
-- **It covers one surface.** Everything is for the Bolza surface. Codes, larger lattice experiments and genus-3 work
-  need families of surfaces, which v0.1 does not have.
+- **It covers one surface.** Everything is for the Bolza surface. The certified layer adds only deformations near
+  it (|t| ≤ 0.05), and its eigenvalue counts are for Bolza only. Codes, larger lattice experiments and genus-3 work
+  need families of surfaces, which bolzakit does not have.
+- **Certified runs are slow, and the checker has a trust boundary.** See
+  [docs/certified.md](docs/certified.md#known-limitations).
 - **The FEM is a cross-check only.** The bundled finite-element eigenvalues are 9 clusters. They agree with
   Strohmaier–Uski to about 3e-5 and carry a conservative 2e-4 error label. They exist to check the quoted data. The real
   spectral work is carried by the Strohmaier–Uski data, which is downloaded on demand and not bundled.
@@ -327,8 +435,10 @@ More detail is in [docs/limitations.md](docs/limitations.md).
 - **The λ₃ series** holds only for N = 7 in the SO(2)-invariant degree-7 truncation of the Boatto–Koiller model. In
   the full Bolza Hamiltonian the ring is only an approximate relative equilibrium.
 
-## Roadmap (v0.2)
+## Roadmap
 
+- **Vector directions in the certified layer.** Replace the minimum-norm second-order jet with a lower-curvature
+  curve, so that arbitrary deformation directions certify as well as the named families.
 - **Congruence covers of Bolza.** Reduce the exact ℤ[ζ₈] generators modulo prime ideals of ℤ[ζ₈] and enumerate the
   finite quotients. For each one, build the cover: its group, its tiling as a cell complex, and its homological code
   parameters [[n, 2g, d]].
@@ -338,7 +448,8 @@ More detail is in [docs/limitations.md](docs/limitations.md).
 ## Documentation
 
 [quick-start](docs/quickstart.md) · [exact group](docs/exact.md) · [geometry](docs/geometry.md) ·
-[spectral](docs/spectral.md) · [Green's function](docs/green.md) · [vortex](docs/vortex.md) ·
+[spectral](docs/spectral.md) · [certified layer and checker](docs/certified.md) ·
+[repeated-eigenvalue sensitivity](docs/sensitivity.md) · [Green's function](docs/green.md) · [vortex](docs/vortex.md) ·
 [arithmetic](docs/arith.md) · [results and corrections](docs/results-and-corrections.md) ·
 [limitations](docs/limitations.md) · [provenance table](docs/provenance.md) ·
 [citation checks](docs/CITATIONS_CHECK.md)

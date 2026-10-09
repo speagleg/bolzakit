@@ -1,9 +1,10 @@
 cff-version: 1.2.0
 message: "If you use bolzakit, please cite it using these metadata. If you use the quoted eigenvalues, please also cite Strohmaier and Uski (2013), arXiv:1110.2150."
 title: "bolzakit"
-abstract: "Exact and provenance-labelled computations on the Bolza surface (genus-2 hyperbolic surface)."
+abstract: "Exact and provenance-labelled computations on the Bolza surface (genus-2 hyperbolic surface), with a certified ball-arithmetic layer, an independent certificate checker and repeated-eigenvalue sensitivity."
 type: software
 version: 0.2.0
+date-released: 2026-10-09
 license: MIT
 authors:
   - family-names: Speagle

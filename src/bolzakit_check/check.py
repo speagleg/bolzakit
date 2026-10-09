@@ -6,7 +6,11 @@ check_file(path, deep=False) -> (ok, message).  A certificate is VALID iff
     re-derived here from the certificate's inputs and data (a claim that cannot be re-derived is INVALID);
   * every claim holds (and the stored `certified` flag says so).
 Messages: "VALID", "VALID given stored Gram data" (the claim is re-derived, but from Gram / element-sum data that
-the checker cannot recompute), "VALID (conditional on lambda_1 >= a)" (mode-B count), or "INVALID: <reason>".
+the checker cannot recompute), "VALID (conditional on lambda_1 >= a)" (mode-B count), "VALID given stored Gram data
+(conditional on lambda_4 >= g)" (lg_lower), "VALID given stored Gram data (conditional on lambda_1 in [lo, hi]
+[<dependency id>: <source>]; lambda_4 >= g [gap: <source>])" (cluster_first_order, kyfan_second_order), or
+"INVALID: <reason>".  A message containing "(conditional on" is a
+conditional VALID (exit code 2 of python -m bolzakit_check).
 
 Trust boundary per kind (what is re-derived / what is trusted):
   rr_upper            re-derived: M and mu M - K positive definite (own LDL^T, Sylvester fallback); degree 2:
@@ -17,11 +21,20 @@ Trust boundary per kind (what is re-derived / what is trusted):
                       (dependencies D2, D3); mode B is conditional on its hypothesis lambda_1 >= a (H_a).
   rank                re-derived from the 16 Klein balls and the words only: own dual-number Jacobians of the
                       constraints and traces, Tb, the residual Jc Tb, det of the 6 x 6 minor and of the stacked minor.
-                      Stored J / dets / residual are cross-checked only.  Trusted: nothing beyond Arb.
+                      Stored J / dets / residual are cross-checked only.  Trusted: nothing beyond Arb.  The surface
+                      is reported as "bolza" only if the Klein balls contain the exact Bolza octagon (checked here);
+                      any other label is echoed as unchecked.
   cluster_first_order re-derived from data["raw"] (element sums for the trial vector) and the lam1 / gap inputs:
-                      mu, B, E and B + E < 0.  Trusted: the raw sums (Gram data) and the lam1 / gap dependencies.
+                      mu, B, E and B + E < 0.  Trusted: the raw sums (Gram data) and the lam1 / gap dependencies
+                      (hand-linked inputs, never re-derived here), hence always conditional.
   kyfan_second_order  re-derived: g2 rebuilt from data["raw"] < 0.  Trusted: the raw Gram matrices / weighted sums and
-                      the lam1 / gap dependencies.
+                      the lam1 / gap dependencies, hence always conditional.
+  lg_lower            re-derived from A0, A1, A2 and rho only (lg.py, own Lehmann-Goerisch step written from the
+                      theorem): B > 0, nu* < 0 and nu* B - A > 0 at the nu* that gives the lower end of the stored
+                      enclosure; claim rhs <= that end; rho > 0 and rho <= gap + 1.  Trusted: the stored Gram balls
+                      (element integration and H(div) conformity of the RT2 fluxes), the Lehmann-Goerisch theorem
+                      (D15), and the gap input lambda_4 >= g, which is the ONLY check of rho (the computation cannot
+                      detect a wrong rho), hence always conditional.
 """
 from __future__ import annotations
 
@@ -29,7 +42,7 @@ import random
 
 from flint import arb
 
-from . import assembly, deep as deep_mod, hermitian, lp, rank
+from . import assembly, deep as deep_mod, hermitian, lg, lp, rank
 from ._cert import SCHEMA, CheckError, arb_q, ball, core_hash, frac, load, lt, matrix, precision
 
 
@@ -71,19 +84,38 @@ def _rank(raw):
         return rank.derive(raw["inputs"], raw["data"], ball), None
 
 
+def _cluster_note(raw):
+    """The hand-linked inputs a cluster certificate rests on: the lambda_1 ball (with the id and source of the
+    dependency that states it) and the gap lambda_4 >= g.  Neither is re-derived here, so the result is conditional."""
+    inputs, deps = raw["inputs"], raw["dependencies"]
+    lam1, gap = inputs["lam1"], inputs["gap"]
+    stmt = f"lambda_1 in [{lam1['lower']}, {lam1['upper']}]"
+    lam_dep = [d for d in deps if isinstance(d, dict) and str(d.get("statement", "")).startswith(stmt)]
+    gap_dep = [d for d in deps if isinstance(d, dict) and d.get("id") == "gap"
+               and str(d.get("statement", "")).startswith(f"lambda_4 >= {gap['lower']}")]
+    if not lam_dep or not gap_dep:
+        raise CheckError("cluster certificate does not record its lambda_1 / gap inputs as dependencies")
+    return (f"{stmt} [{lam_dep[0].get('id')}: {lam1['source']}]; "
+            f"lambda_4 >= {gap['lower']} [gap: {gap['source']}]")
+
+
 def _first_order(raw):
     s = assembly.b_ee(raw["data"], raw["inputs"])
-    return [("b_ee_upper_over_m", "<", "0", lt(s, 0))], None
+    return [("b_ee_upper_over_m", "<", "0", lt(s, 0))], _cluster_note(raw)
 
 
 def _kyfan(raw):
     g = assembly.g2(raw["data"], raw["inputs"])
-    return [("g2_upper", "<", "0", lt(g, 0))], None
+    return [("g2_upper", "<", "0", lt(g, 0))], _cluster_note(raw)
 
 
-GRAM_KINDS = ("rr_upper", "cluster_first_order", "kyfan_second_order")
+def _lg(raw):
+    return lg.verify(raw)
+
+
+GRAM_KINDS = ("rr_upper", "cluster_first_order", "kyfan_second_order", "lg_lower")
 KINDS = {"rr_upper": _rr, "count": _count, "rank": _rank, "cluster_first_order": _first_order,
-         "kyfan_second_order": _kyfan}
+         "kyfan_second_order": _kyfan, "lg_lower": _lg}
 
 
 def _check_sample_selection(raw):
@@ -130,10 +162,15 @@ def _check(raw, deep):
     failed = [f"{lhs} {op} {rhs}" for lhs, op, rhs, t in derived if not t]
     if failed:
         return False, "INVALID: not certified (re-derivation agrees): " + "; ".join(failed) + " does not hold"
-    if note is not None:
+    if note is not None and kind in GRAM_KINDS:
+        msg = f"VALID given stored Gram data (conditional on {note})"
+    elif note is not None:
         msg = f"VALID (conditional on {note})"
     elif kind in GRAM_KINDS:
         msg = "VALID given stored Gram data"
+    elif kind == "rank":
+        with precision(128):
+            msg = f"VALID ({rank.describe(raw['inputs'], ball)})"
     else:
         msg = "VALID"
     if deep:

@@ -26,7 +26,7 @@ from flint import arb, arb_mat
 
 from ..errors import CertificationFailed, OutOfValidityRange
 from . import forms
-from ._arb import PM, ball_str, certainly_gt, certainly_lt, json_float, prec
+from ._arb import PM, attested_upper, ball_str, certainly_gt, certainly_lt, json_float, prec
 from ._hyp import Bm
 from .certificate import Certificate, Claim, Dependency, make_producer, trial_provenance
 from .jets import D
@@ -39,6 +39,10 @@ class Lam1Input:
     lower: str
     upper: str
     source: str          # decimal strings; e.g. SU13
+    # dep_id: the dependency id recorded in the certificate.  A PROOF.md §Dependencies number only when the source IS
+    # that input: "D1" for SU13, "D15" for the Lehmann-Goerisch route (lower end from the lg_lower certificate);
+    # otherwise "lam1" (an unnumbered hand-linked input)
+    dep_id: str = "lam1"
 
 
 @dataclass
@@ -51,11 +55,15 @@ class GapInput:
 class ClusterResult:
     A_float: list                      # eigenvalues of the float first-order matrix A (splitting rates per unit t;
                                        # degree 2: A_ij = b(x_i, x_j) on the P2 float eigenvectors)
-    b_ee_upper: float | None           # certified upper bound of min b(e,e)/m (first order)
+    b_ee_upper: float | None           # certified upper bound of min b(e,e)/m (first order), certificate-attested:
+                                       # >= the upper end of the stored ball data["b_ee_upper_over_m"]
     A_nonzero: bool
-    kyfan_upper: float | None          # certified upper bound of D2 Lambda(v,v) (degree 2, second order)
+    kyfan_upper: float | None          # certified upper bound of D2 Lambda(v,v) (degree 2, second order),
+                                       # certificate-attested: >= the upper end of the stored data["g2_enclosure"]
     certified: bool
     certificates: list = field(default_factory=list)
+    b_ee_upper_inprocess: float | None = None    # in-memory ball's upper end (<= b_ee_upper; fidelity pins)
+    kyfan_upper_inprocess: float | None = None   # in-memory ball's upper end (<= kyfan_upper; fidelity pins)
 
 
 # ------------------------------------------------------------------ element forms with t-derivative (dual numbers)
@@ -173,6 +181,17 @@ def _all_finite(elem):
             and all(x.is_finite() for Mx in (Ke, Me, dKe, dMe) for row in Mx for x in row))
 
 
+def _cluster_deps(lam1_in, gap_in):
+    """Dependencies shared by both cluster kinds: the lambda_1 ball (id from its source, see Lam1Input.dep_id), the gap,
+    and D4 (FBP Lemmas 7.2-7.3: the lambda_1 eigenspace E has dimension 3, used for dim E = 3 in the gap transfer)."""
+    return [Dependency(lam1_in.dep_id, f"lambda_1 in [{lam1_in.lower}, {lam1_in.upper}]", lam1_in.source),
+            Dependency("gap", f"lambda_4 >= {gap_in.lower} (no eigenvalue in (lambda_1, {gap_in.lower}))",
+                       gap_in.source),
+            Dependency("D4", "lambda_1 has multiplicity exactly 3 (no 1- or 2-dimensional irreducible representation "
+                             "in the lambda_1-eigenspace), so dim E = 3 in the gap transfer",
+                       "FBP Lemmas 7.2 and 7.3 (quoted; PROOF.md Lemma 1c, §Dependencies D4)")]
+
+
 def _float_up(x):
     """smallest-ish float certainly >= the upper end of the finite ball x."""
     up = x.upper()
@@ -180,6 +199,9 @@ def _float_up(x):
     while not arb(f) >= up:
         f = math.nextafter(f, math.inf)
     return f
+
+
+_attested_upper = attested_upper     # float >= the upper end of a stored ball string (see _arb.attested_upper)
 
 
 # ------------------------------------------------------------------ first-order test
@@ -235,11 +257,9 @@ def _first_order(n, lam1_in, gap_in, sym):
     inputs = {"direction": "F_A", "degree": 1, "n": n, "sym": sym, "surface": "bolza",
               "lam1": {"lower": lam1_in.lower, "upper": lam1_in.upper, "source": lam1_in.source},
               "gap": {"lower": gap_in.lower, "source": gap_in.source}}
-    deps = [Dependency("D1", f"lambda_1 in [{lam1_in.lower}, {lam1_in.upper}]", lam1_in.source),
-            Dependency("gap", f"lambda_4 >= {gap_in.lower} (no eigenvalue in (lambda_1, {gap_in.lower}))",
-                       gap_in.source),
+    deps = _cluster_deps(lam1_in, gap_in) + [
             Dependency("F1", "C^1 regularity of the lambda_1 cluster under the deformation (A is the first-order "
-                             "matrix of the cluster, traceless)", "PROOF.md Lemma 2 (F1_PROOF.md)")]
+                             "matrix of the cluster, traceless)", "PROOF.md Lemma 2")]
     if not finite:
         # NaN / infinite element data: no float model and no certified bound (fail closed)
         cert = Certificate(kind="cluster_first_order", inputs=inputs,
@@ -412,15 +432,15 @@ def _kyfan(direction, n, lam1_in, gap_in, sym, second_order):
         vT = np.array([float((V[i] / V[0]).d.mid()) for V in Vj for i in (1, 2)])   # Klein tangent of the jets
         inputs["tangent_projected"] = [repr(float(t)) for t in vT]
         inputs["projection_residual"] = repr(float(np.linalg.norm(d - vT)))
-    deps = [Dependency("D1", f"lambda_1 in [{lam1_in.lower}, {lam1_in.upper}]", lam1_in.source),
-            Dependency("gap", f"lambda_4 >= {gap_in.lower} (no eigenvalue in (lambda_1, {gap_in.lower}))",
-                       gap_in.source),
-            Dependency("D10", "Ky Fan: lambda_1+lambda_2+lambda_3 <= tr(G_m^-1 G_q) on any 4-dim space containing "
-                              "the constants (lambda_0 = 0)", "Ky Fan (D10)"),
+    deps = _cluster_deps(lam1_in, gap_in) + [
+            Dependency("D9", "Ky Fan: lambda_1+lambda_2+lambda_3 <= tr(G_m^-1 G_q) on any 4-dim space containing "
+                             "the constants (lambda_0 = 0)",
+                       "Ky Fan (PROOF.md §Dependencies D9: Moslehian arXiv:1108.1467, Fan 1950)"),
             Dependency("F1", "C^2 regularity of Lambda = lambda_1+lambda_2+lambda_3 along the deformation",
-                       "PROOF.md Lemma 2 (F1_PROOF.md)"),
-            Dependency("Lemma4", "dLambda = 0 at Bolza, so Lambda''(0) (<= g''(0) by Ky Fan) is D2 Lambda(v, v): "
-                                 "independent of the curve's second-order term", "dLambda=0 (Lemma 4)")]
+                       "PROOF.md Lemma 2"),
+            Dependency("Lemma4", "dLambda = 0 at Bolza, so Lambda''(0) (<= g''(0) by Ky Fan) is the second derivative "
+                                 "D^2 Lambda(v, v): independent of the curve's second-order term",
+                       "PROOF.md Lemma 4 (dLambda = 0)")]
     claim_false = [Claim(lhs="g2_upper", op="<", rhs="0", holds=False)]
     if not all(np.isfinite(F[k].data).all() for k in F):
         # NaN / infinite element data: no float model and no certified bound (fail closed)
@@ -605,6 +625,8 @@ def certify_cluster(direction="F_A", degree=1, n=96, lam1: Lam1Input = None, gap
     "F_B" or a 16-vector of Klein coordinates); see _kyfan for the g2_upper_v1 assembly formula.  sym=True (pi/2
     element cache) applies to the named, r2-invariant families only; it is forced False for vector directions.
     degree=2, second_order=False: float splitting rates A_float only (no certificate, certified=False).
+    b_ee_upper / kyfan_upper are certificate-attested: floats rounded up from the stored enclosure the checker
+    re-derives; the *_inprocess fields keep the (marginally tighter) in-memory values that the published goldens pin.
     Precision is set internally (96 bits)."""
     if lam1 is None or gap is None:
         raise ValueError("lam1 and gap inputs are required (spec §3.4)")
@@ -617,8 +639,10 @@ def certify_cluster(direction="F_A", degree=1, n=96, lam1: Lam1Input = None, gap
             A_float, g2_upper, ok, cert = _kyfan(direction, n, lam1, gap, sym, second_order)
         if strict and second_order and not ok:
             raise CertificationFailed("could not certify D2 Lambda(v, v) < 0 (Ky Fan, second order)")
-        return ClusterResult(A_float=A_float, b_ee_upper=None, A_nonzero=False, kyfan_upper=g2_upper,
-                             certified=ok, certificates=[cert] if cert is not None else [])
+        attested = None if g2_upper is None else _attested_upper(cert.data["g2_enclosure"])
+        return ClusterResult(A_float=A_float, b_ee_upper=None, A_nonzero=False, kyfan_upper=attested,
+                             certified=ok, certificates=[cert] if cert is not None else [],
+                             kyfan_upper_inprocess=g2_upper)
     if degree != 1:
         raise NotImplementedError("degree must be 1 or 2")
     if second_order:
@@ -630,5 +654,6 @@ def certify_cluster(direction="F_A", degree=1, n=96, lam1: Lam1Input = None, gap
         A_float, b_ee_upper, ok, cert = _first_order(n, lam1, gap, sym)
     if strict and not ok:
         raise CertificationFailed("could not certify b(e,e) < 0 (A != 0) at first order")
-    return ClusterResult(A_float=A_float, b_ee_upper=b_ee_upper, A_nonzero=ok, kyfan_upper=None, certified=ok,
-                         certificates=[cert])
+    attested = None if b_ee_upper is None else _attested_upper(cert.data["b_ee_upper_over_m"])
+    return ClusterResult(A_float=A_float, b_ee_upper=attested, A_nonzero=ok, kyfan_upper=None, certified=ok,
+                         certificates=[cert], b_ee_upper_inprocess=b_ee_upper)

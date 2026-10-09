@@ -1,0 +1,1679 @@
+% main.tex -- draft paper for item 23 (Bolza surface, local extremality of lambda_1).
+% Authoritative source: ../work/PROOF.md.  Every number below is copied from PROOF.md or from
+% the certificate output files in ../work/ (see Appendix B).  Nothing was recomputed for this draft.
+\documentclass[11pt]{amsart}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{graphicx}
+\usepackage[hidelinks]{hyperref}
+\emergencystretch=3em
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{hypothesis}[theorem]{Hypothesis}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\newtheorem*{maintheorem}{Main Theorem}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\Hyp}{\mathbb{H}^2}
+\newcommand{\Teich}{\mathcal{T}_2}
+\newcommand{\Oct}{\mathcal{C}}
+\newcommand{\Sl}{\mathcal{S}}
+\newcommand{\Sym}{\operatorname{Sym}}
+\newcommand{\tr}{\operatorname{tr}}
+\newcommand{\rank}{\operatorname{rank}}
+\newcommand{\Isom}{\operatorname{Isom}}
+\newcommand{\Spec}{\operatorname{Spec}}
+\newcommand{\Ran}{\operatorname{Ran}}
+\newcommand{\arccosh}{\operatorname{arccosh}}
+\newcommand{\TT}{\mathrm{TT}}
+\newcommand{\ls}{\lambda_*}
+\newcommand{\gin}{g_{\mathrm{inv}}}
+\newcommand{\smid}{s_{\mathrm{mid}}}
+\newcommand{\svert}{s_{\mathrm{vert}}}
+\newcommand{\xB}{x_B}
+\newcommand{\wB}{w_B}
+\newcommand{\vB}{v_B}
+\newcommand{\FB}{F_B}
+\newcommand{\FA}{F_A}
+
+\begin{document}
+
+\title[The Bolza surface is a strict local maximum of $\lambda_1$]%
+{The Bolza surface is a strict local maximum of the first Laplace eigenvalue on genus-two Teichm\"uller space}
+
+\author{Gordon Speagle}
+\address{[Affiliation to be added]}
+\email{gspeagle@gmail.com}
+
+\date{Draft, \today}
+
+\subjclass[2020]{58J50 (primary); 32G15, 35P15, 65G30, 65N30 (secondary)}
+\keywords{Bolza surface, Laplace eigenvalues, hyperbolic surfaces, Teichm\"uller space,
+eigenvalue optimisation, computer-assisted proof, interval arithmetic}
+
+\begin{abstract}
+Let $B$ be the Bolza surface, the most symmetric closed hyperbolic surface of genus two.
+Strohmaier and Uski conjectured in 2013 that $B$ maximises the first positive Laplace
+eigenvalue $\lambda_1$ among closed hyperbolic surfaces of genus two, and local maximality has
+been asserted on numerical grounds. We give a computer-assisted proof that $B$ is a
+\emph{strict local maximum} of $\lambda_1$ on the Teichm\"uller space $\Teich$. The proof does
+not depend on the eigenvalue enclosure of Strohmaier and Uski: we certify
+$\lambda_1(B)\ge3.8388757010$ ourselves by the Lehmann--Goerisch method with an
+$H(\mathrm{div})$-conforming flux on the glued octagon. The proof is conditional on quoted results:
+two lemmas and geodesic data of Fortier Bourque and Petri, the Selberg trace formula, and the
+Lehmann--Goerisch theorem. Because $\lambda_1(B)$ has multiplicity three, $\lambda_1$ is not differentiable at $B$.
+We analyse instead the analytic $3\times 3$ matrix $M$ that carries the eigenvalue cluster. Its
+first-order part $A$ is traceless by symmetry and has rank exactly three. Its kernel $K$ is a
+three-dimensional absolutely irreducible module for $\Isom(B)$, identified exactly as the
+$(-1)$-eigenspace of the antipodal isometry. On $K$ the Hessian of the cluster sum is a scalar
+multiple of an invariant inner product, and a certified Ky Fan bound along one explicit
+deformation shows that this scalar is negative. The certified ingredients are a
+Selberg-trace-formula count, conforming finite elements on the glued octagon in ball
+arithmetic (Rayleigh--Ritz upper bounds and a Lehmann--Goerisch lower bound), exact character computations in $\Q(\zeta_{24})$, and certified rank computations.
+The finite-dimensional logic of the proof has been checked in Lean~4, with the analytic and
+computational inputs stated as explicit hypotheses.
+\end{abstract}
+
+\maketitle
+\tableofcontents
+
+%======================================================================
+\section{Introduction}\label{sec:intro}
+%======================================================================
+
+\subsection{The problem}
+For a closed hyperbolic surface $X$ let $0=\lambda_0<\lambda_1(X)\le\lambda_2(X)\le\cdots$ be the
+spectrum of the Laplace--Beltrami operator. In genus two the \emph{Bolza surface} $B$, obtained
+by gluing opposite sides of the regular hyperbolic octagon with angles $\pi/4$, is
+distinguished in several ways. It has the largest isometry group (of order $96$) and the
+longest systole~\cite{Str16,SU13}, and, conjecturally, the largest first eigenvalue.
+
+\subsection{History}
+Jenni~\cite{Jen84} estimated $\lambda_1(B)\in[3.83,3.85]$ and claimed that its multiplicity
+is $3$; Cook~\cite{Coo18} found a gap in the multiplicity argument (both as reported
+in~\cite{SU13,FBP-K}). Strohmaier and Uski~\cite[\S5]{SU13} computed
+\[
+\lambda_1(B)\approx 3.8388872588421995185866224504354645970819150157,
+\]
+stating that ``the rigorous implementation that uses very simple bounds in its current form
+gives a rigorous error bound of $10^{-6}$''. They wrote: ``we conjecture that this is the
+maximal value of the first eigenvalue of the Laplace operator for constant negative
+curvature $-1$ in genus~2. This conjecture is supported by our calculations in Teichm\"uller
+space (the corresponding analysis will be discussed elsewhere)''. We have not found the
+promised analysis in print.
+
+In his lecture notes, Strohmaier~\cite[pp.~22--23]{Str16} made the local statement explicit:
+``Numerical evidence suggests that this is the global maximum for constant negative curvature
+genus 2 surfaces. The reason for it being locally maximal is however its degeneracy. [\dots]
+Numerically one can see that no matter what perturbation one chooses, none of the eigenvalues
+$\lambda_1$, $\lambda_2$ and $\lambda_3$ has an extremal value at the Bolza surface.''
+Cook~\cite[Conj.~5.1]{Coo18} restated the global conjecture and proposed a route through local
+maximality: ``It is thought that by analyzing the nodal lines of eigenfunctions relating to
+$\chi_8$ under perturbations in Teichm\"uller space, one would be able to show that the Bolza
+surface is a local maximum for $\lambda_1$.''
+
+Upper bounds now come close to $\lambda_1(B)$. Kravchuk, Maz\'a\v{c} and Pal~\cite[Thm.~1.1]{KMP}
+proved, with exact rational verification, that every hyperbolic orbifold of genus $2$ satisfies
+$\lambda_1<3.8388976481$. This is $1.04\times10^{-5}$ above $\lambda_1(B)$, and the authors
+call it ``very strong evidence for the conjecture that the Bolza surface maximizes $\lambda_1$
+among all $g=2$ orbifolds''. Bonifacio~\cite{Bon22a,Bon22b} obtained the numerical bootstrap
+bound $\lambda_1\le 3.8388977$. Fortier Bourque and Petri proved that $\lambda_1(B)$ has
+multiplicity $3$~\cite[Thm.~7.1]{FBP-K}, completing Cook's work, and developed linear
+programming bounds for hyperbolic surfaces~\cite{FBP-LP}; they describe $B$ as the
+``conjectured maximizer'' in genus~2. Radcliffe~\cite{Rad} gives numerical evidence that the
+single-correlator bootstrap bound does not reach $\lambda_1(B)$ even in the limit
+(``$\tilde\lambda_1^\infty-\lambda_1\ge\Delta_\infty\approx5.59683\times10^{-6}$''), so the
+bootstrap route alone does not close the global problem as it stands. As of 2026 the global
+conjecture is still described as open~\cite{HP,FBP-LP,Bon22b}; see also~\cite{PetriHDR,GPSX}.
+
+To our knowledge, local maximality has not been proved anywhere. Since global maximality is
+open, it cannot be deduced from a global result. The rigorous bounds~\cite{KMP,SU13} show only
+that no genus-two surface exceeds $\lambda_1(B)$ by more than about $1.1\times10^{-5}$; they
+give no local information.
+
+\subsection{Main result}
+We write $\ls:=\lambda_1(B)$, $E$ for the $\ls$-eigenspace, $G:=\Isom(B)$ and
+$\Lambda:=\lambda_1+\lambda_2+\lambda_3$. The tangent space $T_B\Teich$ is identified with the
+space of transverse-traceless (TT) tensors $\{\operatorname{Re}\varphi:\varphi\in Q(B)\}$, where
+$Q(B)$ is the space of holomorphic quadratic differentials (Section~\ref{sec:setup}).
+
+\begin{hypothesis}[SU; optional, not used in the proof]\label{hyp:SU}
+The Bolza surface has a Laplace eigenvalue in the interval
+$[3.83888625884,\,3.83888825884]$ \cite[\S5]{SU13}.
+\end{hypothesis}
+An earlier version of this proof assumed Hypothesis~\ref{hyp:SU} for its lower bound on
+$\lambda_1(B)$. It is now replaced by the certified bound of Section~\ref{subsec:LG}, and
+Hypothesis~\ref{hyp:SU} is used only as a cross-check and for alternative (sharper) constants,
+which we record alongside.
+
+\begin{maintheorem}
+Assume the quoted results listed in Table~\ref{tab:deps}, namely~\cite[Lemmas~7.2--7.3]{FBP-K}, the
+geodesic data of~\cite[\S7.4]{FBP-K}, the Selberg trace formula in the normalisation
+of~\cite{FBP-K} with~\cite[Lemma~3.2]{FBP-K}, the Lehmann--Goerisch
+theorem~\cite[Thms.~4.1, 4.3]{LiuPlum} (see also~\cite[Thm.~2.1]{BMPW} as reproduced in~\cite{Vej18}),
+and the standard facts listed there. Then $B$ is a strict local maximum of $\lambda_1$ on $\Teich$:
+there is a neighbourhood $N$ of $B$ in $\Teich$ such that $\lambda_1(X)<\lambda_1(B)$ for every
+$X\in N\setminus\{B\}$. More precisely:
+\begin{enumerate}[label=\textup{(\roman*)}]
+\item $\lambda_1(B)$ has multiplicity $3$, and
+$\lambda_1(B)\in[3.8388757010,\ 3.8388872830]$.
+\item The first-order cluster map $A\colon T_B\Teich\to\Sym_0(E)$ has rank $3$. Its kernel $K$
+is $3$-dimensional and is an absolutely irreducible $G$-module; it equals the
+$(-1)$-eigenspace of the antipodal isometry.
+\item Off $K$, $\lambda_1$ decreases to first order: $\lambda_1-\lambda_1(B)\le -c_A|w|/2$ in the
+regime of case~(i) of Lemma~\ref{lem:criterion}. On $K$, the Hessian of $\Lambda$ satisfies
+$D^2\Lambda|_K=c\cdot\gin$ for a $G$-invariant inner product $\gin$ and a constant $c<0$.
+\item Along the explicit equiangular family $\FB$ (Section~\ref{subsec:FB}),
+$(\Lambda\circ x)''(0)\le -9.3411$; the central value of the certified enclosure is $-14.274$.
+\end{enumerate}
+\end{maintheorem}
+
+Both ends of the enclosure in~(i) are our own certificates: the upper end by conforming
+Rayleigh--Ritz, the lower end by Lehmann--Goerisch (Section~\ref{subsec:LG}). The lower bound uses
+only the trace-formula count $\lambda_4>4.0$ and the Lehmann--Goerisch theorem; it does not use
+the multiplicity lemmas of~\cite{FBP-K}, which are still needed for multiplicity~$3$. The second-order
+certificate needs $\lambda_1(B)\ge 3.8388029653$ and the first-order certificate
+$\lambda_1(B)\ge3.83788$; the certified $3.8388757010$ exceeds both. If
+Hypothesis~\ref{hyp:SU} is assumed in addition, the constant in~(iv) improves to $-12.8504$
+(Remark~\ref{rem:SU}). The proof also uses published results that we quote rather than reprove
+(the Selberg trace formula in the normalisation of~\cite{FBP-K}, the geodesic data and two lemmas
+of~\cite{FBP-K} excluding low-dimensional representations in the $\lambda_1$-eigenspace, the
+Lehmann--Goerisch theorem, the identification of $T_B\Teich$ with TT tensors, and the
+Fischer--Marsden splitting); they are listed in Table~\ref{tab:deps}.
+
+\subsection{Method}
+The function $\lambda_1$ is not differentiable at $B$, because $\lambda_1(B)$ is triple. The
+proof has four steps.
+
+\emph{Cluster matrix.} Near $B$ the three lowest positive eigenvalues are the eigenvalues of a
+real-analytic symmetric $3\times3$ matrix $M$ with $M(0)=\ls I$ (Theorem~\ref{thm:F1}). Write
+$M(v)=\ls I+A(v)+Q_2(v)+O(|v|^3)$. The first-order term
+$A(v)=[b_v(e_i,e_j)]$ is intrinsic on $T_B\Teich$ and $G$-equivariant (Lemma~\ref{lem:N}).
+
+\emph{First order.} By symmetry $\tr A\equiv0$ (Proposition~\ref{prop:trA}). A certified
+computation shows $A\ne0$ (Proposition~\ref{prop:Anonzero}). Exact representation theory then
+forces $\ker A=K_0$, the $(-1)$-eigenspace of the antipodal isometry, with $\rank A=3$
+(Proposition~\ref{prop:kerA}).
+
+\emph{Second order.} A local-maximum criterion for degenerate clusters
+(Lemma~\ref{lem:criterion}) reduces the theorem to negative definiteness of $D^2\Lambda$ on
+$K$. Because $K$ is absolutely irreducible, $D^2\Lambda|_K=c\,\gin$ once $D^2\Lambda$ is known to
+be $G$-invariant in a chart where $\Lambda$ is $C^2$ (Lemma~\ref{lem:Ginv}). So a single
+direction in $K$ decides the sign of $c$. We take the tangent $\wB$ of the equiangular family
+$\FB$, which lies in $K$ exactly (Lemma~\ref{lem:FBline}). A Ky Fan trace bound with a certified
+trial space gives $(\Lambda\circ x)''(0)\le -9.3411$ (Proposition~\ref{prop:sign}).
+
+\emph{Chart.} Six explicit trace functions are certified to be local coordinates of $\Teich$
+at $B$ (Proposition~\ref{prop:G3}). This gives an analytic $6$-dimensional slice $\Sl$ of the
+octagon space on which all of the above holds and which maps homeomorphically onto a
+neighbourhood of $B$.
+
+\subsection{What is computer-assisted}
+The following steps are certified by computer. All are done in ball arithmetic (Arb, through
+python-flint~0.9.0) or in exact rational arithmetic (sympy~1.14.0, exact arithmetic in
+$\Q(\zeta_{24})$). Floating-point linear algebra is used only to \emph{propose} candidates
+(test functions, eigenvectors, correctors), which are then verified rigorously.
+\begin{enumerate}[label=(\alph*)]
+\item Isolation of the cluster: a Selberg trace formula count (Section~\ref{subsec:LP}).
+\item Upper bounds for $\lambda_3(B)$ by conforming finite elements on the glued octagon
+(Section~\ref{subsec:FE}), and a lower bound for $\lambda_1(B)$ by the Lehmann--Goerisch method
+with $H(\mathrm{div})$-conforming fluxes (Section~\ref{subsec:LG}).
+\item $A\ne0$ (Section~\ref{subsec:Anonzero-cert}).
+\item The second-order sign bound along $\FB$ (Section~\ref{subsec:sign-cert}).
+\item The rank of the constraint Jacobian of the octagon space, and the rank of the
+differential of the map to $\Teich$ (Section~\ref{subsec:rank-cert}).
+\item The characters of $G$ on $T_B\Teich$ and the decomposition $T_B\Teich=K_0\oplus W_0$
+(Section~\ref{sec:symmetry}; exact).
+\end{enumerate}
+Everything else is a written argument.
+
+\subsection{Related work}
+The pattern ``symmetry gives criticality, a computation gives non-degeneracy'' is familiar
+from systolic geometry. Fortier Bourque, Mart\'inez-Granado and Vargas Pallete~\cite{FBMGVP}
+proved that the extremal-length systole has a strict local maximum at $B$, combining eutaxy
+(from symmetry) with perfection (from a rank computation); see also~\cite{FBR}. In our setting
+the analogue of perfection fails: $\rank A=3<6=\dim\Teich$, so a genuine second-order
+certificate on the kernel is needed. For flat tori, local maximality of eigenvalue functionals
+is classical (see~\cite[\S3.3]{KLO}). For the spectral determinant, $B$ is a critical point by
+symmetry~\cite{Kal26}, and numerically a local maximum~\cite[\S7.1]{SU13}. The area-normalised
+problem over \emph{all} metrics is different: there the sharp genus-two constant $16\pi$ is
+attained by a singular metric conformal to $B$~\cite{NS,JLNNP} (see also~\cite{KPS}), and the
+second variation for that problem was only recently written down~\cite{Kar25}. For hyperbolic
+surfaces that bound gives only $\lambda_1\le 4$~\cite[\S6]{FBP-K}.
+
+Our result is consistent with Strohmaier's numerical assertion of local maximality, but it
+qualifies the stated mechanism. Along directions in the $3$-dimensional kernel $K$ (for
+example along $\FB$) all three eigenvalue branches are stationary to first order, so the
+statement that ``none of the eigenvalues $\lambda_1,\lambda_2,\lambda_3$ has an extremal
+value'' fails there; it holds on the open dense set of directions off $K$
+(Remark~\ref{rem:Str16}).
+
+\subsection{Organisation}
+Section~\ref{sec:setup} sets up the octagon space and the pulled-back forms.
+Section~\ref{sec:perturbation} proves analyticity of the cluster and the intrinsic nature of $A$.
+Section~\ref{sec:symmetry} contains the exact representation theory.
+Sections~\ref{sec:first} and~\ref{sec:second} carry out the first- and second-order analysis.
+Section~\ref{sec:cert} describes the certified computations, including the lower bound for
+$\lambda_1(B)$, and Section~\ref{sec:proof}
+assembles the proof. Section~\ref{sec:lean} describes a Lean formalisation of the
+finite-dimensional logic, and Section~\ref{sec:remarks} collects remarks and open problems.
+Appendix~\ref{app:data} tabulates the certificate data and Appendix~\ref{app:repro} explains how
+to reproduce them.
+
+%======================================================================
+\section{Setup}\label{sec:setup}
+%======================================================================
+
+\subsection{Hyperbolic plane}
+We use the hyperboloid model $\Hyp=\{X\in\R^3:\mathsf B(X,X)=1,\ X_0>0\}$ with
+$\mathsf B=\operatorname{diag}(1,-1,-1)$, and the associated Klein (projective) coordinates.
+Orientation-preserving isometries form $SO^+(2,1)\cong PSL(2,\R)$.
+
+\subsection{The octagon space}\label{subsec:octspace}
+Let $x=(V_0,\dots,V_7)\in\R^{16}$ be the Klein coordinates of the vertices of a convex
+hyperbolic octagon, with side $k$ joining $V_k$ and $V_{k+1}$ (indices mod $8$). The Bolza
+gluing pairs side $k+4$ with side $k$ ($k=0,\dots,3$) by the orientation-preserving isometry
+$g_k(x)\in SO^+(2,1)$ with $V_{k+4}\mapsto V_{k+1}$ and $V_{k+5}\mapsto V_k$. Explicitly,
+$g_k=F(V_{k+1},V_k)\,F(V_{k+4},V_{k+5})^{-1}$, where $F(P,Q)=[P,e,n]$ is the
+Lorentz-orthonormal frame with $e\propto Q-\mathsf B(P,Q)P$ and $n\propto \mathsf B(P\times e)$.
+
+Let $\Oct\subset\R^{16}$ be the set of $x$ satisfying the five constraints
+\[
+L_{k+4}=L_k\ (k=0,\dots,3),\qquad \textstyle\sum_{k}\theta_k=2\pi,
+\]
+where $L_k$ are the side lengths and $\theta_k$ the interior angles. By the Poincar\'e polygon
+theorem, each $x\in\Oct$ yields a closed hyperbolic surface $B_x$ of genus $2$, with the single
+vertex cycle $0\to5\to2\to7\to4\to1\to6\to3\to0$. The point $\xB\in\Oct$ is the regular
+octagon, with sides $2\arccosh(1+\sqrt2)=3.0571418389620$ and angles $\pi/4$; $B=B_{\xB}$.
+By the certified rank of the constraint Jacobian (Proposition~\ref{prop:rankJ}) and the analytic
+implicit function theorem, $\Oct$ is a real-analytic $11$-manifold near $\xB$, with
+$T_{\xB}\Oct=\ker J$.
+
+\subsection{The map to Teichm\"uller space}
+The surface $B_x$ is marked through the isomorphism $\Gamma_{\xB}\to\Gamma_x$,
+$g_k(\xB)\mapsto g_k(x)$; this marking is induced by the mesh homeomorphism $\Phi_x$ below and is
+constant in $x$ up to isotopy. This defines $\pi\colon\Oct\to\Teich$. The map $\pi$ is
+continuous, because it factors through the analytic holonomy map $x\mapsto(g_k(x))_k$ and the
+quotient by conjugation.
+
+\subsection{The mesh map and the pulled-back forms}\label{subsec:mesh}
+The octagon is triangulated by a fixed fan of geodesic triangles. Nodes on the sides are placed
+at exact hyperbolic-arclength fractions $j/n$ and matched $j\leftrightarrow n-j$ by the side
+pairings. Interior nodes are given by explicit isometry-equivariant formulas: the centre is the
+normalised vertex sum, and interpolation uses the symmetric hyperbolic-arclength formula
+$\sinh(sL)/\sinh L$. The parameter $n$ is the mesh resolution.
+
+On a triangle with hyperboloid vertices $P_0,P_1,P_2$ set
+\[
+W(a,b)=aP_0+bP_1+(1-a-b)P_2,\qquad X(a,b)=W/\sqrt{\mathsf B(W,W)}.
+\]
+Cellwise, these maps define a piecewise-analytic, bi-Lipschitz homeomorphism
+$\Phi_x\colon B\to B_x$ that is compatible with the gluings. Pulling back the Dirichlet and
+$L^2$ forms of $B_x$ gives, on $H^1(B)$,
+\begin{equation}\label{eq:forms}
+q_x(f)=\sum_T\int(\nabla f)^{\mathsf T}a_T\nabla f,\qquad
+m_x(f)=\sum_T\int\rho_T f^2,
+\end{equation}
+with
+\[
+a_T=\frac{\operatorname{adj}(LL^{\mathsf T}-QG)}{D\sqrt Q},\qquad \rho_T=D\,Q^{-3/2},
+\]
+where $Q=\mathsf B(W,W)\ge1$, $W_1=P_0-P_2$, $W_2=P_1-P_2$, $L_i=\mathsf B(W_i,W)$,
+$G_{ij}=\mathsf B(W_i,W_j)$ and $D=|\det[P_0P_1P_2]|$. (These formulas were derived by hand and
+checked against a finite-difference pullback; the certified area enclosure $\to4\pi$ is a
+further check.) The pencil $(q_x,m_x)$ has the Laplace spectrum of $B_x$.
+
+\subsection{Notation}\label{subsec:notation}
+\begin{itemize}
+\item $E$ is the $\ls$-eigenspace of $B$; $e_1,e_2,e_3$ is an $m_0$-orthonormal basis.
+\item $G=\Isom(B)$ has order $96$; $G^+=\Isom^+(B)\cong GL(2,3)$; $J=r^4$ is the hyperelliptic
+involution.
+\item $T_B:=T_B\Teich\cong\{\text{TT tensors on }(B,h_0)\}=\{\operatorname{Re}\varphi:\varphi\in
+Q(B)\}$, where $h_0$ is the hyperbolic metric of $B$
+(\cite[\S1]{Maz}, citing~\cite{Tro92}; see also~\cite[\S2]{DW}). As a real $G$-module,
+$G^+$ acts $\C$-linearly by pull-back and orientation-reversing elements act $\C$-antilinearly.
+\item Octagon symmetries: $r$ is the rotation by $\pi/4$ (relabelling $k\mapsto k+1$), acting
+on $\R^{16}$ by $(rx)_k=\mathrm{Rot}_{\pi/4}(x_{k-1})$; $\smid$ is the reflection in an axis
+through two opposite side midpoints; $\svert$ is the reflection in a diagonal through two
+opposite vertices.
+\item In the model $y^2=x^5-x$ (Section~\ref{sec:symmetry}): $t$ is an element of order $3$,
+$u\colon x\mapsto i/x$, $\kappa\colon(x,y)\mapsto(\bar x,\bar y)$, and $a$ is the antipodal
+isometry, the order-$4$ orientation-reversing lift of $x\mapsto-1/\bar x$.
+\end{itemize}
+
+%======================================================================
+\section{Perturbation of the eigenvalue cluster}\label{sec:perturbation}
+%======================================================================
+
+\subsection{Analyticity of the cluster}
+A \emph{pulled-back family} is a map $t\mapsto(a_t,\rho_t)\in L^\infty$, $t\in U\subset\R^d$, of
+measurable coefficient fields on $B$ (written in the reference simplices of the mesh), defining
+forms $q_t(f,g)=\int a_t\nabla f\cdot\nabla g$ and $m_t(f,g)=\int\rho_tfg$ on $H:=H^1(B)$. We assume:
+\begin{enumerate}[label=(H\arabic*)]
+\item\label{H1} $t\mapsto(a_t,\rho_t)\in L^\infty$ is $C^k$, $k\in\{2,3,\dots,\infty,\omega\}$; for
+$k=\omega$ it extends holomorphically to a complex neighbourhood of $0$;
+\item\label{H2} $a_0\ge\alpha I$ and $\rho_0\ge\alpha>0$ almost everywhere;
+\item\label{H3} for real $t$, $(q_t,m_t)$ is the Dirichlet/$L^2$ pair of a closed hyperbolic
+surface $B_t$ pulled back by a bi-Lipschitz homeomorphism;
+\item\label{H4} $\Spec(B)\cap[\ls-r_0,\ls+r_0]=\{\ls\}$ with multiplicity $3$.
+\end{enumerate}
+The octagon family on $\Oct$ satisfies \ref{H1}--\ref{H3} with $k=\omega$: $a_T$ and $\rho_T$ are
+analytic in the vertex coordinates, at $\xB$ we have $Q\ge1$ and $D>0$ uniformly over the
+finitely many elements, and the interpolation $\sinh(sL)/\sinh L$ is analytic in $\cosh L$. The
+same holds on every analytic sub-family. Hypothesis~\ref{H4} holds with $r_0=0.16$ by
+Lemma~\ref{lem:isolation}.
+
+\begin{theorem}[Cluster reduction]\label{thm:F1}
+Assume \ref{H1}--\ref{H4} and let $\Gamma=\{|z-\ls|=r_0/2\}$. For $t$ in a neighbourhood of $0$:
+\begin{enumerate}
+\item exactly $\lambda_1(t),\lambda_2(t),\lambda_3(t)$ lie inside $\Gamma$, and none lies on $\Gamma$;
+\item the Riesz projection $P(t)=(2\pi i)^{-1}\oint_\Gamma(zM_t-Q_t)^{-1}M_t\,dz$ is $C^k$
+(holomorphic if $k=\omega$), and for real $t$ it is the $m_t$-orthogonal projection onto the
+cluster;
+\item there is a $C^k$ symmetric matrix $M(t)\in\Sym(3)$ whose eigenvalues are
+$\lambda_1(t),\lambda_2(t),\lambda_3(t)$; in particular $\Lambda=\tr M$ is $C^k$
+(real-analytic if $k=\omega$);
+\item $M(0)=\ls I$ and $dM(0)[v]=A(v):=[b_v(e_i,e_j)]_{ij}$, where
+$b_v=\partial_vq-\ls\partial_vm$;
+\item $M(v)=\ls I+A(v)+Q_2(v)+R(v)$ with $Q_2$ quadratic and $|R(v)|\le C|v|^3$ ($k\ge3$) or
+$R(v)=o(|v|^2)$ ($k=2$), uniformly on a ball.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+\emph{Step 1.} Let $Q_t,M_t\colon H_\C\to H_\C'$ be the operators of $q_t,m_t$ (bilinear pairing).
+The maps $a\mapsto Q[a]$, $\rho\mapsto M[\rho]$ are bounded linear from $L^\infty$, so
+$t\mapsto Q_t,M_t$ inherit the regularity of~\ref{H1}. $M_t$ is compact, since it factors through
+$L^2$ (Rellich).
+
+\emph{Step 2.} For real $t$ near $0$, $q_t+m_t$ is an inner product equivalent to the $H^1$
+norm, and $S_t=(Q_t+M_t)^{-1}M_t$ is compact, self-adjoint and positive for it. The spectral
+theorem gives an $m_t$-orthonormal eigenbasis $(\varphi_k)$ with eigenvalues $\lambda_k(t)\to\infty$,
+which by~\ref{H3} are the eigenvalues of $B_t$, and
+$(zM_t-Q_t)^{-1}M_tf=\sum_km_t(f,\varphi_k)(z-\lambda_k)^{-1}\varphi_k$ for $z\notin\{\lambda_k\}$.
+
+\emph{Step 3.} By~\ref{H4}, $zM_0-Q_0$ is invertible for $z\in\Gamma$ with uniformly bounded
+inverse. By the Neumann series, applied uniformly on the compact contour, $zM_t-Q_t$ is
+invertible for $(t,z)\in U'\times\Gamma$, and the resolvent is $C^k$ in $t$ uniformly in $z$.
+
+\emph{Step 4.} Differentiating under the contour integral shows that $P(t)$ is $C^k$. For real $t$
+the expansion of Step~2 identifies $P(t)$ with the $m_t$-orthogonal projection onto the
+eigenvectors inside $\Gamma$. Idempotents at distance $<1$ have equal rank, so
+$\rank P(t)=3$. Applying the same argument to a contour $\Gamma'$ enclosing
+$[-\tfrac12,\ls+r_0/2]$, which at $t=0$ contains exactly $\{0,\ls,\ls,\ls\}$ (here we use
+$\Spec(B)\cap(0,3.3]=\emptyset$), shows that exactly four eigenvalues lie below $\ls+r_0/2$. One
+is $0$, so the three inside $\Gamma$ are $\lambda_1,\lambda_2,\lambda_3$.
+
+\emph{Step 5.} Put $f_i(t)=P(t)e_i$, $G(t)_{ij}=m_t(f_i,f_j)$ (so $G(0)=I$),
+$\tilde f=f\,G^{-1/2}$ and $M(t)_{ij}=q_t(\tilde f_i,\tilde f_j)$. Then $M$ is $C^k$ and symmetric,
+and for real $t$, $(\tilde f_j)$ is an $m_t$-orthonormal basis of $\Ran P(t)$, so the
+eigenvalues of $M(t)$ are $\lambda_1,\lambda_2,\lambda_3$.
+
+\emph{Step 6.} Since $\tilde f_i(0)=e_i$ and $q_0(g,e_j)=\ls m_0(g,e_j)$, differentiating
+$M_{ij}$ and the identity $m_t(\tilde f_i,\tilde f_j)=\delta_{ij}$ gives
+$M'_{ij}=q'(e_i,e_j)-\ls m'(e_i,e_j)=b_v(e_i,e_j)$. Item~5 is Taylor's theorem.
+\end{proof}
+
+\begin{remark}
+Only the individual eigenvalues can fail to be differentiable in several parameters (compare the
+eigenvalues $\pm|t|$ of $\left(\begin{smallmatrix}t_1&t_2\\t_2&-t_1\end{smallmatrix}\right)$); the
+total projection and every symmetric function of the cluster remain analytic. The same
+Riesz-projection argument for $t\in\R^N$ appears in~\cite[Prop.~2.5]{Cai26} for a family with a
+fixed Dirichlet form and a multiplicative weight, which is an analogue rather than our
+variable-coefficient pencil. For the one-parameter theory see Kato~\cite[Ch.~VII]{Kato}
+(as quoted in~\cite[\S4.1]{Dur}).
+\end{remark}
+
+\subsection{The first-order map is intrinsic and equivariant}
+
+For an $L^\infty$ symmetric $2$-tensor $\dot h$ on $B$ set
+$b_{\dot h}(e,e'):=\frac{d}{ds}\big|_{0}(q-\ls m)_{h_0+s\dot h}(e,e')$ for $e,e'\in E$.
+
+\begin{lemma}\label{lem:N}
+\begin{enumerate}[label=\textup{(\alph*)}]
+\item For every $v\in T_{\xB}\Oct$ there is a TT tensor $\sigma(v)$, depending linearly and
+only on $v$, such that $A_{\mathrm{oct}}(v):=[b_v(e_i,e_j)]=A(\sigma(v)):=[b_{\sigma(v)}(e_i,e_j)]$.
+Thus $A$ is well defined on $T_B$.
+\item $A(g\cdot\sigma)=\rho_E(g)A(\sigma)\rho_E(g)^{\mathsf T}$ for all $g\in G$, of either orientation.
+\item For an octagon symmetry $\gamma$ acting linearly on $\Oct$, $\sigma(\gamma v)=\gamma_B\cdot\sigma(v)$.
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+\emph{Step 1 (first variation).} Using $d(h^{ij})=-h^{ik}\dot h_{kl}h^{lj}$ and
+$d\sqrt h=\tfrac12(\tr\dot h)\sqrt h$,
+\[
+b_{\dot h}(e,e')=-\int_B\langle\dot h,T(e,e')\rangle\,dA,\qquad
+T(e,e'):=\Sym(de\otimes de')-\tfrac12\big(\langle de,de'\rangle-\ls ee'\big)h_0 .
+\]
+The formula is tensorial and may be evaluated cellwise; it agrees with the $b_v$ of
+Theorem~\ref{thm:F1}, since the coefficients there are $a=\sqrt h\,h^{-1}$ and $\rho=\sqrt h$ and
+$t\mapsto h_t$ is $C^1$ into $L^\infty$. (Compare~\cite[Lemma~2.1]{ESI}.)
+
+\emph{Step 2 ($T$ is divergence-free on $E$).} Eigenfunctions are smooth and
+$\tr\nabla^2e=-\ls e$. A direct computation gives
+\[
+2\operatorname{div}T=(\tr\nabla^2e)\,de'+(\tr\nabla^2e')\,de+\nabla^2e(\nabla e',\cdot)+\nabla^2e'(\nabla e,\cdot)
+-d\langle de,de'\rangle+\ls(e\,de'+e'\,de)=0 .
+\]
+
+\emph{Step 3 (Lie derivatives drop out).} For a $W^{1,\infty}$ vector field $X$,
+$L_Xh_0=2\Sym\nabla X^\flat\in L^\infty$, and integration by parts against the smooth $T$ gives
+$b_{L_Xh_0}=2\int\langle X,\operatorname{div}T\rangle=0$.
+
+\emph{Step 4 (octagon tangents are TT plus a Lie derivative).} Let $x(t)$ be a $C^1$ curve in
+$\Oct$ through $\xB$, $h_t=\Phi_t^*h_{B_t}$, and let $D_t\colon\Hyp\to\Hyp$ be the developing map
+of $h_t$, which is $\rho_t$-equivariant, cellwise analytic in $(t,p)$, and normalised by $D_0=\mathrm{id}$.
+Fix a smooth radial kernel $\eta_\varepsilon$ supported in an $\varepsilon$-ball and define the
+Riemannian centre of mass
+\[
+\tilde\Psi_t(p):=\operatorname*{argmin}_{q\in\Hyp}\int d(q,D_t(y))^2\,\eta_\varepsilon(d(p,y))\,dA(y).
+\]
+The functional is strictly convex and proper, so $\tilde\Psi_t$ is well defined; it is
+$\rho_t$-equivariant because the kernel is deck-invariant; it is jointly $C^\infty$ in $(t,p)$ by
+the implicit function theorem (the Hessian in $q$ is positive definite, $p$-derivatives fall on
+the kernel and $t$-derivatives on $D_t$ inside the integral); $\tilde\Psi_0=\mathrm{id}$; and
+$d\tilde\Psi_t=I+O(t)$, so $\tilde\Psi_t$ is a diffeomorphism for small $|t|$. It descends to
+$\Psi_t\colon B\to B_t$. Then $k_t:=\Psi_t^*h_{B_t}$ is a smooth family of smooth hyperbolic metrics
+with $k_0=h_0$, and $\iota_t:=\Psi_t^{-1}\circ\Phi_t$ is an isometry $(B,h_t)\to(B,k_t)$ isotopic to
+the identity. The mixed derivative $\partial_t\nabla_p\iota_t$ exists and is continuous on each
+closed cell, so $X:=\partial_t\iota_t|_0$ is Lipschitz and $\dot h=\dot k+L_Xh_0$ almost everywhere.
+
+By the Fischer--Marsden splitting, as stated in~\cite[Rem.~3.3]{Maz}, every symmetric tensor
+$S$ decomposes orthogonally as $S=S_{tt}+L_Xg+((-\Delta_gf+f)g+g\nabla^2f)$, where
+$S_{tt}+L_Xg\in\ker dK_g$ and the last term lies in $(\ker dK_g)^\perp$. Applied to
+$S=\dot k\in\ker dK_{h_0}$, the last term vanishes, so $\dot k=\sigma+L_Yh_0$ with $\sigma$ TT and $Y$
+smooth by elliptic regularity. Set $\sigma(v):=\sigma$. Steps~1 and~3 give
+$A_{\mathrm{oct}}(v)=A(\sigma(v))$. Two choices of $\Psi_t$ differ by $\mathrm{Diff}_0$, which changes $\dot
+k$ by a Lie derivative, so $\sigma(v)$ is independent of the choices; it is linear in $v$.
+
+\emph{Step 5 (equivariance).} Let $g$ be an isometry of $h_0$, acting on TT tensors by
+$(g^{-1})^*$ and on $E$ by $\rho_E(g)e=e\circ g^{-1}$. Then
+$T(e\circ g^{-1},e'\circ g^{-1})=(g^{-1})^*T(e,e')$ and $dA$ is $g$-invariant, which gives~(b).
+On $\operatorname{Re}Q(B)$ this is $\operatorname{Re}((g^{-1})^*\varphi)$ for holomorphic $g$ and
+$\operatorname{Re}(\overline{(g^{-1})^*\varphi})$ for antiholomorphic $g$.
+
+\emph{Relabelling.} The fan mesh is equivariant under octagon symmetries, so
+$\Phi_{\gamma x}=\Gamma\circ\Phi_x\circ\gamma_B^{-1}$ and $h_{\gamma x(t)}=(\gamma_B^{-1})^*h_{x(t)}$. Since
+the TT projection is natural under isometries of $h_0$, this gives~(c).
+\end{proof}
+
+%======================================================================
+\section{Symmetry: characters and the $K_0$ reduction}\label{sec:symmetry}
+%======================================================================
+
+\subsection{The algebraic model}
+By~\cite[\S7.1]{FBP-K}, $\Isom^+(B)/\langle r^4\rangle$ is the octahedral rotation group acting on
+$B/\langle J\rangle\cong\hat\C$ and permuting the six Weierstrass images; $\Isom^+(B)\cong GL(2,3)$
+and $\Isom(B)\cong GL(2,3)\rtimes\Z/2$. Since a finite $S_4\subset PSL(2,\C)$ is conjugate to the
+standard octahedral group, whose unique orbit of size $6$ is $\{0,\infty,\pm1,\pm i\}$, we may
+take $B\cong\{y^2=x^5-x\}$.
+
+The maps
+\[
+r\colon(x,y)\mapsto(ix,\zeta_8y),\qquad t\colon x\mapsto\frac{x+i}{x-i}\ (\text{with }y\text{-factor }2+2i),\qquad
+\kappa\colon(x,y)\mapsto(\bar x,\bar y)
+\]
+generate a group of order $96$, of which $48$ elements are holomorphic and form a copy of
+$GL(2,3)$ (element orders $1{:}1$, $2{:}13$, $3{:}8$, $4{:}6$, $6{:}8$, $8{:}12$). This was verified
+in exact arithmetic over $\Q(\zeta_{24})$, including the curve identity for every element. Since
+$|\Isom(B)|=96$~\cite{FBP-K}, this is all of $G$.
+
+The space $Q(B)=\Sym^2H^0(K_B)$ has basis $(dx/y)^2$, $x(dx/y)^2$, $x^2(dx/y)^2$. An automorphism
+with M\"obius matrix $\left(\begin{smallmatrix}a&b\\c&d\end{smallmatrix}\right)$ and $y$-factor $\mu$ pulls back
+$(dx/y,\,x\,dx/y)$ by $P=(\det/\mu)\left(\begin{smallmatrix}d&b\\c&a\end{smallmatrix}\right)$; for
+holomorphic $g$ the real character on $T_B\cong Q(B)\cong\R^6$ is $\chi_T(g)=2\operatorname{Re}\tr\Sym^2P$.
+For orientation-reversing $g$ the action is $\C$-antilinear, and an antilinear map has real trace
+$0$.
+
+\begin{proposition}[Characters; exact]\label{prop:chars}
+On $T_B$:
+$\chi_T(r)=\chi_T(r^3)=\chi_T(r^2)=-2$, $\chi_T(J)=6$, $\chi_T(t)=0$, and $\chi_T(g)=0$ for every
+orientation-reversing $g$. Hence $\langle\chi_T,\chi_T\rangle=2$ and $\langle\chi_T,1\rangle=0$; in
+particular $T_B^G=0$.
+\end{proposition}
+
+These values were also reproduced with an independently written pull-back model.
+
+\subsection{The antipodal splitting}
+The antipodal isometry $a$ has conjugacy class $\{a,a^3=aJ\}$ of size $2$, so $a$ is central modulo
+$J$, and $a^2=J$. Since $\chi_T(J)=6=\dim T_B$, $J$ acts trivially on $T_B$, so $a^2=\mathrm{id}$ on
+$T_B$ and
+\[
+T_B=W_0\oplus K_0,\qquad W_0:=\{a=+1\},\quad K_0:=\{a=-1\},
+\]
+both $G$-invariant. Exactly, both have dimension $3$, $\langle\chi_\pm,\chi_\pm\rangle=1$ and
+$\langle\chi_+,\chi_-\rangle=0$. Hence $K_0$ and $W_0$ are absolutely irreducible and
+non-isomorphic. (In the labelling of Cook's character table~\cite[App.~A]{Coo18},
+$K_0\cong\chi_7$ and $W_0\cong\chi_{10}$; this is not used.) On the octagon elements,
+$\chi_{K_0}(r)=-1$, $\chi_{K_0}(\smid)=1$, $\chi_{K_0}(\svert)=-1$, and
+$\chi_{W_0}(r)=-1$, $\chi_{W_0}(\smid)=-1$, $\chi_{W_0}(\svert)=1$; both vanish on $t$.
+
+\begin{lemma}[Isolation of $E$; see Lemma~\ref{lem:isolation}]
+$\dim E=3$ and $E$ is an irreducible real $G$-module.
+\end{lemma}
+
+\begin{proposition}\label{prop:K0kerA}
+$K_0\subset\ker A$.
+\end{proposition}
+
+\begin{proof}
+$E$ is irreducible of odd real dimension, so $\operatorname{End}_G(E)=\R$ and the central element $J$
+acts on $E$ by $\pm1$. If $J=-1$ then $\rho_E(a)^2=-I$ on $\R^3$, which is impossible
+($\det^2=-1$). So $J$ acts trivially, $\rho_E(a)$ commutes with $\rho_E(G)$ (as $a$ is central
+modulo $J$), and $\rho_E(a)=\pm I$. By Lemma~\ref{lem:N}(b), $A(a\cdot v)=A(v)$. For $v\in K_0$,
+$a\cdot v=-v$, so $A(v)=0$.
+\end{proof}
+
+\begin{proposition}\label{prop:kerA}
+If $A\ne0$, then $\ker A=K_0$ and $\rank A=3$.
+\end{proposition}
+
+\begin{proof}
+$A|_{W_0}\colon W_0\to\Sym(E)$ is $G$-equivariant and $W_0$ is irreducible, so $A|_{W_0}$ is $0$ or
+injective. Since $A\ne0$ and $A|_{K_0}=0$, it is injective.
+\end{proof}
+
+\begin{proposition}\label{prop:scalar}
+Every $G$-invariant symmetric bilinear form on $K_0$ is $c\cdot\gin$ for a fixed $G$-invariant
+inner product $\gin$ and some $c\in\R$.
+\end{proposition}
+
+\begin{proof}
+$K_0$ is absolutely irreducible (Schur).
+\end{proof}
+
+\begin{remark}[Consistency, not used]
+The full Clifford--Gallagher computation shows $\Sym_0^2E\cong D\oplus W_0$ with $D$
+two-dimensional irreducible, for each of the four candidate three-dimensional irreducibles. A
+certified computation gives $\tr(g|E)\in[1\pm0.0352]$ for $g=r,\smid,\svert$ at $n=96$, so $E$ is
+the octahedral representation, in agreement with~\cite[Thm.~3.9]{Coo18}. Neither fact is used.
+\end{remark}
+
+\subsection{Why the octagon group is not enough}\label{subsec:D8}
+Restricted to the octagon group $D_8$ (16 elements), $K_0$ has norm
+$(9+9+4\cdot1+2\cdot1+4\cdot1+4\cdot1)/16=2$, so $K_0|_{D_8}=\varepsilon_s\oplus(\text{2-dim})$.
+$D_8$-invariant quadratic forms on $K_0$ thus form a two-parameter family, and one certified
+direction controls only the $\varepsilon_s$-line. The non-octagon element $t$ is genuinely needed,
+both for irreducibility of $W_0$ and for Proposition~\ref{prop:scalar}; the corresponding
+invariance of the Hessian is proved in Lemma~\ref{lem:Ginv}.
+
+\subsection{The equiangular family}\label{subsec:FB}
+Let $\FB(p)$ be the octagon with all vertices at hyperbolic radius $R(p)$, $V_{2j}$ at angle
+$j\pi/2$ and $V_{2j+1}$ at angle $\varphi+j\pi/2$, where $p=\varphi-\pi/4$. The $\pi/2$-rotation
+and the reflection $\theta\mapsto\varphi-\theta$ act transitively on the vertices, so all angles are
+equal, and $L_{k+4}=L_k$ by the $\pi$-rotation. Splitting the angle at $V_0$ along the spokes, the
+surface condition (angle $=\pi/4$) is
+\[
+C^2xy-C(x+y)-1=0,\qquad C=\cosh R,\ x=\tan(\varphi/2),\ y=\tan(\pi/4-\varphi/2),
+\]
+so that $C=3+2\sqrt2$ at $p=0$. (The Taylor jets of the constraints along this curve were
+certified to vanish to second order in Arb.) $\FB(p)$ is invariant under $r^2$ and $\smid$, and
+$r$ maps $\FB(p)$ to $\FB(-p)$. Write $x(p)=\FB(p)$, $\vB=x'(0)$ and $\wB:=\sigma(\vB)$.
+
+\begin{lemma}\label{lem:FBline}
+$\wB\in K_0\setminus\{0\}$.
+\end{lemma}
+
+\begin{proof}
+By exact linear algebra, $\{v\in T_B:r v=-v,\ \smid v=v\}$ is a line, and its spanning vector
+satisfies $a v=-v$, so the line lies in $K_0$. By Lemma~\ref{lem:N}(c), $r\wB=-\wB$ and
+$\smid\wB=\wB$, so $\wB$ lies on this line.
+
+To see $\wB\ne0$: the pairing $g_0$ of $\FB(p)$ is the translation along the bisector of side $0$,
+and hyperbolic trigonometry gives
+$d\ell(g_0)/dp=-\cos(\pi/4)/(\sin^2(\pi/8)\sinh r_{\mathrm{in}})=-\sqrt{2+2\sqrt2}=-2.19736822693562$
+and $d\ell(g_1)/dp=+2.19736822693562$, where $r_{\mathrm{in}}$ is the inradius of the regular octagon.
+Thus $\ell(g_0)-\ell(g_1)$, a function on $\Teich$, has nonzero derivative along $\pi\circ\FB$.
+By Lemma~\ref{lem:chart}(b) below, $d(\tau\circ x)(\vB)=d\tau(\wB)$ for length-type functions $\tau$,
+so $\wB\neq0$. (The certificate of Proposition~\ref{prop:sign} also forces $\wB\ne0$.)
+\end{proof}
+
+\begin{remark}
+The reflection type matters: for $\svert$-type reflections the line
+$\{rv=-v,\ sv=v\}$ lies in $W_0$, not in $K_0$. So the identification of the symmetry of $\FB$ as
+an $\smid$-type reflection (fixing four Weierstrass points) is load-bearing. Here $\smid$ fixes
+the centre, the vertex point, the midpoint class on its axis and one further midpoint class via
+the gluing; $\svert$ fixes only the centre and the vertex point.
+\end{remark}
+
+%======================================================================
+\section{First-order analysis}\label{sec:first}
+%======================================================================
+
+\begin{proposition}\label{prop:trA}
+$\tr A\equiv0$; equivalently $d\Lambda(\xB)=0$ on $T_{\xB}\Oct$.
+\end{proposition}
+
+\begin{proof}[First proof (octagon coordinates)]
+The map $r\colon\R^{16}\to\R^{16}$ is linear, maps $\Oct$ to $\Oct$, and $B_{rx}$ is isometric to
+$B_x$, so $\Lambda\circ r=\Lambda$. Hence $d\Lambda=d\Lambda\circ P$ on $T:=T_{\xB}\Oct$, with
+$P=\frac18\sum_{j<8}r^j$ the projection onto $T^r$. The fixed space $(\R^{16})^r=\{\delta_k=\mathrm{Rot}^k\delta_0\}$
+is two-dimensional (radial and tangential). The radial vector is not in $T$, because
+$d(\text{angle sum})/dR=-5.5729711960\ne0$ (certified; Proposition~\ref{prop:rankJ}; it equals the
+closed form from $\cot(\theta/2)=\cosh R\tan(\pi/8)$). The tangential vector is the infinitesimal
+rotation, along which $\Lambda$ is constant. So $T^r$ is spanned by the rotation and
+$d\Lambda=0$. By Theorem~\ref{thm:F1}(4), $d\Lambda(v)=\tr A(v)$.
+\end{proof}
+
+\begin{proof}[Second proof (Schur)]
+$\tr A$ is a $G$-invariant linear functional on $T_B$ (Lemma~\ref{lem:N}(b)), and
+$\langle\chi_T,1\rangle=0$ (Proposition~\ref{prop:chars}).
+\end{proof}
+
+In fact $G$-equivariance under the single element $r$ suffices, since $r$ has no fixed vector on
+$T_B$; this is how the statement is formalised in Section~\ref{sec:lean}.
+
+\begin{proposition}[$A\ne0$; certified]\label{prop:Anonzero}
+Let $\delta\in T_{\xB}\Oct$ be the alternating-radius tangent: vertex radii
+$R+t(-1)^k+\varsigma(t)$, angles $k\pi/4$, with $\varsigma(t)$ restoring the angle sum and
+$\varsigma'(0)=0$. Then there is an exact eigenfunction $e\in E$ with
+\[
+b_\delta(e,e)\le-3.0383476242423058\cdot m(u)<0
+\]
+($n=192$; at $n=96$ the bound is $-0.9989201873540878\cdot m(u)$; under Hypothesis~\ref{hyp:SU} the
+bounds are $-3.0875694043934345\cdot m(u)$ and $-1.0282409843057394\cdot m(u)$), where $u$ is the finite-element
+function of Section~\ref{subsec:Anonzero-cert} and $e=P_Eu$. Consequently $A(\sigma(\delta))\ne0$.
+\end{proposition}
+
+The deformation $\delta$ preserves $L_{k+4}=L_k$ by the $\pi$-rotation symmetry; $\varsigma$ is
+analytic by the implicit function theorem since $\partial(\sum\theta)/\partial\varsigma=-5.573\ne0$, and
+$\varsigma'(0)=0$ because all $\partial\sum\theta/\partial R_k$ are equal at $\xB$ while
+$\sum(-1)^k=0$. Up to scale $\delta$ is the tangent of the equilateral family $\FA$. The proof is
+in Section~\ref{subsec:Anonzero-cert}. Identifying $[b_\delta(e_i,e_j)]$ with the first-order
+variation along $\delta$ only needs the one-parameter case of Theorem~\ref{thm:F1}.
+
+\begin{corollary}\label{cor:rank}
+$K:=\ker A=K_0$, and $\rank A=3$.
+\end{corollary}
+
+\begin{proof}
+Propositions~\ref{prop:K0kerA}, \ref{prop:kerA} and~\ref{prop:Anonzero}.
+\end{proof}
+
+%======================================================================
+\section{Second-order analysis}\label{sec:second}
+%======================================================================
+
+\subsection{A local-maximum criterion for a degenerate cluster}
+
+\begin{lemma}\label{lem:criterion}
+Let $M(v)$ be a symmetric $3\times3$ matrix function on a neighbourhood of $0\in\R^6$ with
+$M(v)=\ls I+A(v)+Q_2(v)+R(v)$, where $A$ is linear, $Q_2$ is quadratic and $|R(v)|=o(|v|^2)$.
+Let $K=\ker A$. Assume
+\begin{enumerate}[label=\textup{(\alph*)}]
+\item $\tr A\equiv0$;
+\item $\tr Q_2(k)\le-\kappa|k|^2$ for all $k\in K$, for some $\kappa>0$.
+\end{enumerate}
+Then $\lambda_{\min}M(v)<\ls$ for all sufficiently small $v\ne0$.
+\end{lemma}
+
+\begin{proof}
+Let $W$ be a complement of $K$; $A|_W$ is injective. Each $A(w)$, $w\ne0$, is traceless and nonzero
+and so has a negative eigenvalue; by compactness
+$c_A:=\min_{w\in W,|w|=1}(-\lambda_{\min}A(w))>0$. This is the first use of~(a). Write $v=w+k$
+with $w\in W$, $k\in K$, and choose $C''$ with $\|Q_2(v)\|+|R(v)|\le C''(|w|^2+|k|^2)$ on a small ball.
+
+\emph{Case (i): $|w|\ge C|k|^2$, with $C>4C''/c_A$.} Then $w\ne0$, and by Weyl's inequality
+\[
+\lambda_{\min}M(v)-\ls\le-c_A|w|+C''|w|^2+C''|k|^2\le-c_A|w|+C''|w|^2+\tfrac{c_A}{4}|w|<-\tfrac{c_A}{2}|w|+C''|w|^2,
+\]
+which is negative for small $v$.
+
+\emph{Case (ii): $|w|<C|k|^2$.} Then $k\ne0$ and $|v|\asymp|k|$. Using $\tr A(w)=0$ (second,
+essential use of~(a)) and $\tr Q_2(w+k)=\tr Q_2(k)+O(|k|^3)$,
+\[
+\tr\big(M(v)-\ls I\big)=\tr Q_2(k)+O(|k|^3)+o(|k|^2)\le-\kappa|k|^2+o(|k|^2)<0,
+\]
+so $\lambda_{\min}M(v)\le\ls+\tfrac13\tr(M(v)-\ls I)<\ls$.
+\end{proof}
+
+The criterion is sufficient, not necessary; the sharper condition is
+$\lambda_{\min}Q_2(k)<0$ on $K$. Note also that $\Lambda$ itself need not have a local maximum: off
+$K$ it may increase at second order. Since $\Lambda=\tr M$, we have
+$\tr Q_2(k)=\tfrac12D^2\Lambda(k,k)$.
+
+\subsection{The Teichm\"uller chart}\label{subsec:chart}
+For a word $w$ in the generators, let
+\[
+\tau_w(x):=\tr_{SO(2,1)}w\big(g_0(x),\dots,g_3(x)\big).
+\]
+We use the six words
+\[
+g_0g_1,\quad g_0G_2,\quad g_1g_2,\quad g_1g_3,\quad g_1G_3,\quad g_2g_3\qquad(G_k=g_k^{-1}).
+\]
+
+\begin{proposition}[Certified; Section~\ref{subsec:rank-cert}]\label{prop:G3}
+The $6\times11$ Jacobian of $(\tau_w)_w$ on $T_{\xB}\Oct$ has rank $6$.
+\end{proposition}
+
+\begin{lemma}\label{lem:chart}
+Let $\Sl\subset\Oct$ be the analytic $6$-dimensional coordinate slice through $\xB$ in the free
+coordinates $\{3,6,10,12,13,15\}$ (Section~\ref{subsec:rank-cert}). Then:
+\begin{enumerate}[label=\textup{(\alph*)}]
+\item $\pi|_\Sl$ is a homeomorphism from a neighbourhood of $\xB$ in $\Sl$ onto an open neighbourhood
+$N$ of $B$ in $\Teich$, and the functions $\bar\tau_w$ with $\tau_w=\bar\tau_w\circ\pi$ are local
+coordinates of $\Teich$ at $B$.
+\item For every word $w$ and every $C^1$ curve $x(t)$ in $\Oct$ through $\xB$,
+$d(\tau_w\circ x)(v)=d\tau_w(\sigma(v))$, where $d\tau_w$ is the derivative of the
+$\mathrm{Diff}_0$-invariant length-type function on smooth metrics. In particular $(d\tau_w)_w$ is
+injective on TT tensors, and $\sigma\colon T_{\xB}\Sl\to T_B$ is an isomorphism.
+\item There is an analytic retraction $p\colon\Oct\to\Sl$ near $\xB$ with $\pi\circ p=\pi$. Hence
+$\Lambda_\Oct=\Lambda_\Sl\circ p$, $d\Lambda_\Sl(\xB)=0$,
+$D^2\Lambda_\Oct(w,w)=D^2\Lambda_\Sl(dp\,w,dp\,w)$, and $\sigma\circ dp=\sigma$ on $T_{\xB}\Oct$.
+\item Theorem~\ref{thm:F1} applies on $\Sl$: $M_\Sl(v)=\ls I+A(\sigma v)+Q_2(v)+O(|v|^3)$ and
+$\tr(A\circ\sigma)\equiv0$.
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+(a) $\tr_{SO(2,1)}$ is conjugation-invariant and needs no sign choice, so $\tau_w=\bar\tau_w\circ\pi$.
+$\Phi:=(\tau_w)_w$ is analytic on $\Oct$ and its derivative on $T_{\xB}\Sl$ has rank $6$, so
+$\Phi|_\Sl$ is an analytic diffeomorphism near $\xB$ onto an open $U\subset\R^6$. Hence $\pi|_\Sl$ is
+continuous and injective. $\Teich$ is a topological $6$-manifold (Fenchel--Nielsen coordinates;
+\cite[\S2]{FN}), so by invariance of domain $\pi|_\Sl$ is a homeomorphism onto an open $N\ni B$.
+
+(b) With $k_t$ the smooth comparison family of Lemma~\ref{lem:N}, Step~4,
+$\tau_w(x(t))=\tau_w(k_t)$, and $\dot k=\sigma(v)+L_Yh_0$. The function $\tau_w(k)$ is the trace of
+the holonomy along a fixed loop of the $\mathfrak{so}(2,1)$-valued Cartan connection
+$\omega_{LC}+\theta$ of $k$. This is defined and $C^1$ in $k$ for every metric, and it is flat, hence
+invariant under free homotopy, exactly when the curvature is $-1$. So $\tau_w$ is a
+$\mathrm{Diff}_0$-invariant $C^1$ function on hyperbolic metrics, and the Lie-derivative term
+drops out. Rank $6$ then forces $\sigma$ to be onto the $6$-dimensional TT space, and injectivity
+of $(d\tau_w)_w$ on TT follows.
+
+(c) Set $p:=(\Phi|_\Sl)^{-1}\circ\Phi$. Since $\bar\tau$ is injective on $N$, $\pi\circ p=\pi$. As
+$dp|_{T\Sl}=\mathrm{id}$ and $d\Lambda_\Oct(\xB)=0$, the Hessians correspond. Applying the injective
+$(d\tau_w)_w$ to $d\tau(\sigma(dp\,v))=d(\tau\circ p)(v)=d\tau(\sigma(v))$ gives $\sigma\circ dp=\sigma$.
+
+(d) $\Sl$ is an analytic sub-family of $\Oct$; use Lemma~\ref{lem:N}(a) and
+Proposition~\ref{prop:trA}.
+\end{proof}
+
+\subsection{Invariance of the Hessian under all of $G$}
+
+\begin{lemma}\label{lem:Ginv}
+The quadratic form $H(\varsigma):=D^2\Lambda_\Sl(\sigma^{-1}\varsigma,\sigma^{-1}\varsigma)$ on TT tensors is
+invariant under the natural action of $G$. Consequently $H|_{K_0}=c\cdot\gin$ for some $c\in\R$.
+\end{lemma}
+
+\begin{proof}
+Let $g\in G$ act on $\Teich$ by change of marking, normalised by $g\cdot[k]=[(g^{-1})^*k]$. Then $g$
+fixes $B$, and $\Lambda\circ g=\Lambda$ since the surfaces are isometric.
+
+\emph{Step 1 ($g$ is analytic in the chart).} For every word $w'$,
+$\bar\tau_{w'}(g\cdot X)=\bar\tau_{g^{-1}(w')}(X)$, because the $(g^{-1})^*k$-length of the class $w'$ is
+the $k$-length of $g^{-1}(w')$. (For orientation-reversing $g$, $g^{-1}(w')$ is defined up to
+conjugation and inversion, which does not affect $\tr_{SO(2,1)}$.) Since each $\tau_{w''}|_\Sl$ is
+analytic and the chart is $(\Phi|_\Sl)^{-1}\circ\bar\tau$, the map $g_\Sl:=(\pi|_\Sl)^{-1}\circ g\circ\pi|_\Sl$ is
+analytic near $\xB$ and fixes $\xB$. This uses continuity of the extended mapping class group
+action on $\Teich$, so that $g\cdot\pi(x)\in N$ for $x$ near $\xB$. As $d\Lambda_\Sl(\xB)=0$, the Hessian is
+invariant: $D^2\Lambda_\Sl(dg_\Sl v,dg_\Sl v)=D^2\Lambda_\Sl(v,v)$.
+
+\emph{Step 2 ($\sigma$ intertwines).} Let $x(t)$ be a curve in $\Sl$ and $y=g_\Sl\circ x$. By
+Lemma~\ref{lem:chart}(b), $d\tau_w(\sigma(y'))=\frac{d}{dt}\tau_{g^{-1}w}(x(t))=d\tau_{g^{-1}w}(\sigma(x'))$. On
+hyperbolic metrics $\tau_{g^{-1}w}(k)=\tau_w((g^{-1})^*k)$; differentiating at the $g$-fixed $h_0$ gives
+$d\tau_{g^{-1}w}(\varsigma)=d\tau_w(g\cdot\varsigma)$, since $(g^{-1})^*L_Yh_0=L_{g_*Y}h_0$ is killed by
+$\mathrm{Diff}_0$-invariance. Injectivity of $(d\tau_w)_w$ on TT gives $\sigma(y')=g\cdot\sigma(x')$.
+
+Steps~1 and~2 give $H(g\cdot\varsigma)=H(\varsigma)$ for all $g\in G$, in particular for $t$.
+Proposition~\ref{prop:scalar} gives the last claim.
+\end{proof}
+
+\begin{remark}
+An alternative route would cite real-analyticity of $\pi$ into the standard analytic structure of
+$\Teich$ and analyticity of the action of the stabiliser of $B$ in the extended mapping class
+group with derivative equal to the natural action on $\operatorname{Re}Q(B)$. The argument above
+avoids these inputs by working entirely in the certified chart $\Sl$.
+\end{remark}
+
+\subsection{The Ky Fan bound along $\FB$}
+
+\begin{lemma}[Ky Fan trace principle]\label{lem:KyFan}
+For every $p$ and every $4$-dimensional $V\subset H^1(B)$,
+$\Lambda(p)\le\tr_V(q_p\,|\,m_p)$, with equality when $V$ is the span of $1$ and the cluster
+eigenfunctions.
+\end{lemma}
+
+\begin{proof}
+Let $\mu_0\le\dots\le\mu_3$ be the eigenvalues of $q_p|_V$ relative to $m_p$. For each $j$, the span of
+the first $j+1$ of their eigenvectors is a $(j+1)$-dimensional subspace on which the Rayleigh
+quotient is at most $\mu_j$, so by min-max (\cite[Thm.~1.22]{Coo18}, from Chavel)
+$\lambda_j\le\mu_j$. Summing and using $\lambda_0=0$ gives the claim. (For the finite-dimensional
+statement see~\cite{Mos}, attributing it to~\cite{Fan49,Fan50}.)
+\end{proof}
+
+Take $V(p)=\operatorname{span}\{1,e_i+p\psi_i\}$, where $e_i\in E$ are exact eigenfunctions and
+$\psi_i$ are fixed finite-element correctors, and set $g(p)=\tr(G_m(p)^{-1}G_q(p))$ with the Gram
+matrices of $m_p,q_p$ on $V(p)$. Then $g\ge\Lambda\circ x$ and $g(0)=\Lambda(0)$. Both are analytic, so
+$g-\Lambda\circ x\ge0$ has a minimum at $0$ and
+\begin{equation}\label{eq:kyfan}
+(\Lambda\circ x)''(0)\le g''(0).
+\end{equation}
+Even without twice differentiability, the $\limsup$ of the second difference quotients of
+$\Lambda\circ x$ is at most $g''(0)$; the analyticity of Theorem~\ref{thm:F1} is needed only to read the
+result as a statement about $D^2\Lambda$.
+
+\begin{lemma}\label{lem:g2formula}
+With $N=M_0^{-1}$,
+\[
+g''(0)=\tr(NX)-2\tr(NM_1NA)+2\ls\,c_1^{\mathsf T}Nc_1/m(1,1),
+\]
+where $X_{ij}=(q''-\ls m'')(e_i,e_j)+2b(\psi_i,e_j)+2b(e_i,\psi_j)+2(q-\ls m)(\psi_i,\psi_j)$,
+$A_{ij}=b(e_i,e_j)$ with $b=q'-\ls m'$, $M_{1,ij}=m'(e_i,e_j)+m(\psi_i,e_j)+m(e_i,\psi_j)$,
+$c_{1,i}=m'(e_i,1)+m(\psi_i,1)$ and $M_{0,ij}=m(e_i,e_j)$.
+\end{lemma}
+
+\begin{proof}
+Expand $G_m^{-1}G_q$ to second order in $p$, using the Schur complement of the constant function,
+$q_0(\psi,e)=\ls m_0(\psi,e)$, $Q(0)=\ls M_0$ and $m(e,1)=0$. The basis $e_i$ need not be orthonormal.
+(The formula was re-derived independently and checked against an exact pencil test to relative
+accuracy $3\times10^{-39}$, and against a five-point finite difference of $g$.)
+\end{proof}
+
+\begin{proposition}[Certified; Section~\ref{subsec:sign-cert}]\label{prop:sign}
+Along $\FB$, $g''(0)\le-9.341154560446736$ ($n=96$, $P_2$ elements), with central value
+$[-14.274\pm2.13\times10^{-4}]$. Consequently
+\[
+D^2\Lambda_\Oct(\vB,\vB)=(\Lambda\circ x)''(0)\le-9.3411<0.
+\]
+Under Hypothesis~\ref{hyp:SU} the same certificate gives $g''(0)\le-12.850476214196528$.
+\end{proposition}
+
+The last equality holds because $(\Lambda\circ x)''(0)=D^2\Lambda_\Oct(\vB,\vB)+d\Lambda_\Oct(x''(0))$ and
+$d\Lambda_\Oct(\xB)=0$ (Proposition~\ref{prop:trA}).
+
+%======================================================================
+\section{Certified computations}\label{sec:cert}
+%======================================================================
+
+All computations below use Arb ball arithmetic through python-flint~0.9.0 (96- or 128-bit
+precision), exact rationals or exact arithmetic in $\Q(\zeta_{24})$ (with sympy~1.14.0 for Sturm
+sequences). Floating-point computations (numpy/scipy) only propose candidates. Every
+truncation carries an explicit bound.
+
+\subsection{Isolation of the cluster by the trace formula}\label{subsec:LP}
+
+We use the Selberg trace formula in the normalisation of~\cite[(3.1)]{FBP-K}, which follows
+Buser~\cite[p.~253]{Bus10}: for every admissible $f$ and closed hyperbolic surface $S$ of genus $g$,
+\[
+\sum_{\lambda\in\sigma(S)}\hat f(r(\lambda))=2(g-1)\int_0^\infty r\hat f(r)\tanh(\pi r)\,dr
++(2\pi)^{-1/2}\sum_{\gamma}\frac{\Lambda(\gamma)f(\ell(\gamma))}{2\sinh(\ell(\gamma)/2)},
+\]
+with the conventions of~\cite{FBP-K}. We use~\cite[Lemma~3.2]{FBP-K}: if $0<a\le\lambda_1(S)$, $a<b$,
+$\hat f(r(\lambda))\ge c>0$ on $[a,b]$, $\hat f(r(\lambda))\ge0$ for $\lambda\ge b$, and $f(x)\le0$ for
+$x\ge\operatorname{sys}(S)$, then the number of eigenvalues in $[a,b]$ is at most $c^{-1}(I+G_P-\hat
+f(i/2))$, where $I$ is the integral term and $G_P$ the geodesic sum over any set $P$ of unoriented
+primitive closed geodesics. We also use the following variant, whose proof is that
+of~\cite[Lemma~3.2]{FBP-K} unchanged.
+
+\begin{lemma}\label{lem:LemmaA}
+Let $F(\lambda):=\hat f(r(\lambda))$. If $F\ge c>0$ on $[0,a]$, $F\ge0$ on $[a,\infty)$ and $f\le0$ on
+$[\operatorname{sys}(S),\infty)$, then $\#(\sigma(S)\cap(0,a])\le(I+G_P-F(0))/c$.
+\end{lemma}
+
+\emph{Test functions.} $f(x)=u(x^2/s^2)e^{-x^2/(2s^2)}$ and $\hat f(\xi)=s\,v(s^2\xi^2)e^{-s^2\xi^2/2}$, with
+$u(y)=\sum_{n\le N}c_nH_{2n}(\sqrt y)$, $v(y)=\sum_{n\le N}(-1)^nc_nH_{2n}(\sqrt y)$ ($H$ the physicists'
+Hermite polynomials), $c_n,s\in\Q$ and $N=21$. Since $r(\lambda)^2=\lambda-\tfrac14$,
+$F(\lambda)=s\,v(s^2(\lambda-\tfrac14))e^{-s^2(\lambda-1/4)/2}$. ($N$ must be odd: otherwise the leading
+coefficients $c_N4^N$ and $(-1)^Nc_N4^N$ make $u\le0$ and $v\ge0$ near $+\infty$ incompatible.)
+
+\emph{Verification.} The sign conditions $u\le0$ on $[y_0,\infty)$ (with rational $y_0\le\ell_1^2/s^2$) and
+$v\ge0$ beyond the window are proved by exact Sturm counts: $0$ roots in each case. A lower bound $c$
+for $F$ on the window comes from $4000$ Arb balls. The integral term uses exact Gaussian moments
+$\int_0^\infty r(s^2r^2)^ke^{-s^2r^2/2}dr=2^kk!/s^2$ plus a rigorous \texttt{acb.integral} on $[0,12]$ with
+an explicit tail bound. The geodesic term uses the lower bounds $12,12,24$ on the unoriented
+multiplicities of $\ell_1=2\arccosh(1+\sqrt2)$ (the systole), $\ell_2=2\arccosh(3+2\sqrt2)$ and
+$\ell_3=2\arccosh(5+3\sqrt2)$~\cite[\S7.4]{FBP-K}; these are primitive since $\ell_3<2\ell_1$, and only
+lower bounds are needed because $f\le0$ there.
+
+\begin{lemma}[Isolation and multiplicity]\label{lem:isolation}
+\begin{enumerate}[label=\textup{(\alph*)}]
+\item $\Spec(B)\cap(0,3.3]=\emptyset$ and $\#(\Spec(B)\cap[3.3,4.0])\le3$, with multiplicity.
+\item $\lambda_3(B)\le3.8391848048$. Hence $\lambda_1,\lambda_2,\lambda_3\in(3.3,3.8391849]$ and
+$\lambda_4>4.0$, a gap of at least $0.1608$. This part uses neither Hypothesis~\ref{hyp:SU} nor the
+multiplicity theorem of~\cite{FBP-K}.
+\item $\lambda_1=\lambda_2=\lambda_3\le3.8388872830$, $\dim E=3$, and $E$ is an irreducible real
+$G$-module.
+\item $\lambda_1\ge3.8388757010$ (Proposition~\ref{prop:LG}). Hence
+$\lambda_1\in[3.8388757010,3.8388872830]$.
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+(a) Run~A applies Lemma~\ref{lem:LemmaA} with $N=21$, $s=1$ on $[0,3.3]$: $c\ge0.9816424759937855$
+and the certified bound is $[0.912612352675290375\pm9.95\times10^{-20}]<1$. Run~B
+applies~\cite[Lemma~3.2]{FBP-K} with $a=3.3\le\lambda_1$ (from run~A), $N=21$, $s=13/10$ on
+$[3.3,4.0]$: $c\ge0.9964283521820437$ and the bound is
+$[3.86966111976973759\pm1.65\times10^{-18}]<4$.
+
+(b) Section~\ref{subsec:FE}.
+
+(c) By~\cite[Lemmas~7.2--7.3]{FBP-K} with $j=1$, whose proofs use symmetry, nodal domains
+and~\cite[Prop.~4.4]{FBP-K} but no eigenvalue enclosure, the $\lambda_1$-eigenspace contains no
+$1$- or $2$-dimensional irreducible real representation of $G$. So $m_1\ge3$, and with~(b),
+$\lambda_1=\lambda_2=\lambda_3$ and $\dim E=3$; any decomposition of $E$ would contain a summand of
+dimension $1$ or $2$, so $E$ is irreducible. The certified $P_2$
+Rayleigh--Ritz bound $\lambda_3\le3.8388872829261946$ (Section~\ref{subsec:FE}) gives the upper end.
+
+(d) Section~\ref{subsec:LG}; it uses only~(a).
+
+\emph{Cross-check (not used).} By~(a) and~(b) the only eigenvalue in $(0,4.0]$ is $\lambda_1$, so the
+eigenvalue of Hypothesis~\ref{hyp:SU}, if assumed, is $\lambda_1$; its interval is consistent with~(d).
+\end{proof}
+
+As sanity checks, windows that contain known eigenvalues give bounds above the true counts:
+$3.4803\ge3$ for $[3.3,3.9]$ and $7.5466\ge7$ for $[3.3,5.4]$. The window end $X=4.05$ fails
+(bound $4.0536$); with only three geodesic lengths the method does not reach beyond about $4.05$.
+
+\subsection{Conforming finite elements on the glued octagon}\label{subsec:FE}
+
+\emph{$P_1$ elements.} On each geodesic triangle of the mesh, trial functions are affine in the
+barycentric parameters $(a,b)$ of Section~\ref{subsec:mesh}. Isometries act linearly on $W$, so the
+construction is chart-free, and the trace on an edge depends only on the two endpoint values. The
+space is therefore \emph{exactly conforming on the glued surface}, including across the projective
+side pairings, it lies in $H^1(B)$, and it contains the constants. (Klein-coordinate $P_1$ elements
+lack this property.)
+
+\emph{$P_2$ elements.} Polynomials of degree $\le2$ in $(a,b)$. On an edge, $W=sP_i+(1-s)P_j$ and
+the trace is a quadratic in $s$ determined by the two endpoint values and the value at $s=\frac12$,
+the geodesic midpoint. Isometries preserve $s$, so this space is also exactly conforming and
+contains the constants. Edge degrees of freedom are keyed by glued endpoint labels; the code
+asserts Euler characteristic $-2$ and exactly two triangles per edge.
+
+\emph{Element integrals.} All entries are integrals $\int_{\text{simplex}}p\cdot Q^{-s}$ with
+$s\in\{\tfrac12,\tfrac32\}$ ($P_1$) or $s\in\{\tfrac12,\tfrac32,\tfrac52,\tfrac72\}$ ($P_2$). Write
+$Q=Q_c(1+\epsilon)$ and expand $(1+\epsilon)^{-s}$ in a truncated binomial series ($4$ terms for $P_1$, $6$
+for $P_2$) with a Lagrange remainder, e.g.\ for $P_1$
+$|R|\le|\binom{-s}{4}|\epsilon_{\max}^4(1-\epsilon_{\max})^{-s-4}$; monomials are integrated exactly by
+$\int a^ib^j=i!\,j!/(i+j+2)!$.
+
+\emph{Rayleigh--Ritz.} Untrusted float eigenvectors $x_1,x_2,x_3$ and the constant span a
+$4$-dimensional $V$; its $4\times4$ matrices $K,M$ are summed exactly in Arb. By min-max
+\cite[Thm.~1.22]{Coo18}, $\lambda_3(B)\le\mu_3(K,M)$, and $\mu_3<t$ is certified by Sylvester's
+criterion for $tM-K$, with $t$ found by bisection. Applied to the same space, Lemma~\ref{lem:KyFan} gives a certified upper bound for
+$\lambda_1+\lambda_2+\lambda_3$.
+
+The certified bounds are in Tables~\ref{tab:P1} and~\ref{tab:P2}. At $n=192$ ($P_1$),
+$\lambda_3(B)\le3.8391848048$; at $n=96$ ($P_2$), $\lambda_3(B)\le3.8388872830$ and
+$\lambda_1+\lambda_2+\lambda_3\le11.516661838577997$. The float $P_2$ errors decrease like $h^4$
+($4.8\times10^{-6}$, $3.0\times10^{-7}$, $1.9\times10^{-8}$). The discrete cluster splits as $2+1$
+because the mesh has only the octagon's symmetry.
+
+\subsection{A guaranteed lower bound for \texorpdfstring{$\lambda_1$}{lambda1}: Lehmann--Goerisch}\label{subsec:LG}
+
+Rayleigh--Ritz gives only upper bounds. For the lower bound we use the Lehmann--Goerisch method in
+the form of~\cite[\S4.1, Thms.~4.1 and~4.3]{LiuPlum}, which goes back to Goerisch; the same statement,
+written with an explicit shift, is~\cite[Thm.~2.1]{BMPW} as reproduced in~\cite[\S2]{Vej18}. We quote it
+for our setting. Let $D$ be a real vector space with symmetric bilinear forms $M$ (positive definite)
+and $N$ whose eigenvalue problem $M(u,\varphi)=\tilde\lambda N(u,\varphi)$ has a discrete spectrum
+$\tilde\lambda_1\le\tilde\lambda_2\le\cdots$ with an $M$-orthonormal eigenbasis. Let $X$ be a real vector space
+with a positive semidefinite symmetric form $b_G$ and $T\colon D\to X$ linear with $b_G(Tu,Tv)=M(u,v)$. Given
+$v_1,\dots,v_n\in D$, let $w_1,\dots,w_n\in X$ satisfy $b_G(w_i,T\varphi)=N(v_i,\varphi)$ for all $\varphi\in D$.
+For $\rho>0$ put $A_0=(M(v_i,v_j))$, $A_1=(N(v_i,v_j))$, $A_2=(b_G(w_i,w_j))$, $A=A_0-\rho A_1$ and
+$B=A_0-2\rho A_1+\rho^2A_2$, and suppose $B$ is positive definite; let $\nu_1\le\dots\le\nu_n$ be the
+eigenvalues of $Az=\nu Bz$ and $q$ the number of negative ones.
+
+\begin{theorem}[Lehmann--Goerisch; quoted from~\cite{LiuPlum}]\label{thm:LG}
+If $\rho\le\tilde\lambda_{m+1}$ for some $m\ge n$, then
+$\tilde\lambda_{m+1-k}\ge\rho-\rho/(1-\nu_k)$ for $1\le k\le q$.
+\end{theorem}
+
+\emph{Instantiation.} Take $D=H^1(B)$, $M=q+m$ and $N=m$. The eigenvalues are shifted,
+$\tilde\lambda=\lambda+1$: $\tilde\lambda_1=1$ (the constants), $\tilde\lambda_{2,3,4}=\lambda_{1,2,3}+1$ and
+$\tilde\lambda_5=\lambda_4+1$. By Lemma~\ref{lem:isolation}(a), $\lambda_4>4.0$, so $\rho:=5\le\tilde\lambda_5$; we take
+$m=4$ and $n=3$. Nothing else about the spectrum is used. In particular neither
+Hypothesis~\ref{hyp:SU} nor~\cite[Lemmas~7.2--7.3]{FBP-K} enters. Let $X=L^2(TB)\times L^2(B)$,
+$Tu=(\nabla u,u)$, and let $b_G$ be the $L^2$ product, so $b_G(Tu,Tv)=M(u,v)$. For trial functions $v_i$ and
+any $\sigma_i\in H(\mathrm{div},B)$ put $w_i=(\sigma_i,\,v_i+\operatorname{div}\sigma_i)$. Integration by parts on the
+closed surface gives, for all $\varphi\in H^1(B)$,
+\[
+b_G(w_i,T\varphi)=\int\sigma_i\cdot\nabla\varphi+\int(v_i+\operatorname{div}\sigma_i)\varphi=\int v_i\varphi=N(v_i,\varphi),
+\]
+exactly and with no constraint on $\operatorname{div}\sigma_i$. This is why the shift is used. The choice of
+$\sigma_i$ affects only the sharpness. With $k=3$, $m+1-k=2$, so the theorem bounds
+$\tilde\lambda_2=\lambda_1+1$, the first \emph{nonzero} eigenvalue. Since $\lambda_2,\lambda_3\ge\lambda_1$, the bound
+holds for all three.
+
+\emph{Discretisation.} The $v_i$ are conforming $P_2$ functions on the $n=48$ mesh of
+Section~\ref{subsec:FE} (untrusted float eigenvectors, used as exact data). The $\sigma_i$ lie in a
+Raviart--Thomas space of degree $2$ in each reference simplex, with unknown $j=\sqrt g\,\sigma$.
+Its degrees of freedom are the outward flux densities per unit edge parameter $s\in\{0,\frac12,1\}$
+and six interior moments. The flux through an edge segment is the intrinsic $1$-form
+$\iota_\sigma dA$, and the edge point $W=sP_i+(1-s)P_j$ is the same from both sides, also across the
+projective side pairings, since isometries are linear on $W$ and preserve $s$. Equal and opposite
+edge degrees of freedom therefore make $\sigma_i$ exactly $H(\mathrm{div})$-conforming on the glued
+surface, by the same mechanism as $P_2$ conformity. In the reference chart,
+$|\sigma|^2dA=j^{\mathsf T}(LL^{\mathsf T}-QG)j/(D\sqrt Q)\,da\,db$ and $(\operatorname{div}\sigma)\sqrt g=\partial_aj^a+\partial_bj^b$
+with $\sqrt g=DQ^{-3/2}$. The entries of $A_0,A_1,A_2$ are sums over the $18\,432$ elements of integrals
+$\int p\cdot Q^{-s}$ ($s\in\{\frac12,\frac32\}$), enclosed as in Section~\ref{subsec:FE} with $14$ series terms
+and a Lagrange remainder. The $\sigma_i$ are float minimisers of $b_G(w_i,w_i)$ (a sparse
+positive definite solve).
+
+\begin{proposition}[Certified]\label{prop:LG}
+In Arb, $B\succ0$ and $\bar\nu B-A\succ0$ with $\bar\nu=-30.031942622361008<0$, by Sylvester's
+criterion. Hence $\nu_1,\nu_2,\nu_3<\bar\nu<0$, $q=3$, and Theorem~\ref{thm:LG} with $k=3$ gives
+\[
+\lambda_1(B)\ge4-\frac{5}{1-\bar\nu}\in[3.8388757010527243542306205221870856407\pm6.06\times10^{-38}],
+\]
+so $\lambda_1(B)\ge3.8388757010527243$ (rounded down).
+\end{proposition}
+
+At $n=24$ the same construction gives only $3.8387028952$. The float $\nu$ at $n=48$ are
+$-30.03241$, $-30.03241$ and $-30.03194$.
+
+\emph{Checks.} (i) On the flat torus $\R^2/\Z^2$ ($\lambda_1=4\pi^2$ with multiplicity $4$; $n=4$ trial
+functions, $\rho=79.9\le1+8\pi^2$) the same code certifies $39.2041077545$, $39.4582495177$,
+$39.4770992124$ and $39.4783342462$ on $N=4,8,16,32$ meshes, all below $4\pi^2=39.4784176044$ and
+converging at rate $O(h^4)$. (ii) The global Green identity
+$\sum_T\int(\sigma\cdot\nabla v+(\operatorname{div}\sigma)v)=0$, evaluated in Arb for the certified fluxes,
+has residual at most $7.4\times10^{-36}$. (iii) Making the fluxes non-conforming (all edge signs $+1$) makes
+$B$ indefinite on the torus, as the theory predicts. (iv) An independent reviewer redid the final step
+from the stored enclosures of $A_0,A_1,A_2$ in mpmath interval arithmetic and obtained the same bound. The
+reviewer also reproduced the element integrals from a from-scratch metric to relative accuracy
+$1.2\times10^{-32}$, checked every glued edge geometrically, and confirmed on an exact toy model that wrong
+indexing of the zero mode, or an invalid $\rho$, produces false bounds.
+
+\emph{The hypothesis on $\rho$ is not self-checking.} With $\rho=6.5$, or $\rho=7.5$ at $n=24$, both
+above $\lambda_4+1$, the computation still returns values below the true $\lambda_1$. A wrong $\rho$ would
+therefore go undetected. The trace-formula certificate of Lemma~\ref{lem:isolation}(a) is load-bearing.
+
+\emph{Scope.} The interval $[3.8388757010,3.8388872830]$ does not by itself imply multiplicity~$3$, so
+Lemma~\ref{lem:isolation}(c) and the certificates below still use~\cite[Lemmas~7.2--7.3]{FBP-K}.
+
+\subsection{From finite-element functions to exact eigenfunctions}\label{subsec:transfer}
+
+\begin{lemma}[Gap transfer]\label{lem:transfer}
+Let $u\in H^1(B)$ with $m(u,1)=0$, let $e=P_Eu$ and $w=u-e$, and let $\mu=q(u)/m(u)$. If
+$\lambda_{\mathrm{low}}\le\lambda_1$ and $\lambda_4\ge\Lambda_4>\lambda_1$, then
+\[
+m(w)\le\frac{\mu-\lambda_{\mathrm{low}}}{\Lambda_4-\lambda_{\mathrm{low}}}\,m(u),\qquad
+q(w)\le\frac{(\mu-\lambda_{\mathrm{low}})\Lambda_4}{\Lambda_4-\lambda_{\mathrm{low}}}\,m(u).
+\]
+\end{lemma}
+
+\begin{proof}
+$w$ is orthogonal to $E\oplus\R1$ in both $m$ and $q$, so $q(w)\ge\lambda_4m(w)$ and
+$q(u)-\lambda_1m(u)=q(w)-\lambda_1m(w)\ge\max\{(\lambda_4-\lambda_1)m(w),(1-\lambda_1/\lambda_4)q(w)\}$.
+Since $\mu<\Lambda_4$, both right-hand sides decrease when $\lambda_{\mathrm{low}}$ is replaced by
+$\lambda_1$ or $\Lambda_4$ by $\lambda_4$, so the stated bounds follow.
+\end{proof}
+
+This is where the lower bound for $\lambda_1$ enters the certificates of
+Sections~\ref{subsec:Anonzero-cert} and~\ref{subsec:sign-cert}; we use $\Lambda_4=4.0$ and
+$\lambda_1$ in the ball
+\[
+3.83888149202636215\pm5.791\times10^{-6}=[3.838875701026362,\,3.838887283026362].
+\] This ball contains
+$[3.8388757010527243,\,3.8388872829261946]$, the interval given by Proposition~\ref{prop:LG} and the $P_2$
+bound. The scripts differ from the original ones only in this ball and the output file name.
+
+\emph{Alternative with Hypothesis~\ref{hyp:SU}.} The original runs used the ball
+$3.8388872588\pm1.0000001\times10^{-6}$. That ball's lower
+end lies $4.2\times10^{-11}$ below the lower end of Hypothesis~\ref{hyp:SU} (conservative), and its
+upper end, $4.2\times10^{-11}$ below that of Hypothesis~\ref{hyp:SU}, is covered by the certified
+$P_2$ bound $\lambda_1\le3.8388872830$. A re-run of the sign certificate with the exact lower end
+$3.83888625884$ gives $-12.850504$ ($n=96$).
+
+\subsection{The certificate for $A\ne0$}\label{subsec:Anonzero-cert}
+The pulled-back forms along the deformation $x(t)$ of Proposition~\ref{prop:Anonzero} are those
+of~\eqref{eq:forms}, and $b=q'-\lambda_1m'$ is computed elementwise by forward-mode dual numbers over
+Arb, using $\frac{d}{dt}\int pQ^{-s}=\int\dot pQ^{-s}-s\int p\dot QQ^{-s-1}$. Let $x$ be the (untrusted)
+float $P_1$ eigencombination minimising $b$, and $u=x-(m(x,1)/m(1,1))\cdot1$, exactly
+$m$-orthogonal to constants. With $e=P_Eu$ and $w=u-e$,
+\[
+b(e,e)=b(u,u)-2b(u,w)+b(w,w),
+\]
+and
+$|b(u,w)|\le(\sum_T\beta_T^2q_T(u))^{1/2}q(w)^{1/2}+\lambda_1(\sum_T\beta_{\rho,T}^2m_T(u))^{1/2}m(w)^{1/2}$,
+$|b(w,w)|\le\beta_{\max}q(w)+\lambda_1\beta_{\rho,\max}m(w)$, where $-\beta_Ta_T\le\dot a_T\le\beta_Ta_T$ and
+$|\dot\rho_T|\le\beta_{\rho,T}\rho_T$ are enclosed in Arb over a parameter box containing the simplex.
+Here $\beta_T\ge\|N^{-1}\dot N\|_F+|\dot D/D+\dot Q/(2Q)|$ and $\beta_{\rho,T}\ge|\dot D/D-1.5\,\dot Q/Q|$.
+Finally $m(e)=m(u)-m(w)>0$, so $e\ne0$. The results are in Table~\ref{tab:Anonzero}; at $n=192$,
+$b(e,e)\le-3.0383476242423058\cdot m(u)$ with the ball of Section~\ref{subsec:transfer}
+($-3.0875694043934345\cdot m(u)$ with the ball of Hypothesis~\ref{hyp:SU}). An independent re-run
+without the symmetry shortcut gives $-3.0383476316928864\cdot m(u)$.
+
+The printed $\beta_{\max}\approx33$ is mostly enclosure overestimation (Frobenius norm and
+dependency over a box containing the simplex), not geometry: at the side-midpoint elements the
+sampled true supremum is about $3.3$. Overestimation is safe. The certificate survives any
+$\lambda_1$ lower bound $\ge3.83788$; with $\lambda_4\ge3.9$ it still gives $-1.89$; and a mesh-only
+deformation, for which $A=0$ exactly, is correctly not certified ($+1.409$).
+
+\emph{Symmetry shortcut.} The deformation and the mesh are invariant under the rotation by
+$\pi/2$, and the eight sectors are congruent blocks with identical local node order, so only two
+sectors are computed. This is justified by exact invariance and was checked against the full
+computation at $n=48$ (identical output) and by an independent computation of all $4608$ elements
+at $n=16$ ($55\,296$ pairs of entry enclosures, none non-overlapping).
+
+\subsection{The sign certificate}\label{subsec:sign-cert}
+
+\emph{Correctors (untrusted).} $\psi_i$ solves the discrete first-order system
+$(K-\bar\lambda M)\psi_i=-(K'-\bar\lambda M')x_i$ on the $M$-complement of $\{x_1,x_2,x_3,1\}$, then
+adds $-\tfrac12\sum_jm'(x_i,x_j)x_j$ (so $M_1\approx0$) and $-m'(x_i,1)/m(1,1)$ (so $c_1\approx0$). These
+choices only sharpen the bound.
+
+\emph{Jets.} Everything is computed with order-$2$ Taylor jets in $p$ over Arb: the vertices
+($\FB$ in closed form), the mesh nodes, $N=\operatorname{adj}(LL^{\mathsf T}-QG)$, $D$, $Q$ and the
+integrals, using
+$Q(p)^{-s}=Q_0^{-s}[1-s(Q_1/Q_0)p+(-sQ_2/Q_0+\tfrac{s(s+1)}2(Q_1/Q_0)^2)p^2+\cdots]$.
+Element derivatives agree with central differences to $O(h^2)$.
+
+\emph{Transfer.} Put $u_i=x_i-c_i1$ with $c_i=m(x_i,1)/m(1,1)$ enclosed in Arb, $e_i=P_Eu_i$ and
+$w_i=u_i-e_i$. Lemma~\ref{lem:transfer} bounds $w_i$ (Table~\ref{tab:eta}). Every entry of $X,A,M_1,c_1,M_0$
+at $e$ is its value at $u$ plus cross terms in $w$, bounded using elementwise relative bounds
+$-\beta^1a\le\dot a\le\beta^1a$, $-\beta^2a\le\ddot a\le\beta^2a$ (and similarly for $\rho$), enclosed over
+three boxes covering the simplex; quadratic terms in $w$ use $\beta_{\max}$. The $3\times3$ algebra is
+done in Arb.
+
+\emph{Result.} At $n=96$, with the ball of Section~\ref{subsec:transfer}:
+$g''(0)\le-9.341154560446736$, central value $[-14.274\pm2.13\times10^{-4}]$ (an independent re-run gives
+$-9.341154566965994$). The distances to $E\oplus\R1$ are larger than with Hypothesis~\ref{hyp:SU}
+(Table~\ref{tab:eta}), because they are dominated by the width of the $\lambda_1$ ball.
+
+\emph{Alternative with Hypothesis~\ref{hyp:SU}.} At $n=96$:
+$g''(0)\le-12.850476214196528$, central value $[-14.2742\pm2.23\times10^{-5}]$; the joint transfer
+error is about $1.42$, so the margin is about nine times the error. The rest of this subsection
+refers to these runs. Table~\ref{tab:sign} lists the
+results for $n=24,48,96$ and Table~\ref{tab:budget} the error budget. The breakdown rows of
+Table~\ref{tab:budget} are ``one at a time'' (each error group switched on alone); they do not add
+up to the joint error, and adding them to the central value would give about $-12.864$, which is
+\emph{below} the certified value. Only the joint ball is a bound.
+
+\emph{Robustness.} The symmetry shortcut is not needed: runs without it certify at $n=24$ and
+$n=48$ ($-12.566084126010532$), and an independent re-run without it at $n=96$ gives
+$-12.850476213730866$. The $\beta$ values are enclosure values: on about $150$ sampled elements the
+ratio of the observed to the enclosed value is at most $0.70$ ($\beta^1$), $0.89$ ($\beta^2$), $0.99$
+($\beta^1_\rho$) and $0.97$ ($\beta^2_\rho$).
+
+\emph{Sensitivity to the $\lambda_1$ lower bound.} The $n=96$ certificate holds for every rigorous
+lower bound $\lambda_1\ge3.8388029653$ and fails at $3.8388029297$. The bound of
+Proposition~\ref{prop:LG} clears this threshold by about $7.3\times10^{-5}$.
+
+\emph{Negative controls.} Each of the following fails to certify, as it should: $\psi=0$;
+$\lambda$-radius $10^{-4}$; $\lambda_4=3.84$; a $\lambda$-ball excluding the true eigenvalue.
+
+\emph{Independent floating-point checks (not part of the proof).} A separately written conforming
+$P_1$ code on a different mesh, with re-meshed finite differences, gives $\Lambda''\approx-14.26$ by
+Richardson extrapolation at $n=64/128$; the five-point difference of the discrete $P_2$ cluster sum
+gives $-14.2739$ at $n=24$.
+
+\subsection{Rank certificates}\label{subsec:rank-cert}
+
+\begin{proposition}\label{prop:rankJ}
+The $5\times16$ constraint Jacobian $J$ at $\xB$ has rank $5$: its minor in columns $(0,2,5,7,8)$ has
+determinant $[46151927.03406868578682884302258\pm2.89\times10^{-24}]$. For the regular octagon,
+$d(\text{angle sum})/dR=[-5.572971195984104378981991909236\pm5.18\times10^{-31}]$, in agreement with
+the closed form $8\,d\theta/dR$.
+\end{proposition}
+
+\emph{Proof of Proposition~\ref{prop:G3}.} The pairings $g_k$ are computed in Arb at $128$ bits
+from the frame formula of Section~\ref{subsec:octspace}, with derivatives by forward-mode dual
+numbers (no finite differences). At $\xB$, $|g_kV_{k+4}-V_{k+1}|,|g_kV_{k+5}-V_k|\le1.2\times10^{-29}$,
+$|\mathsf B g_k^{\mathsf T}\mathsf Bg_k-I|\le4.4\times10^{-29}$, the constraints enclose $0$, and
+$\tr g_k$ overlaps $1+2\cosh(2\arccosh(1+\sqrt2))=22.3137084989848$, so each $g_k$ translates by the
+systole. The six traces at $\xB$ are $340.705627484771$ ($g_0g_1,g_1g_2,g_2g_3$) and
+$134.882250993909$ ($g_0G_2,g_1g_3,g_1G_3$). A basis of $\ker J$ is formed exactly in Arb from the
+pivot minor of Proposition~\ref{prop:rankJ}, $T_b=[-J_{\mathrm{piv}}^{-1}J_{\mathrm{free}};I]$, using the
+remaining $11$ coordinates as free parameters. The resulting $6\times11$ Jacobian has $392$ of its
+$462$ maximal minors certified nonzero; the best uses tangent columns $(1,3,5,7,8,10)$, i.e.\ the
+free coordinates $3,6,10,12,13,15$, with determinant $[7872428136359854080.0\pm3\times10^{-6}]$. As a
+cross-check, an $11\times11$ minor of the stacked $[J;J_f]$ has determinant
+$[-1.3827971011809151404\times10^{24}\pm2.74\times10^4]$. \qed
+
+The four generator traces $\tau_{g_k}$ have rank only $3$ on $T_{\xB}\Oct$, and several
+symmetric-looking six-word sets have rank $5$ at $B$; these coincidences are forced by the octagon
+symmetry, which is why the specific words above are used. In an orthonormal tangent basis the six
+rows have singular values between $5.7\times10^3$ and $2.65\times10^2$ (floating point).
+
+%======================================================================
+\section{Proof of the Main Theorem}\label{sec:proof}
+%======================================================================
+
+\begin{proof}
+Item~(i) is Lemma~\ref{lem:isolation}, and item~(ii) is Corollary~\ref{cor:rank} with
+Section~\ref{sec:symmetry}. Work in the chart $\Sl$ of Lemma~\ref{lem:chart}.
+\begin{enumerate}
+\item $\Lambda_\Sl$ is real-analytic, and $M_\Sl$ has the expansion of Theorem~\ref{thm:F1} with first-order
+term $A\circ\sigma$ (Lemma~\ref{lem:N}(a), Lemma~\ref{lem:chart}(d)); $\tr(A\circ\sigma)\equiv0$
+(Proposition~\ref{prop:trA}).
+\item $K_\Sl:=\ker(A\circ\sigma)=\sigma^{-1}(K_0)$ is $3$-dimensional (Corollary~\ref{cor:rank};
+$\sigma$ is an isomorphism by Lemma~\ref{lem:chart}(b)).
+\item $dp\,\vB\in K_\Sl\setminus\{0\}$, since $\sigma(dp\,\vB)=\sigma(\vB)=\wB\in K_0\setminus\{0\}$
+(Lemmas~\ref{lem:FBline} and~\ref{lem:chart}(c)), and
+$D^2\Lambda_\Sl(dp\,\vB,dp\,\vB)=D^2\Lambda_\Oct(\vB,\vB)\le-9.3411$ (Proposition~\ref{prop:sign},
+Lemma~\ref{lem:chart}(c)). This is item~(iv).
+\item By Lemma~\ref{lem:Ginv}, $D^2\Lambda_\Sl|_{K_\Sl}=c\cdot\sigma^*\gin$. By step~3,
+$c\,\gin(\wB,\wB)\le-9.3411$, so $c<0$ and $D^2\Lambda_\Sl|_{K_\Sl}$ is negative definite. This is
+item~(iii), and hypothesis~(b) of Lemma~\ref{lem:criterion} holds with $\kappa>0$.
+\item Lemma~\ref{lem:criterion} gives $\lambda_1(\pi(x))=\lambda_{\min}M_\Sl(x)<\ls$ for $x\in\Sl$ near $\xB$,
+$x\ne\xB$. Case~(i) of its proof gives the first-order statement of item~(iii).
+\item Since $\pi|_\Sl$ is a homeomorphism onto a neighbourhood $N$ of $B$ (Lemma~\ref{lem:chart}(a)),
+$\lambda_1<\lambda_1(B)$ on $N\setminus\{B\}$.\qedhere
+\end{enumerate}
+\end{proof}
+
+\begin{table}[!htbp]
+\caption{External inputs. ``Quoted'' means a published statement used without re-proof.}
+\label{tab:deps}
+\small
+\begin{tabular}{@{}p{0.5\textwidth}p{0.18\textwidth}p{0.24\textwidth}@{}}
+\toprule
+Input & Used in & Status\\
+\midrule
+Lehmann--Goerisch theorem~\cite[Thms.~4.1, 4.3]{LiuPlum}; second source~\cite[Thm.~2.1]{BMPW} as reproduced in~\cite[\S2]{Vej18} &
+Proposition~\ref{prop:LG}, hence Lemma~\ref{lem:transfer} & quoted from secondary sources; Goerisch's original papers not read\\
+Selberg trace formula in the normalisation of~\cite[(3.1)]{FBP-K} (from~\cite{Bus10});
+\cite[Lemma~3.2]{FBP-K} and its proof & Lemma~\ref{lem:isolation}(a) & quoted\\
+Systole $2\arccosh(1+\sqrt2)$ and multiplicities $\ge12,12,24$~\cite[\S7.4]{FBP-K} & Lemma~\ref{lem:isolation}(a), hence $\rho=5$ in Proposition~\ref{prop:LG} & quoted; lower bounds only\\
+No $1$- or $2$-dimensional irreducibles in the $\lambda_1$-eigenspace~\cite[Lemmas~7.2--7.3]{FBP-K} & Lemma~\ref{lem:isolation}(c) (not Proposition~\ref{prop:LG}) & quoted\\
+$|\Isom(B)|=96$, $\Isom^+(B)\cong GL(2,3)$, octahedral quotient~\cite[\S7.1]{FBP-K}; finite $S_4\subset PSL(2,\C)$ is octahedral & Section~\ref{sec:symmetry} & quoted / standard\\
+$T_B\Teich\cong\{\operatorname{Re}\varphi\}$~\cite{Maz,Tro92,DW} & Lemma~\ref{lem:N}, Section~\ref{sec:symmetry} & quoted\\
+Fischer--Marsden splitting (as stated in~\cite[Rem.~3.3]{Maz}) & Lemma~\ref{lem:N} & quoted\\
+Min-max (\cite[Thm.~1.22]{Coo18}, from Chavel); Ky Fan~\cite{Mos,Fan49,Fan50} & Lemmas~\ref{lem:isolation}, \ref{lem:KyFan} & quoted; Ky Fan reduced to min-max\\
+Elliptic regularity, Rellich compactness, spectral theorem, Neumann series, Riemannian centre of
+mass in $\Hyp$, Poincar\'e polygon theorem, invariance of domain & Sections~\ref{sec:setup}--\ref{sec:second} & standard\\
+$\Teich$ is a topological $6$-manifold~\cite{FN}; continuity of the extended mapping class group action & Lemmas~\ref{lem:chart}, \ref{lem:Ginv} & quoted / standard\\
+python-flint~0.9.0 (Arb), sympy~1.14.0 & Section~\ref{sec:cert} & trusted software\\
+\midrule
+\emph{Optional, not used:} Hypothesis~\ref{hyp:SU}~\cite[\S5]{SU13} & cross-check; alternative constants & quoted\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%======================================================================
+\section{Formal verification in Lean}\label{sec:lean}
+%======================================================================
+
+We formalised the finite-dimensional part of the argument in Lean~4 (toolchain v4.34.1, with
+Mathlib). The development has about $2250$ lines in $8$ files and contains no \texttt{sorry}, no
+\texttt{axiom} declarations and no \texttt{native\_decide}. Its main theorem is
+\begin{align*}
+&\texttt{theorem Bolza.bolza\_strict\_local\_max (I : BolzaInputs)}:\\
+&\qquad\forall^{\mathrm{f}}X\in\mathcal N(\texttt{I.B}),\ \ X\ne\texttt{I.B}\ \Rightarrow\ \texttt{I.lam1}\,X<\texttt{I.lam1}\,\texttt{I.B},
+\end{align*}
+where $\forall^{\mathrm f}X\in\mathcal N(\cdot)$ is Mathlib's ``eventually in the neighbourhood filter''
+and \texttt{\#print axioms} reports only \texttt{propext}, \texttt{Classical.choice} and
+\texttt{Quot.sound}.
+
+\subsection{Scope}
+Every analytic, geometric and computational input is a named field (an explicit hypothesis) of the
+structure \texttt{BolzaInputs}. These fields encode: $\Teich$ as a topological space and the chart
+of Lemma~\ref{lem:chart}(a); the cluster matrix of Theorem~\ref{thm:F1} ($C^2$, symmetric, $M(0)=\ls I$,
+$\lambda_1\le$ Rayleigh quotients); the representation of $G$ on $E$ and the equivariance of
+Lemma~\ref{lem:N}(b); irreducibility of $E$; the group relations used in
+Proposition~\ref{prop:K0kerA}; $A\ne0$; the invariance of Lemma~\ref{lem:Ginv}; the vector $\wB$ and
+its symmetries; the curve $\FB$ in the chart; the operator Ky Fan comparison; and the certified
+value of $g''(0)$.
+
+Machine-checked from these inputs are: the local-maximum criterion (Lemma~\ref{lem:criterion}) in
+$C^2$ form, including a uniform second-order Taylor theorem; $\tr A\equiv0$; $K_0\subset\ker A$,
+$\ker A\subset K_0$ and $D^2\Lambda|_{K_0}=c\,I$; the exact line of Lemma~\ref{lem:FBline}; the step
+$c<0$; the finite-dimensional Ky Fan theorem; the step $(\Lambda\circ\gamma)''\le g''$ from the Ky Fan
+comparison; and the second-order chain rule turning it into $D^2\Lambda(\wB,\wB)\le-12.8504$. The exact
+representation theory (the $48$-element image group, characters and multiplicities, generator
+matrices, change of basis) is checked by kernel evaluation. The final arithmetic of each certificate
+(e.g.\ $0.912612<1$, $3.869661<4$, $-12.850476214196528\le-12.8504$, the determinant enclosures
+excluding $0$) is checked by \texttt{norm\_num}. A toy instance of \texttt{BolzaInputs} shows that
+the hypotheses are jointly satisfiable; it says nothing about $B$.
+
+\subsection{Limits}
+The Lean development does \emph{not} verify: that the fields of \texttt{BolzaInputs} hold for the
+Bolza surface (this is the content of Theorem~\ref{thm:F1}, Lemmas~\ref{lem:N}, \ref{lem:chart}
+and~\ref{lem:Ginv}, the certificates, and the quoted results); the Arb computations themselves;
+the operator min-max and Ky Fan inequality on $H^1$; or the identification of the exact matrices
+with the geometric action on TT tensors. The step from character norm $1$ to absolute
+irreducibility is not formalised; instead, the facts actually used (Schur-type invariant forms on
+$K_0$, the absence of invariant subspaces in $W_0$, and the involution argument) are proved
+directly over $\R$.
+
+The Lean development was written against the constant $-12.8504$ of the run under
+Hypothesis~\ref{hyp:SU}. The argument uses that constant only through $c<0$, so the SU-free constant
+$-9.3411$ plays the same role. The corresponding \texttt{norm\_num} check
+($-9.341154560446736\le-9.3411$) and the Lehmann--Goerisch step have not been added to the
+formalisation.
+
+\subsection{Observations from the formalisation}
+\begin{enumerate}
+\item The hypothesis $A\ne0$ is not needed for Lemma~\ref{lem:criterion}; symmetry of $M$ is used only
+to pass to an eigenvalue statement. The constant $c_A$ comes from an elementary bound: a traceless
+symmetric $3\times3$ matrix $S$ has a test vector with entries in $\{0,\pm1\}$ and $x^{\mathsf T}Sx\le-\|S\|_{\sup}/4$.
+\item $\tr A\equiv0$ needs equivariance under $r$ only.
+\item Both $\ker A=K_0$ and the scalar form of the Hessian genuinely use the non-octagon element
+$t$ (Section~\ref{subsec:D8}).
+\item As noted after Table~\ref{tab:budget}, the one-at-a-time error rows of the sign certificate
+are not additive; only the joint enclosure is checked.
+\end{enumerate}
+
+%======================================================================
+\section{Remarks and open problems}\label{sec:remarks}
+%======================================================================
+
+\begin{remark}[The input from~\cite{SU13}, and the weakest inputs]\label{rem:SU}
+An earlier version of the proof depended on Hypothesis~\ref{hyp:SU}. It rests on a single sentence
+of~\cite[\S5]{SU13} reporting a rigorous implementation whose code is unpublished, and the
+sentence does not say whether the error $10^{-6}$ is absolute or relative. Proposition~\ref{prop:LG}
+removes this dependence. Hypothesis~\ref{hyp:SU} remains consistent with our enclosure
+$[3.8388757010,3.8388872830]$. If it is assumed, the constants improve to $-12.8504$ (second order)
+and $-3.0875\cdot m(u)$ (first order). The second-order certificate needs only
+$\lambda_1(B)\ge3.8388029653$; under Hypothesis~\ref{hyp:SU} this leaves $83$ times its stated error,
+and it still holds if that error is read as relative ($n=48$, radius $10^{-5}$, gives $-9.43$).
+
+The weakest inputs are now quoted results rather than computations:~\cite[Lemmas~7.2--7.3]{FBP-K}
+(for multiplicity $3$), the geodesic data of~\cite[\S7.4]{FBP-K} with the trace formula (for
+$\lambda_4>4.0$, which is the load-bearing hypothesis $\rho=5$ of Proposition~\ref{prop:LG}), and the
+Lehmann--Goerisch theorem. We quote the latter from secondary sources~\cite{LiuPlum,Vej18}
+(the second reproducing~\cite{BMPW}); we have not read Goerisch's original papers. A sharper lower
+bound is available by refining the mesh ($n=96$ was not run). Other routes would be Liu-type
+projection bounds, nonconforming elements in the spirit of~\cite{CG14} (whose interpolation estimate
+does not directly apply to projectively glued edges), or an a posteriori bound for the method of
+particular solutions.
+\end{remark}
+
+\begin{remark}[Strohmaier's mechanism]\label{rem:Str16}
+Off $K$, case~(i) of Lemma~\ref{lem:criterion} shows that $\lambda_1$ drops linearly, and since $A(w)$ is
+traceless and nonzero the three branches split to first order; this is consistent with the
+statement of~\cite{Str16} that no branch is extremal. On $K$ the first-order term vanishes, all three
+branches are stationary, and $\lambda_1$ has a strict quadratic maximum. Numerically, along $\FB$ we
+observe $\lambda_1=\lambda_1(B)-21.2p^2+O(p^4)$ with $\lambda_2=\lambda_3$ having a minimum, while along the
+equilateral family $\FA$ (tangent to $\delta$) $\lambda_1=\lambda_1(B)-5.715|p|+O(p^2)$. These values are
+numerical (uncertified finite-element computations) and are not used in the proof. The coincidence
+$\lambda_2\equiv\lambda_3$ along $\FB$ is also only observed numerically; the stabiliser of $\wB$ in $G$ has
+order $16$ and contains the involution $u\colon x\mapsto i/x$, which suggests an explanation, but we
+have not completed it.
+\end{remark}
+
+\begin{remark}[Global maximality]
+The Main Theorem does not bear on global maximality, which remains open. Combining the rigorous
+bound of~\cite{KMP} with Proposition~\ref{prop:LG} shows only that no genus-two surface exceeds
+$\lambda_1(B)$ by more than $3.8388976481-3.8388757010$ (about $1.1\times10^{-5}$ with
+Hypothesis~\ref{hyp:SU}), and~\cite{Rad} indicates that the existing
+single-correlator bootstrap will not close this gap. A quantitative version of our result, giving an
+explicit neighbourhood $N$, together with an improved global bound, could in principle reduce the
+global problem to a compact region away from $B$. We have not attempted this.
+\end{remark}
+
+\begin{remark}[Further questions]
+\begin{enumerate}
+\item Is $B$ a non-degenerate local maximum in the sharper sense $\lambda_{\min}Q_2|_K<0$, and what is
+the second-order behaviour of the individual branches on $K$?
+\item The method uses only: a symmetric surface whose $\lambda_1$-cluster is isolated, symmetry forcing
+$\tr A\equiv0$, an exact identification of $\ker A$, irreducibility of $\ker A$, and one certified
+second-order direction. Fortier Bourque and Petri suggest that $m_1$ should be maximised among local
+maximisers of $\lambda_1$~\cite[\S9]{FBP-LP}; it would be natural to apply the same method to other
+conjectured maximisers, such as the Klein quartic in genus three~\cite{FBP-K,FBP-LP}.
+\item Can the remaining analytic inputs (Theorem~\ref{thm:F1}, Lemma~\ref{lem:N}) and the Arb
+certificates be brought into the formal verification?
+\end{enumerate}
+\end{remark}
+
+\subsection*{Acknowledgements}
+The computations, proofs and reviews in this work were produced with Claude (Anthropic) AI agents.
+Each component was independently re-checked by separate agent reviewers, who re-ran the key
+certificates and re-derived the main formulas. A check by a human expert is pending. The author is
+responsible for any remaining errors.
+
+%======================================================================
+\appendix
+\section{Certificate data}\label{app:data}
+%======================================================================
+
+All values are copied from the output files listed in Appendix~\ref{app:repro}. Enclosures
+$[m\pm r]$ are Arb balls.
+
+\begin{table}[!htbp]
+\caption{Trace formula counts (Lemma~\ref{lem:isolation}(a)); $N=21$.}\label{tab:LP}
+\small
+\resizebox{\textwidth}{!}{\begin{tabular}{@{}lllll@{}}
+\toprule
+Run & $s$ & Window & $c\ge$ & Certified bound\\
+\midrule
+A (Lemma~\ref{lem:LemmaA}) & $1$ & $[0,3.3]$ & $0.9816424759937855$ & $[0.912612352675290375\pm9.95\times10^{-20}]<1$\\
+B (\cite[Lemma~3.2]{FBP-K}) & $13/10$ & $[3.3,4.0]$ & $0.9964283521820437$ & $[3.86966111976973759\pm1.65\times10^{-18}]<4$\\
+sanity & $13/10$ & $[3.3,3.9]$ & & $3.4803\ \ (\ge3)$\\
+sanity & $13/10$ & $[3.3,5.4]$ & & $7.5466\ \ (\ge7)$\\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\begin{table}[!htbp]
+\caption{Certified $P_1$ Rayleigh--Ritz bounds at $B$.}\label{tab:P1}
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+$n$ & certified $\lambda_3(B)\le$ & area$/4\pi$\\
+\midrule
+48 & $3.843638188137345$ & $[1.000000\pm1.50\times10^{-8}]$\\
+96 & $3.8400767924773938$ & $[1.000000000\pm5.73\times10^{-11}]$\\
+192 & $3.839184804702046$ & $[1.00000000000\pm2.23\times10^{-13}]$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[!htbp]
+\caption{Certified $P_2$ Rayleigh--Ritz bounds at $B$.}\label{tab:P2}
+\small
+\begin{tabular}{@{}lllll@{}}
+\toprule
+$n$ & dofs & certified $\lambda_3(B)\le$ & certified $\lambda_1+\lambda_2+\lambda_3\le$ & area$/4\pi$\\
+\midrule
+24 & 9\,214 & $3.838893606899935$ & $11.516677957238421$ & $[1\pm2.21\times10^{-10}]$\\
+48 & 36\,862 & $3.8388876433743824$ & $11.516662767334967$ & $[1\pm1.16\times10^{-14}]$\\
+96 & 147\,454 & $3.8388872829261946$ & $11.516661838577997$ & $[1\pm1.19\times10^{-18}]$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[!htbp]
+\caption{Certificate for $A\ne0$ (per unit $t$, $m(u)$ normalised to $1$). The $n=48$ row fails to
+certify.}\label{tab:Anonzero}
+\small
+\resizebox{\textwidth}{!}{\begin{tabular}{@{}lllllll@{}}
+\toprule
+$n$ & $\mu=R(u)$ & $b(u,u)$ & $m(w)\le$ & $q(w)\le$ & transfer error & $b(e,e)\le$\\
+\midrule
+48 & $3.8420704$ & $-4.808678$ & $0.0198$ & $0.0790$ & $9.08$ & $+4.27$\\
+96 & $[3.8396833301\pm4.94\times10^{-11}]$ & $[-4.806689\pm1.39\times10^{-7}]$ & $0.00494$ & $0.0198$ & $3.78$ & $-1.0282409843057394$\\
+192 & $[3.839086294670\pm5.19\times10^{-13}]$ & $[-4.806192\pm1.96\times10^{-7}]$ & $0.0012$ & $0.0049$ & $1.71$ & $-3.0875694043934345$\\
+\midrule
+\multicolumn{7}{@{}l}{\emph{SU-free ball (Section~\ref{subsec:transfer}); the rows above use the ball of Hypothesis~\ref{hyp:SU}}}\\
+96 & $[3.8396833301\pm4.94\times10^{-11}]$ & $[-4.806689\pm8.00\times10^{-7}]$ & $[0.0050\pm5.95\times10^{-5}]$ & $[0.020\pm2.38\times10^{-4}]$ & $[3.8\pm0.0246]$ & $-0.9989201873540878$\\
+192 & $[3.839086294670\pm5.19\times10^{-13}]$ & $[-4.806193\pm8.81\times10^{-7}]$ & $[0.0013\pm6.49\times10^{-5}]$ & $[0.005\pm2.29\times10^{-4}]$ & $[1.7\pm0.0679]$ & $-3.0383476242423058$\\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\begin{table}[!htbp]
+\caption{Sign certificate along $\FB$ ($P_2$).}\label{tab:sign}
+\small
+\begin{tabular}{@{}lllll@{}}
+\toprule
+$n$ & dofs & central $g''(0)$ & certified $g''(0)\le$ & transfer error\\
+\midrule
+24 & 9\,214 & $-14.2738$ & $-9.7138$ & $4.56$\\
+48 & 36\,862 & $-14.2742$ & $-12.566084055230016$ & $1.71$\\
+96 & 147\,454 & $[-14.2742\pm2.23\times10^{-5}]$ & $-12.850476214196528$ & $1.42$\\
+\midrule
+96 (SU-free ball) & 147\,454 & $[-14.274\pm2.13\times10^{-4}]$ & $-9.341154560446736$ & \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\parbox{0.9\textwidth}{\footnotesize The first three rows use the ball of Hypothesis~\ref{hyp:SU};
+the last row uses the ball of Section~\ref{subsec:transfer} and is the one used in the proof. The rows use the $\pi/2$-symmetry shortcut. Without it:
+$n=24$ certifies with the same result, $n=48$ gives $-12.566084126010532$, and an independent re-run
+at $n=96$ gives $-12.850476213730866$.}
+\end{table}
+
+\begin{table}[!htbp]
+\caption{Certified distances to $E\oplus\R1$ at $n=96$ (Lemma~\ref{lem:transfer}).}\label{tab:eta}
+\small
+\begin{tabular}{@{}llll@{}}
+\toprule
+$i$ & $\mu_i=R(u_i)$ & $\sqrt{q(w_i)}\le$ & $\sqrt{m(w_i)}\le$\\
+\midrule
+1 & $[3.838887277826\pm2.34\times10^{-13}]$ & $5.0299\times10^{-3}$ & $2.515\times10^{-3}$\\
+2 & $[3.8388872778258\pm8.95\times10^{-14}]$ & $5.0299\times10^{-3}$ & $2.515\times10^{-3}$\\
+3 & $[3.838887282926\pm2.30\times10^{-13}]$ & $5.0425\times10^{-3}$ & $2.521\times10^{-3}$\\
+\midrule
+\multicolumn{4}{@{}l}{\emph{SU-free ball (used in the proof)}}\\
+1 & $[3.838887277826\pm2.34\times10^{-13}]$ & $0.016953498968304958$ & $0.008476749477446675$\\
+2 & $[3.8388872778258\pm8.95\times10^{-14}]$ & $0.016953498968304958$ & $0.008476749477446675$\\
+3 & $[3.838887282926\pm2.30\times10^{-13}]$ & $0.016957233113081952$ & $0.00847861654983665$\\
+\bottomrule
+\end{tabular}
+
+\medskip
+\parbox{0.9\textwidth}{\footnotesize The first three rows use the ball of Hypothesis~\ref{hyp:SU}. There
+$\mu_i-\lambda_{\mathrm{low}}\approx1.02\times10^{-6}$ is almost entirely the width of the $\lambda_1$
+interval (the discretisation part is about $2\times10^{-8}$). With the wider SU-free ball the distances
+are correspondingly larger. In both cases they cannot be reduced by refining the mesh, only by a sharper
+lower bound for $\lambda_1$.}
+\end{table}
+
+\begin{table}[!htbp]
+\caption{Error budget of the sign certificate at $n=96$, for the run with the ball of
+Hypothesis~\ref{hyp:SU} (alternative constant; the proof uses $-9.341154560446736$). Rows below the central value are
+one-at-a-time contributions (upper end minus central value with only that group switched on); they
+are not additive.}\label{tab:budget}
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+Term & Value\\
+\midrule
+$T_2=\tr(q''-\ls m'')(u,u)$ (float) & $45.635701833848785$ \\
+\quad diagonal (certified) & $[15.613361,\ 15.613361,\ 14.408980]$\\
+coupling ($\psi$ terms, float) & $-59.9099$\\
+\quad $(q-\ls m)(\psi_i)$ & $0.797,\ 0.797,\ 28.361$\\
+central $g''(0)$ & $[-14.2742\pm2.23\times10^{-5}]$\\
+\midrule
+$X_1$: $4\,b(\psi,w)$ cross terms & $+0.839368$\\
+$X_2$: $2(q''-\ls m'')(u,w)$ and $w$--$w$ terms & $+0.570060$\\
+$M_0$ & $+4.6\times10^{-4}$\\
+$A$, $M_1$, $c_1$ & $1.5\times10^{-5}$, $1.5\times10^{-5}$, $7.4\times10^{-5}$\\
+\midrule
+certified upper bound (joint ball) & $-12.850476214196528$\\
+\bottomrule
+\end{tabular}
+
+\medskip
+\parbox{0.9\textwidth}{\footnotesize Enclosure maxima at $n=96$: $\beta^1_{\max}=13.2$,
+$\beta^2_{\max}=38.1$, $\beta^1_\rho,\beta^2_\rho\le1.49,1.35$; energy-weighted rms values $4.2/9.1$ for
+$u$ and $4.6$ ($\psi_1,\psi_2$), $4.0$ ($\psi_3$) for $\psi$.}
+\end{table}
+
+\begin{table}[!htbp]
+\caption{Rank certificates.}\label{tab:rank}
+\small
+\begin{tabular}{@{}p{0.42\textwidth}p{0.5\textwidth}@{}}
+\toprule
+Quantity & Certified value\\
+\midrule
+$5\times5$ minor of $J$, columns $(0,2,5,7,8)$ & $[46151927.03406868578682884302258\pm2.89\times10^{-24}]$\\
+$d(\text{angle sum})/dR$, regular octagon & $[-5.572971195984104378981991909236\pm5.18\times10^{-31}]$\\
+$\tr g_k$, $k=0,\dots,3$ & $[22.3137084989848\pm3.97\times10^{-14}]$\\
+nonzero $6\times6$ minors of the trace Jacobian & $392$ of $462$\\
+best minor, tangent columns $(1,3,5,7,8,10)$ & $[7872428136359854080.0\pm3\times10^{-6}]$\\
+$11\times11$ cross-check minor of $[J;J_f]$ & $[-1.3827971011809151404\times10^{24}\pm2.74\times10^{4}]$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[!htbp]
+\caption{Exact characters (Proposition~\ref{prop:chars} and Section~\ref{sec:symmetry}).}\label{tab:chars}
+\small
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+ & $r$ & $r^2$ & $J$ & $t$ & $\smid$ & $\svert$\\
+\midrule
+$T_B$ & $-2$ & $-2$ & $6$ & $0$ & $0$ & $0$\\
+$K_0$ & $-1$ & & & $0$ & $1$ & $-1$\\
+$W_0$ & $-1$ & & & $0$ & $-1$ & $1$\\
+\bottomrule
+\end{tabular}
+
+\medskip
+\parbox{0.9\textwidth}{\footnotesize $\langle\chi_T,\chi_T\rangle=2$, $\langle\chi_T,1\rangle=0$;
+$K_0$, $W_0$ have norm $1$ and are orthogonal; $\chi_T$ vanishes on all orientation-reversing
+elements. Group: order $96$; $G^+$ element orders $1{:}1$, $2{:}13$, $3{:}8$, $4{:}6$, $6{:}8$, $8{:}12$;
+$D_8$ contains $4$ reflections of $\smid$-type and $4$ of $\svert$-type.}
+\end{table}
+
+\clearpage
+%======================================================================
+\section{Reproducibility}\label{app:repro}
+%======================================================================
+
+The scripts are in \texttt{work/} of the project folder
+(\texttt{items/23-bolza-lambda1-extremality/}) and are run from that directory with the virtual
+environment \texttt{work/.venv} (python-flint~0.9.0, sympy~1.14.0, numpy, scipy), under
+\texttt{nice -n 10} and \texttt{OMP\_NUM\_THREADS=2}. Times are wall-clock on a shared laptop.
+
+\begin{center}
+\small
+\begin{tabular}{@{}p{0.47\textwidth}p{0.3\textwidth}p{0.13\textwidth}@{}}
+\toprule
+Command & Output & Time\\
+\midrule
+\texttt{python lp\_count.py A 3.3 21 1.0} & \texttt{lp\_count.out}, \texttt{lp\_A\_3.3.json} & $\sim3$ s\\
+\texttt{python lp\_count.py B 3.3 4.0 21 1.3} & \texttt{lp\_B\_3.3\_4.0.json} & $\sim3$ s\\
+\texttt{python cert\_rr.py 48 96 192} & \texttt{cert\_rr\_bolza.out} & $\sim8$ min\\
+\texttt{python cert\_rr\_p2.py 24 48 96} & \texttt{cert\_rr\_p2\_bolza.out} & $\sim100$ s\\
+\texttt{SYM=1 python cert\_first\_order.py 96 192} & \texttt{cert\_first\_order.out} & $\sim12$ min\\
+\texttt{python sym\_check\_elements.py 16} & \texttt{sym\_check\_elements.out} & $\sim1$ min\\
+\texttt{python cert\_rank.py} & \texttt{cert\_rank.out} & $\sim5$ s\\
+\texttt{python cert\_dpi\_rank.py} & \texttt{cert\_dpi\_rank.out}, \texttt{.json} & $<1$ s\\
+\texttt{python cert\_chars.py} & \texttt{cert\_chars\_A.out}, \texttt{.json} & $\sim22$ s\\
+\texttt{python cert\_chars.py B 48 96} (not used in the proof) & \texttt{cert\_chars\_B.out} & $\sim4.4$ min\\
+\texttt{python cert\_sign.py 48 96} & \texttt{cert\_sign.out}, \texttt{cert\_sign\_48\_96.json} & $\sim4.3$ min\\
+\texttt{SYM=0 python cert\_sign.py 12 24} & \texttt{cert\_sign\_nosym.out} & \\
+\texttt{SYM=0 python cert\_sign.py 48} & \texttt{cert\_sign\_48\_nosym.out} & \\
+\texttt{python lb\_torus.py} (validation) & \texttt{lb\_torus.out} & \\
+\texttt{python lb\_bolza.py 48} & \texttt{lb\_bolza\_48.out}, \texttt{.json} & $211$ s\\
+\texttt{python lb\_cert\_sign.py 96} & \texttt{lb\_cert\_sign.out}, \texttt{lb\_cert\_sign\_96.json} & $165$ s\\
+\texttt{python lb\_cert\_first\_order.py 96 192} & \texttt{lb\_cert\_first\_order.out}, \texttt{lb\_cert\_first\_order\_}\allowbreak\texttt{96\_192.json} & $195$ s $+$ $718$ s\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The core floating-point geometry is in \texttt{octagon.py}. The Lean development is in
+\texttt{lean/}; it is built by \texttt{lean/build.sh}, which compiles the files
+\texttt{RepTheory}, \texttt{LocalMax}, \texttt{Taylor}, \texttt{RepReal}, \texttt{Certificates},
+\texttt{KyFan}, \texttt{Assembly} and \texttt{Model} with plain \texttt{lean} against prebuilt Mathlib
+\texttt{.olean} files and then prints the axioms of the main declarations (a clean build took
+2~min~33~s).
+
+\emph{Process.} The certificates and written proofs were produced in an AI-assisted workflow
+(see the acknowledgements). Each component was re-checked by a separate reviewer: the
+trace-formula, $P_1$, $\tr A$ and $A\ne0$ certificates; the sign certificate (including an
+independent re-derivation of Lemma~\ref{lem:g2formula}, an independent $P_1$ code, sensitivity
+analysis and negative controls); the representation theory (with an independently written model);
+the proof of Lemma~\ref{lem:N}; the chart certificate and Lemma~\ref{lem:Ginv}, whose
+certificate was re-run with bit-identical output; and the Lehmann--Goerisch lower bound
+(Proposition~\ref{prop:LG}) with the re-certified first- and second-order certificates. That
+reviewer checked the quoted theorem against both secondary sources, redid the final step in
+independent interval arithmetic, re-ran the $n=24$ and torus cases, and re-ran both downstream
+certificates. The review records are kept with the project files.
+
+\bibliographystyle{amsplain}
+\bibliography{refs}
+
+\end{document}

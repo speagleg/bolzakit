@@ -62,9 +62,25 @@ def test_mode_b_is_only_conditionally_valid(certs):
     assert ok and why == "VALID (conditional on lambda_1 >= 33/10)"
     ok, why = check_file(certs["countA"])
     assert ok and why == "VALID"
-    assert check_file(certs["rank"])[1] == "VALID"
-    for k in ("rr", "first_order", "kyfan"):
-        assert check_file(certs[k])[1] == "VALID given stored Gram data"
+    assert check_file(certs["rank"])[1] == ("VALID (rank 6 for g0g1,g0G2,g1g2,g1g3,g1G3,g2g3, surface bolza (Klein "
+                                            "vertices checked against the exact octagon))")
+    assert check_file(certs["rr"])[1] == "VALID given stored Gram data"
+    # the cluster kinds rest on hand-linked lambda_1 / gap inputs: conditional, naming both and their sources
+    assert check_file(certs["first_order"])[1] == (
+        "VALID given stored Gram data (conditional on lambda_1 in [3.85150, 3.85159] [lam1: synthetic (checker "
+        "test)]; lambda_4 >= 4.0 [gap: trace-formula LP count (certified)])")
+    assert check_file(certs["kyfan"])[1] == (
+        "VALID given stored Gram data (conditional on lambda_1 in [3.8388862587999999, 3.8388882588000001] [lam1: "
+        "legacy SU13 interval]; lambda_4 >= 4.0 [gap: trace-formula LP count (certified)])")
+
+
+def test_cluster_without_input_dependencies_is_invalid(certs, tmp_path):
+    for k in ("first_order", "kyfan"):
+        for drop in ("gap", "lam1"):
+            q = _mutate(certs[k], lambda r: r.__setitem__(
+                "dependencies", [d for d in r["dependencies"] if d["id"] != drop]), tmp_path)
+            ok, why = check_file(q)
+            assert not ok and "lambda_1 / gap inputs" in why, (k, drop, why)
 
 
 def test_mode_b_without_hypothesis_is_invalid(certs, tmp_path):
@@ -172,6 +188,11 @@ def test_cli_exit_codes(certs, tmp_path):
     r = subprocess.run([sys.executable, "-m", "bolzakit_check", str(certs["count"]), str(q)], capture_output=True,
                        text=True)
     assert r.returncode == 1
+    # the cluster kinds alone are only conditionally valid (lambda_1 ball and gap inputs): exit 2
+    for k in ("first_order", "kyfan"):
+        r = subprocess.run([sys.executable, "-m", "bolzakit_check", str(certs["rr"]), str(certs[k])],
+                           capture_output=True, text=True)
+        assert r.returncode == 2 and "(conditional on lambda_1 in [" in r.stdout and "lambda_4 >= 4.0" in r.stdout
 
 
 def test_deep_mode_labels_consistency_only(certs, tmp_path):
@@ -285,4 +306,40 @@ def test_rank_of_deformed_octagon_checks_valid(tmp_path):
     assert c.certified
     p = tmp_path / "rank_def.json"
     c.save(p)
-    assert check_file(p) == (True, "VALID")
+    ok, why = check_file(p)
+    assert ok and why.startswith("VALID (rank 6 for g0g1,g0G2,g1g2,g1g3,g1G3,g2g3, surface ") and c.inputs["surface"] in why
+    assert c.inputs["surface"] != "bolza" and why.endswith("(label unchecked))")
+    # relabelling the deformed octagon "bolza" (re-sha'd) does not make the checker call it Bolza
+    q = _mutate(p, lambda r: r["inputs"].__setitem__("surface", "bolza"), tmp_path, resha=True)
+    ok, why = check_file(q)
+    assert ok and "surface custom (label 'bolza' rejected: the Klein balls do not contain the exact Bolza octagon)" \
+        in why, why
+
+
+def test_rank_bolza_label_needs_the_exact_octagon(certs, tmp_path):
+    from bolzakit_check._cert import precision
+    from bolzakit_check.rank import bolza_vertices, is_bolza
+    raw = json.loads(certs["rank"].read_text())
+    with precision(128):                               # as in the checker (the stored balls have 30 digits)
+        assert is_bolza([flint.arb(x) for x in raw["inputs"]["klein"]])
+        v = bolza_vertices()
+    assert all(abs(float(v[2 * k].mid()) ** 2 + float(v[2 * k + 1].mid()) ** 2 - 0.985171431009416 ** 2) < 1e-14
+               for k in range(8))
+    # a vertex shifted by ~2e-30 (a truncated digit, radius 1e-31) no longer contains the exact Bolza coordinate
+    q = _mutate(certs["rank"], lambda r: r["inputs"]["klein"].__setitem__(
+        0, "[0.98517143100941603868950196381 +/- 1e-31]"), tmp_path, resha=True)
+    ok, why = check_file(q)
+    assert "surface bolza (Klein" not in why, why
+
+
+def test_first_order_negative_beta_is_invalid(certs, tmp_path):
+    q = _mutate(certs["first_order"], _set_ball(("data", "raw", "beta_a"), "[-1 +/- 0]"), tmp_path, resha=True)
+    ok, why = check_file(q)
+    assert not ok and "beta_a" in why and ">= 0" in why
+
+
+def test_rank_broken_octagon_fails_pairing_selfcheck(certs, tmp_path):
+    q = _mutate(certs["rank"], lambda r: r["inputs"]["klein"].__setitem__(
+        9, _bump_ball(r["inputs"]["klein"][9], 1e-3)), tmp_path, resha=True)
+    ok, why = check_file(q)
+    assert not ok and "side pairing" in why
