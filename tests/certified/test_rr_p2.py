@@ -14,11 +14,51 @@ def test_p2_n24_golden():
 
 def test_p2_n48_golden():
     r = certify_spectrum(Surface.bolza(), k=3, degree=2, n=48)
+    assert r.certified
     assert abs(r.upper[-1] - 3.8388876433743824) < 1e-11
 
 
 @pytest.mark.slow
 def test_p2_n96_golden():
     r = certify_spectrum(Surface.bolza(), k=3, degree=2, n=96)
+    assert r.certified
     assert abs(r.upper[-1] - 3.8388872829261946) < 1e-12
     assert r.upper[-1] >= 3.83888725884                         # SU13 midpoint: an upper bound must not undercut it by more than SU13's radius
+
+
+def test_cluster_sum_upper_is_rigorous_and_claimed(monkeypatch):
+    import flint
+    from flint import arb
+    import bolzakit.certified.rayleigh_ritz as rr
+    orig, seen = rr._project_p2, {}
+
+    def spy(mesh, surface, k):
+        out = orig(mesh, surface, k)
+        seen["GK"], seen["GM"] = out[2], out[3]
+        return out
+    monkeypatch.setattr(rr, "_project_p2", spy)
+    r = certify_spectrum(Surface.bolza(), k=3, degree=2, n=12)
+    flint.ctx.prec = 96
+    try:
+        kyfan = seen["GM"].solve(seen["GK"]).trace()
+        rhs_ok = arb(r.certificate.claims[-1].rhs) >= kyfan.upper()
+    finally:
+        flint.ctx.prec = 53
+    assert arb(r.cluster_sum_upper) >= kyfan.upper()      # certain comparison: float is an outward-rounded bound
+    c = r.certificate.claims[-1]
+    assert c.lhs == "lambda_1+lambda_2+lambda_3" and c.op == "<=" and c.holds
+    assert rhs_ok
+
+
+def test_cluster_sum_failed_solve_is_none(monkeypatch):
+    from flint import arb_mat
+    import bolzakit.certified.rayleigh_ritz as rr
+    orig = rr._project_p2
+
+    def singular_gm(mesh, surface, k):
+        Kp, Mp, GK, GM = orig(mesh, surface, k)
+        return Kp, Mp, GK, arb_mat(k + 1, k + 1)   # zero matrix: solve cannot succeed
+    monkeypatch.setattr(rr, "_project_p2", singular_gm)
+    r = certify_spectrum(Surface.bolza(), k=3, degree=2, n=12)
+    assert r.cluster_sum_upper is None
+    assert r.certificate.claims[-1].holds is False

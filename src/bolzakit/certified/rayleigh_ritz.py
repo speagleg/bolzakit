@@ -6,6 +6,7 @@ Sylvester's criterion for t*Mp - Kp in Arb.
 """
 from __future__ import annotations
 
+import math
 import time
 from dataclasses import dataclass
 
@@ -116,17 +117,29 @@ def certify_spectrum(surface, k=3, degree=2, n=48, strict=False) -> SpectrumResu
         except RuntimeError:
             ok = False
             mu = "inf"
+        data["mu"] = mu
+        claims_extra = []
         if degree == 2:
             # Ky Fan: lambda_1 + .. + lambda_k <= tr(M^-1 K) on the (k+1)-dim space (lambda_0 = 0 is exact)
-            kyfan = GM.solve(GK).trace()
-            cluster = float(kyfan.upper())
-            data["cluster_sum"] = ball_str(kyfan)
-        data["mu"] = mu
+            cs_rhs, cs_ok = "inf", False
+            try:
+                kyfan = GM.solve(GK).trace()
+                if ok and kyfan.is_finite():
+                    up = kyfan.upper()
+                    f = float(up)
+                    while not arb(f) >= up:  # round outward: the float must certainly be >= the ball's upper end
+                        f = math.nextafter(f, math.inf)
+                    cluster, cs_rhs, cs_ok = f, rational_upper(kyfan), True
+                    data["cluster_sum"] = ball_str(kyfan)
+            except ZeroDivisionError:  # GM not provably invertible
+                pass
+            claims_extra.append(Claim(lhs="+".join(f"lambda_{i}" for i in range(1, k + 1)), op="<=",
+                                      rhs=cs_rhs, holds=cs_ok))
         claim = Claim(lhs=f"lambda_{k}", op="<=", rhs=mu, holds=ok)
         cert = Certificate(
             kind="rr_upper",
             inputs={"surface": surface.label, "degree": degree, "n": n, "k": k},
-            claims=[claim], data=data,
+            claims=[claim] + claims_extra, data=data,
             dependencies=[Dependency("D9", "min-max principle for the Laplacian on a closed surface",
                                      "Courant–Hilbert")],
             producer=make_producer())
