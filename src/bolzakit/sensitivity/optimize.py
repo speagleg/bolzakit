@@ -92,6 +92,8 @@ class EigenOptResult:
     history: tuple
     label: str = "NUMERICAL"
     caveat: str = DISCRETE_CAVEAT
+    mult_rtol: float = float("nan")    # the clustering tolerance in force at the end (after any eps-refinement)
+    eps: float = float("nan")          # largest eigenvalue gap inside the active clusters at p (see the driver)
 
 
 # ----------------------------------------------------------------------------------------------- dual subproblem
@@ -551,28 +553,70 @@ def _normalised_ascent(A_up, A_lo, f, c, **kw) -> AscentDirection:
                    rates=ad.rates * c, rates_lower=None if ad.rates_lower is None else ad.rates_lower * c)
 
 
+def _stack_norm(A) -> float:
+    """||[vec A_1, ..., vec A_d]||_2 >= max over unit d of ||A(d)||_2: a bound on the cluster eigenvalues' speed."""
+    return float(np.linalg.norm(A.reshape(A.shape[0], -1), 2)) if A.size else 0.0
+
+
+def _internal_gap(w, clusters) -> float:
+    """Largest consecutive eigenvalue gap inside the given (i, j) clusters (0 if every cluster is a singleton)."""
+    g = 0.0
+    for i, j in clusters:
+        if j > i:
+            g = max(g, float(np.max(np.diff(w[i:j + 1]))))
+    return g
+
+
 def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, upper=None, A_eq=None, b_eq=None,
                         step0: float | None = None, max_iter: int = 100, mult_rtol: float = 1e-3,
                         stat_tol: float = 1e-8, armijo: float = 1e-4, screen: bool = True,
+                        refine: bool = True, mult_rtol_min: float = 1e-9, refine_max_iter: int = 100,
                         callback: Callable | None = None, _debug_screen: bool = False,
                         _direction: Callable | None = None, _max_eigensolves: int | None = None,
                         _subproblem_max_iter: int = 2_000) -> EigenOptResult:
     """Maximise lambda_k(p) (LowestEigenvalue(k)) or lambda_{k+1}(p) - lambda_k(p) (Gap(k)) subject to
     lower <= p <= upper and A_eq p = b_eq, by multiple-eigenvalue steepest ascent with an Armijo trust region
-    (spec 7). Raises ValueError for an infeasible p0 and TypeError for an unknown objective. Statuses:
-    - "stationary": the subproblem returned stop "stationary" (phi* = 0 to its accuracy: an eps-stationary point
-      of the reduced model, eps = mult_rtol * s). This is the only certified convergence status.
+    (spec 7). Raises ValueError for an infeasible p0 or an out-of-range objective.k, and TypeError for an unknown
+    objective. Statuses:
+    - "stationary": phi* = 0 to the subproblem's accuracy (its "stationary" stop, or its rule (b) met by the
+      certified bound phi_upper): a stationary point of the reduced model that ties the eigenvalues of each active
+      cluster (internal gaps <= result.eps; see eps-refinement below).
+      It is the only status that certifies first-order stationarity, and only for that eps-reduced model.
     - "subproblem_not_converged": the subproblem stopped "no_progress" or "max_iter" with no certified ascent
       direction (d = 0, phi = 0); phi_upper bounds phi* but is NOT certified to stat_tol. (A "no_progress" /
       "max_iter" result with phi > 0 still carries a certified ascent direction of rate phi and is stepped along.)
-    - "step_too_small": the trust radius fell below 1e-10 * step0 without an accepted step.
-    - "max_iter": max_iter outer iterations (or _max_eigensolves eigensolves).
+    - "step_too_small": the trust radius fell below 1e-10 * step0 without a strictly improving Armijo step. This is
+      the normal end at a smooth maximum: there f(p + tau d) - f = O(tau^2) falls below ulp(f) while phi_upper is
+      still above stat_tol * s (stat_tol sits below the rounding floor of the eigenvalue), so p is optimal to rounding.
+    - "max_iter": max_iter outer iterations (max_iter + refine_max_iter once eps-refinement starts), or
+      _max_eigensolves eigensolves.
     - "lower_coalescence" (LowestEigenvalue(k), k > 0): lambda_k coalesced with lambda_{k-1}.
     - "gap_closed" (Gap): lambda_{k+1} - lambda_k <= mult_rtol * s.
+    - "direction_nonpositive": only with the _direction hook, which returned d = 0 or a rate <= 0 (no certificate).
+
+    A trial step is accepted only if it passes the Armijo test AND strictly increases f: once armijo * tau * phi is
+    below ulp(f) the Armijo target rounds to f, and equal-value steps would otherwise cycle until max_iter.
+
+    eps-refinement (refine=True): a "stationary" point whose active clusters still have a positive internal gap g
+    (largest consecutive gap, relative to s) is stationary only for the eps-reduced model. The iteration then
+    continues with mult_rtol <- max(min(g / 2, mult_rtol / 10), mult_rtol_min), which splits the cluster, until it
+    is stationary with g <= mult_rtol_min (or with singleton clusters). Meanwhile a neighbour whose gap could close
+    within the trust radius (gap <= Delta * speed, speeds from the eigenvector derivatives) rejoins its cluster, up
+    to the user's mult_rtol * s, so long steps do not zigzag across a crossing; a refinement also caps Delta below
+    the split gap. Once refinement starts, the outer budget grows to max_iter + refine_max_iter. The result reports
+    the final mult_rtol and eps (the largest gap inside the active clusters at p: the reduced model treats
+    eigenvalues that far apart as tied; 0 for simple or exactly repeated eigenvalues). If the refinement ends
+    otherwise, that status is returned (typically "step_too_small"), at the refined, never worse, iterate.
+    refine=False keeps the fixed mult_rtol clustering (and no trust-region links).
+
+    An accepted step with poor model agreement (gain < tau * phi / 4) halves the trust radius, which damps the
+    fixed-radius zigzag of steepest ascent on an ill-conditioned smooth maximum (it remains first order: such
+    instances can still end at "max_iter", close to but short of the maximum).
 
     The splitting stacks are divided by the eigenvalue scale s before each subproblem (_normalised_ascent), so the
-    iteration is invariant under K -> a K, M -> b M, and "stationary" means phi_upper <= stat_tol * max(s, |f|); the subproblem budget is capped by _subproblem_max_iter (default 2000, about twice the
-    longest tail in the ascent_direction census, i.e. well under a second for small stacks).
+    iteration is invariant under K -> a K, M -> b M, and "stationary" means phi_upper <= stat_tol * max(s, |f|).
+    The subproblem budget is capped by _subproblem_max_iter (default 2000, about twice the longest tail in the
+    ascent_direction census, i.e. well under a second for small stacks).
 
     Private keywords (tests and examples only): _debug_screen eigensolves every screened trial and asserts the
     Armijo test would have failed; _direction(sm_upper, null_basis, bound_signs) -> (d, rate) replaces the
@@ -595,6 +639,11 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
         N = sla.null_space(A_eq)
     is_gap = isinstance(objective, Gap)
     k = int(objective.k)
+    K0, M0 = pencil.K(p), pencil.M(p)
+    n = K0.shape[0]
+    if not 0 <= k < (n - 1 if is_gap else n):
+        raise ValueError(f"objective.k = {k} is out of range for an n = {n} pencil "
+                         f"({'Gap needs 0 <= k < n - 1' if is_gap else 'LowestEigenvalue needs 0 <= k < n'})")
     span = hi - lo
     if step0 is None:
         step0 = (0.05 * float(np.max(span)) if np.all(np.isfinite(span))
@@ -603,11 +652,13 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
     Delta, Dmax = D0, 100 * D0
     hist: list = []
     counters = {"eig": 0, "screened": 0}
+    rtol = float(mult_rtol)          # current clustering tolerance (shrunk by the eps-refinement)
 
-    def evaluate(q):
-        K, M, sparse = _core._prepare(pencil.K(q), pencil.M(q))
+    def evaluate(q, KM=None):
+        Kq, Mq = (pencil.K(q), pencil.M(q)) if KM is None else KM
+        K, M, sparse = _core._prepare(Kq, Mq)
         counters["eig"] += 1
-        w, V, j, s = _window(K, M, sparse, k, k + 1 if is_gap else k, mult_rtol, validate=True)
+        w, V, j, s = _window(K, M, sparse, k, k + 1 if is_gap else k, rtol, validate=True)
         return K, M, sparse, w, V, j, s
 
     def value(w):
@@ -625,23 +676,27 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
                               phi=ad.phi if ad else float("nan"), phi_upper=ad.phi_upper if ad else float("nan"),
                               Y_upper=ad.Y_upper if ad else np.zeros((0, 0)), Y_lower=ad.Y_lower if ad else None,
                               mu=ad.mu if ad else np.zeros(dim), status=status, n_iter=it,
-                              n_eigensolves=counters["eig"], n_screened=counters["screened"], history=tuple(hist))
+                              n_eigensolves=counters["eig"], n_screened=counters["screened"], history=tuple(hist),
+                              mult_rtol=rtol, eps=eps_now)
 
-    st = evaluate(p)
+    st = evaluate(p, (K0, M0))
     ad = None
-    for it in range(max_iter):
+    eps_now = float("nan")
+    limit = max_iter
+    it = 0
+    while it < limit:
         K, M, sparse, w, V, j, s = st
         f = value(w)
         # active clusters and status conditions
         if is_gap:
-            if w[k + 1] - w[k] <= mult_rtol * s:
+            if w[k + 1] - w[k] <= rtol * s:
                 return finish("gap_closed", st, it, ad)
             i = k
-            while i > 0 and w[i] - w[i - 1] <= mult_rtol * s:
+            while i > 0 and w[i] - w[i - 1] <= rtol * s:
                 i -= 1
             up, low = (k + 1, j), (i, k)
         else:
-            if k > 0 and w[k] - w[k - 1] <= mult_rtol * s:
+            if k > 0 and w[k] - w[k - 1] <= rtol * s:
                 return finish("lower_coalescence", st, it, ad)
             up, low = (k, j), None
         dKs = _as_list(pencil.dK(p), dim)
@@ -649,6 +704,47 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
         sm_up = splitting_matrices(K, M, dKs, dMs, up, eig=(w, V), check_gap=False, validate=False)
         sm_lo = (splitting_matrices(K, M, dKs, dMs, low, eig=(w, V), check_gap=False, validate=False)
                  if low else None)
+        # Trust-region links (eps-refinement only): a neighbour whose gap to a cluster could close within the trust
+        # radius joins it (gap <= Delta * (its speed + the cluster's speed)), but never beyond the user's mult_rtol * s.
+        # After the refinement has shrunk rtol, this re-forms the cluster while steps are long enough to cross it;
+        # otherwise single-eigenvalue steps zigzag across the crossing. Speeds bound |d lambda / d tau|, unit d.
+        links = []                                   # (gap, speed) of every trust-region link added
+        if refine:
+            def speed(a):
+                v = V[:, a]
+                g = np.array([float(v @ np.asarray(dKs[l] @ v).ravel()) - (0.0 if dMs is None else
+                              w[a] * float(v @ np.asarray(dMs[l] @ v).ravel())) for l in range(dim)])
+                return float(np.linalg.norm(g if N is None else N.T @ g))
+            n = K.shape[0]
+            rho = _stack_norm(sm_up.mats)
+            j0 = j
+            while j + 1 < n:
+                if j + 2 > len(w) and len(w) < n:      # splitting needs eigenpair j + 2 too
+                    w, V = _core._eigs(K, M, min(n, len(w) + 4), sparse)
+                    counters["eig"] += 1
+                    st = (K, M, sparse, w, V, j, s)
+                sp_ = speed(j + 1) + rho
+                if w[j + 1] - w[j] > min(Delta * sp_, mult_rtol * s):
+                    break
+                links.append((w[j + 1] - w[j], sp_))
+                j += 1
+            if j > j0:                                 # the loop kept len(w) >= min(j + 2, n)
+                st = (K, M, sparse, w, V, j, s)
+                up = (up[0], j)
+                sm_up = splitting_matrices(K, M, dKs, dMs, up, eig=(w, V), check_gap=False, validate=False)
+            if low:
+                i0, rho = low[0], _stack_norm(sm_lo.mats)
+                i = i0
+                while i > 0:
+                    sp_ = speed(i - 1) + rho
+                    if w[i] - w[i - 1] > min(Delta * sp_, mult_rtol * s):
+                        break
+                    links.append((w[i] - w[i - 1], sp_))
+                    i -= 1
+                if i < i0:
+                    low = (i, k)
+                    sm_lo = splitting_matrices(K, M, dKs, dMs, low, eig=(w, V), check_gap=False, validate=False)
+        eps_now = _internal_gap(w, [up] + ([low] if low else []))
         # at-bound test: within 1e-12 (relative) or within a negligible 1e-6 fraction of the trust radius, so a
         # variable a rounding distance from its bound never limits the step to ~1e-12
         tolb = np.maximum(1e-12 * np.where(np.isfinite(span), np.maximum(1.0, span), 1.0), 1e-6 * Delta)
@@ -658,11 +754,23 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
             ad = _normalised_ascent(sm_up.mats, None if sm_lo is None else sm_lo.mats, f, c, null_basis=N,
                                     bound_signs=signs, max_iter=_subproblem_max_iter, stat_tol=stat_tol)
             # Stationary: the subproblem's "stationary" label, or its rule (b) met by the certified dual bound
-            # (phi* <= phi_upper <= stat_tol * max(1, |f| / c) in the normalised units). The latter covers a "gap" stop
-            # whose tiny certified phi > 0 the subproblem reported first (it checks rule (b) on its FISTA iterate,
-            # not on the polished point); without it the driver zigzags at rate ~1e-9 until step_too_small/max_iter.
+            # (phi* <= phi_upper <= stat_tol * max(1, |f| / c) in the normalised units). The latter covers a "gap"
+            # stop whose tiny certified phi > 0 the subproblem reported first (it checks rule (b) on its FISTA
+            # iterate, not on the polished point); without it the driver zigzags at rate ~1e-9.
             if ad.stop == "stationary" or ad.phi_upper <= stat_tol * max(c, abs(f)):
-                return finish("stationary", st, it, ad)
+                gabs = eps_now
+                g = gabs / s
+                if not refine or g <= mult_rtol_min:
+                    return finish("stationary", st, it, ad)
+                # eps-refinement: stationary only for the eps-reduced model; split the cluster and go on (shrink the
+                # trust radius too, so that no trust-region link re-forms across the largest gap)
+                limit = max_iter + refine_max_iter
+                rtol = max(min(0.5 * g, 0.1 * rtol), mult_rtol_min)
+                if links:
+                    Delta = min(Delta, 0.5 * gabs / max(sp_ for _, sp_ in links))
+                st = evaluate(p, (K, M))
+                it += 1
+                continue
             # "no_progress"/"max_iter" with d = 0 certify nothing beyond phi* <= phi_upper: not converged. With
             # phi > 0 they still carry a certified ascent direction of rate phi, which the step below uses.
             if ad.phi <= 0:
@@ -676,7 +784,7 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
                                  Y_lower=None, mu=np.zeros(dim), rates=np.linalg.eigvalsh(
                                      np.einsum("l,lab->ab", d, sm_up.mats)), rates_lower=None, n_iter=0, stop="gap")
             if not np.any(d) or phi <= 0:
-                return finish("stationary", st, it, ad)
+                return finish("direction_nonpositive", st, it, ad)
         # maximal feasible step along d
         with np.errstate(divide="ignore", invalid="ignore"):
             steps = np.where(d > 1e-15, (hi - p) / d, np.where(d < -1e-15, (lo - p) / d, np.inf))
@@ -691,6 +799,7 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
             tau = min(Delta, tau_b)
             q = np.clip(p + tau * d, lo, hi)
             target = f + armijo * tau * phi
+            Kq = Mq = None
             if screen and not is_gap:
                 Kq, Mq = pencil.K(q), pencil.M(q)
                 theta = ritz_upper_bounds(Kq, Mq, V[:, :j + 1])[k]
@@ -704,15 +813,18 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
                     log(IterRecord(it, f, mult, phi, ad.phi_upper, tau, False, True, ad.rates))
                     Delta = tau / 2
                     continue
-            st_q = evaluate(q)
+            st_q = evaluate(q, None if Kq is None else (Kq, Mq))
             fq = value(st_q[3])
-            accepted = fq >= target
+            accepted = fq >= target and fq > f       # strict: a rounding-level target equals f (see docstring)
             log(IterRecord(it, f, mult, phi, ad.phi_upper, tau, accepted, False, ad.rates))
             if accepted:
                 # spec 7 step 8; a bound-limited step (tau < Delta) never shrinks Delta
                 if fq - f >= 0.75 * tau * phi:
                     Delta = min(max(2 * tau, Delta), Dmax)
+                elif fq - f < 0.25 * tau * phi:          # poor agreement: shrink (avoids a zigzag at fixed tau)
+                    Delta = min(Delta, tau / 2)
                 p, st = q, st_q
             else:
                 Delta = tau / 2
-    return finish("max_iter", st, max_iter, ad)
+        it += 1
+    return finish("max_iter", st, it, ad)
