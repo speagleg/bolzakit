@@ -72,6 +72,7 @@ class IterRecord:
     accepted: bool
     screened: bool
     rates: np.ndarray
+    refined: bool = False    # an eps-refinement round (tau = 0): mult_rtol was shrunk at this iterate
 
 
 @dataclass(frozen=True)
@@ -570,7 +571,7 @@ def _internal_gap(w, clusters) -> float:
 def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, upper=None, A_eq=None, b_eq=None,
                         step0: float | None = None, max_iter: int = 100, mult_rtol: float = 1e-3,
                         stat_tol: float = 1e-8, armijo: float = 1e-4, screen: bool = True,
-                        refine: bool = True, mult_rtol_min: float = 1e-9, refine_max_iter: int = 100,
+                        refine: bool = True, mult_rtol_min: float = 1e-11, refine_max_iter: int = 100,
                         callback: Callable | None = None, _debug_screen: bool = False,
                         _direction: Callable | None = None, _max_eigensolves: int | None = None,
                         _subproblem_max_iter: int = 2_000) -> EigenOptResult:
@@ -585,9 +586,11 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
     - "subproblem_not_converged": the subproblem stopped "no_progress" or "max_iter" with no certified ascent
       direction (d = 0, phi = 0); phi_upper bounds phi* but is NOT certified to stat_tol. (A "no_progress" /
       "max_iter" result with phi > 0 still carries a certified ascent direction of rate phi and is stepped along.)
-    - "step_too_small": the trust radius fell below 1e-10 * step0 without a strictly improving Armijo step. This is
-      the normal end at a smooth maximum: there f(p + tau d) - f = O(tau^2) falls below ulp(f) while phi_upper is
-      still above stat_tol * s (stat_tol sits below the rounding floor of the eigenvalue), so p is optimal to rounding.
+    - "step_too_small": the trust radius fell below 1e-10 * step0 without a strictly improving Armijo step, with no
+      refinement left to do (singleton clusters, or internal gaps <= mult_rtol_min * s). At a smooth maximum
+      (multiplicity 1) this is the normal end: f(p + tau d) - f = O(tau^2) falls below ulp(f) while phi_upper is
+      still above stat_tol * s, so p is optimal to rounding. At multiplicity >= 2 it certifies nothing: the tied
+      model (internal gap result.eps) stalled; p is the best iterate found, typically accurate to O(eps).
     - "max_iter": max_iter outer iterations (max_iter + refine_max_iter once eps-refinement starts), or
       _max_eigensolves eigensolves.
     - "lower_coalescence" (LowestEigenvalue(k), k > 0): lambda_k coalesced with lambda_{k-1}.
@@ -597,16 +600,21 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
     A trial step is accepted only if it passes the Armijo test AND strictly increases f: once armijo * tau * phi is
     below ulp(f) the Armijo target rounds to f, and equal-value steps would otherwise cycle until max_iter.
 
-    eps-refinement (refine=True): a "stationary" point whose active clusters still have a positive internal gap g
-    (largest consecutive gap, relative to s) is stationary only for the eps-reduced model. The iteration then
-    continues with mult_rtol <- max(min(g / 2, mult_rtol / 10), mult_rtol_min), which splits the cluster, until it
-    is stationary with g <= mult_rtol_min (or with singleton clusters). Meanwhile a neighbour whose gap could close
-    within the trust radius (gap <= Delta * speed, speeds from the eigenvector derivatives) rejoins its cluster, up
-    to the user's mult_rtol * s, so long steps do not zigzag across a crossing; a refinement also caps Delta below
-    the split gap. Once refinement starts, the outer budget grows to max_iter + refine_max_iter. The result reports
-    the final mult_rtol and eps (the largest gap inside the active clusters at p: the reduced model treats
-    eigenvalues that far apart as tied; 0 for simple or exactly repeated eigenvalues). If the refinement ends
-    otherwise, that status is returned (typically "step_too_small"), at the refined, never worse, iterate.
+    eps-refinement (refine=True): the tied model of a cluster whose eigenvalues are not exactly tied (largest
+    internal gap eps > mult_rtol_min * s) is only an eps-model. It is refined when it stalls: at a "stationary" point
+    of the eps-model, and when the trust radius has collapsed to where no step can close the internal spread
+    (Delta * sigma < eps, sigma = a bound on how fast that spread changes per unit step, or Delta < 1e-10 * step0).
+    A round sets mult_rtol <- max(min(eps / (2 s), mult_rtol / 10), mult_rtol_min), which splits the cluster at its
+    largest gap, re-evaluates, and is recorded as an IterRecord with refined=True (and passed to the callback); it
+    respects _max_eigensolves. Meanwhile a neighbour whose gap could close within the trust radius (gap <= Delta *
+    speed, speeds from the eigenvector derivatives) rejoins its cluster, up to the user's mult_rtol * s, so long
+    steps do not zigzag across a crossing; a refinement at a stationary point also caps Delta below the split gap.
+    Once refinement starts, the outer budget grows to max_iter + refine_max_iter. The result reports the final
+    mult_rtol and eps (the largest gap inside the active clusters at p: the reduced model treats eigenvalues that
+    far apart as tied; 0 for simple or exactly repeated eigenvalues). Every threshold is relative to s or to
+    speeds of the same units, so the iteration is invariant under K -> a K, M -> b M (bit-identical for powers of
+    two; otherwise up to the run's own sensitivity to rounding, which for an unconverged or stalled run can be as
+    large as its distance from the optimum).
     refine=False keeps the fixed mult_rtol clustering (and no trust-region links).
 
     An accepted step with poor model agreement (gain < tau * phi / 4) halves the trust radius, which damps the
@@ -679,6 +687,17 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
                               n_eigensolves=counters["eig"], n_screened=counters["screened"], history=tuple(hist),
                               mult_rtol=rtol, eps=eps_now)
 
+    def refine_round(st, it, ad, mult, gabs):
+        """One eps-refinement round at the current iterate: shrink rtol below the largest internal gap gabs, extend
+        the budget, record it. Returns a finished result if the eigensolve cap forbids the re-evaluation."""
+        nonlocal rtol, limit
+        if _max_eigensolves is not None and counters["eig"] >= _max_eigensolves:
+            return finish("max_iter", st, it, ad)
+        limit = max_iter + refine_max_iter
+        rtol = max(min(0.5 * gabs / st[6], 0.1 * rtol), mult_rtol_min)
+        log(IterRecord(it, value(st[3]), mult, ad.phi, ad.phi_upper, 0.0, False, False, ad.rates, refined=True))
+        return None
+
     st = evaluate(p, (K0, M0))
     ad = None
     eps_now = float("nan")
@@ -745,6 +764,10 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
                     low = (i, k)
                     sm_lo = splitting_matrices(K, M, dKs, dMs, low, eig=(w, V), check_gap=False, validate=False)
         eps_now = _internal_gap(w, [up] + ([low] if low else []))
+        # speed bound for the spread inside the active clusters: two eigenvalues of a cluster separate or close at
+        # most at 2 ||A(d)|| <= 2 ||stack||_2 per unit step, a linked neighbour at its link speed (scale-free)
+        sigma = max([2 * _stack_norm(sm_up.mats)] + ([2 * _stack_norm(sm_lo.mats)] if low else [])
+                    + [sp_ for _, sp_ in links])
         # at-bound test: within 1e-12 (relative) or within a negligible 1e-6 fraction of the trust radius, so a
         # variable a rounding distance from its bound never limits the step to ~1e-12
         tolb = np.maximum(1e-12 * np.where(np.isfinite(span), np.maximum(1.0, span), 1.0), 1e-6 * Delta)
@@ -758,16 +781,15 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
             # stop whose tiny certified phi > 0 the subproblem reported first (it checks rule (b) on its FISTA
             # iterate, not on the polished point); without it the driver zigzags at rate ~1e-9.
             if ad.stop == "stationary" or ad.phi_upper <= stat_tol * max(c, abs(f)):
-                gabs = eps_now
-                g = gabs / s
-                if not refine or g <= mult_rtol_min:
+                if not refine or eps_now <= mult_rtol_min * s:
                     return finish("stationary", st, it, ad)
                 # eps-refinement: stationary only for the eps-reduced model; split the cluster and go on (shrink the
                 # trust radius too, so that no trust-region link re-forms across the largest gap)
-                limit = max_iter + refine_max_iter
-                rtol = max(min(0.5 * g, 0.1 * rtol), mult_rtol_min)
                 if links:
-                    Delta = min(Delta, 0.5 * gabs / max(sp_ for _, sp_ in links))
+                    Delta = min(Delta, 0.5 * eps_now / max(sp_ for _, sp_ in links))
+                done = refine_round(st, it, ad, up[1] - up[0] + 1, eps_now)
+                if done is not None:
+                    return done
                 st = evaluate(p, (K, M))
                 it += 1
                 continue
@@ -790,8 +812,16 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
             steps = np.where(d > 1e-15, (hi - p) / d, np.where(d < -1e-15, (lo - p) / d, np.inf))
         tau_b = float(np.min(steps)) if steps.size else np.inf
         mult = up[1] - up[0] + 1
-        accepted = False
+        accepted = refined = False
         while not accepted:
+            # eps-limited stall: no step within the radius can close the spread inside the clusters, so the tied
+            # model is invalid at this scale (it stalls at a small phi > stat_tol): refine instead of shrinking on
+            if refine and eps_now > mult_rtol_min * s and (Delta * sigma < eps_now or Delta < 1e-10 * D0):
+                done = refine_round(st, it, ad, mult, eps_now)
+                if done is not None:
+                    return done
+                refined = True
+                break
             if Delta < 1e-10 * D0:
                 return finish("step_too_small", st, it, ad)
             if _max_eigensolves is not None and counters["eig"] >= _max_eigensolves:
@@ -826,5 +856,7 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
                 p, st = q, st_q
             else:
                 Delta = tau / 2
+        if refined:
+            st = evaluate(p, (K, M))
         it += 1
     return finish("max_iter", st, it, ad)

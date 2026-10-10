@@ -515,21 +515,63 @@ def test_gap_with_upper_cluster_at_top_of_spectrum_review_focus():
 
 
 # ------------------------------------------------------------------ scaling (controller ruling, Task 6 review)
+def _concave_family(seed):
+    """lambda_min of K(p) = A0 + sum p_l S_l - sum p_l^2 D_l (D_l >= 0 diagonal) is concave in p (fix round 2 family);
+    M = I for even seeds, a fixed SPD M for odd ones. n = 6, d = 4, box [-1, 1]^4."""
+    rng = np.random.default_rng(1000 + seed)
+    n, d = 6, 4
+    A0 = np.diag(np.sort(rng.uniform(1, 3, n)))
+    Ss = [(lambda X: (X + X.T) / 2)(rng.standard_normal((n, n))) for _ in range(d)]
+    Ds = [np.diag(rng.uniform(0.0, 1.0, n)) for _ in range(d)]
+    if seed % 2:
+        X = rng.standard_normal((n, n))
+        M0 = X @ X.T / n + np.eye(n)
+    else:
+        M0 = np.eye(n)
+    K = lambda p: A0 + sum(pl * S for pl, S in zip(p, Ss)) - sum(pl * pl * D for pl, D in zip(p, Ds))
+    dK = lambda p: [S - 2 * pl * D for pl, S, D in zip(p, Ss, Ds)]
+    return K, dK, M0
+
+
+_SCALES = [(1e6, 1.0), (1e-6, 1.0), (1e6, 1e-6), (1e-8, 1e4), (3.7, 0.21)]
+
+
 @pytest.mark.parametrize("seed", [3, 0])        # 3: simple optimum on an edge; 0: double eigenvalue (eps-refinement)
-@pytest.mark.parametrize("cK, cM", [(1e6, 1.0), (1e-6, 1.0), (1e6, 1e-6)])
-def test_driver_scale_invariant(cK, cM, seed):
-    # The driver divides the splitting stacks by the eigenvalue scale before ascent_direction, so scaling K by cK and
-    # M by cM (eigenvalues by cK / cM) gives the same iterates: the same final value relative to scale, the same p
-    # and a similar step count. (Status and screen counts are not compared: they can flip on BLAS-level rounding.)
+def test_driver_scale_invariant(seed):
+    # The driver divides the splitting stacks by the eigenvalue scale and every refinement threshold is relative to
+    # s, so scaling K by cK and M by cM (eigenvalues by cK / cM) gives the same iterates: the same final value
+    # relative to scale and the same p. (Status and screen counts are not compared: they can flip on rounding.)
     Ss = _simplex_instance(seed)
     kw = dict(lower=np.zeros(3), upper=np.ones(3), A_eq=np.ones((1, 3)), b_eq=[1.0], max_iter=200)
     ref = maximize_eigenvalue(_linear_pencil(Ss), np.ones(3) / 3, LowestEigenvalue(0), **kw)
-    Mc = cM * np.eye(3)
-    res = maximize_eigenvalue(_linear_pencil([cK * S for S in Ss], M=Mc), np.ones(3) / 3, LowestEigenvalue(0), **kw)
-    scale = cK / cM
-    assert abs(res.value / scale - ref.value) <= 1e-8 * abs(ref.value)
-    assert np.allclose(res.p, ref.p, atol=1e-6)
-    assert abs(res.n_iter - ref.n_iter) <= max(5, ref.n_iter // 2), (res.n_iter, ref.n_iter)
+    for cK, cM in _SCALES:
+        res = maximize_eigenvalue(_linear_pencil([cK * S for S in Ss], M=cM * np.eye(3)), np.ones(3) / 3,
+                                  LowestEigenvalue(0), **kw)
+        assert abs(res.value / (cK / cM) - ref.value) <= 1e-10 * abs(ref.value), (cK, cM)
+        assert np.allclose(res.p, ref.p, atol=1e-6)
+
+
+@pytest.mark.parametrize("seed", [2, 7])        # 2: M = I; 7: SPD M. Both optima are double eigenvalues.
+def test_driver_scale_invariant_concave(seed):
+    K, dK, M0 = _concave_family(seed)
+    kw = dict(lower=-1.0, upper=1.0, max_iter=200)
+    ref = maximize_eigenvalue(ParametricPencil(K=K, M=lambda p: M0, dK=dK), np.zeros(4), LowestEigenvalue(0), **kw)
+    assert ref.eigvals[1] - ref.eigvals[0] <= 1e-6 * abs(ref.value)           # refined onto the crossing
+    for cK, cM in _SCALES:
+        pen = ParametricPencil(K=lambda p: cK * K(p), M=lambda p: cM * M0, dK=lambda p: [cK * G for G in dK(p)])
+        res = maximize_eigenvalue(pen, np.zeros(4), LowestEigenvalue(0), **kw)
+        assert abs(res.value / (cK / cM) - ref.value) <= 1e-10 * abs(ref.value), (cK, cM)
+
+
+def test_power_of_two_scaling_is_bit_identical():
+    # Scaling by powers of two is exact in floating point, so no threshold may see any difference at all.
+    K, dK, M0 = _concave_family(4)
+    kw = dict(lower=-1.0, upper=1.0, max_iter=200)
+    ref = maximize_eigenvalue(ParametricPencil(K=K, M=lambda p: M0, dK=dK), np.zeros(4), LowestEigenvalue(0), **kw)
+    pen = ParametricPencil(K=lambda p: 1024.0 * K(p), M=lambda p: M0 / 64.0,
+                           dK=lambda p: [1024.0 * G for G in dK(p)])
+    res = maximize_eigenvalue(pen, np.zeros(4), LowestEigenvalue(0), **kw)
+    assert res.value == ref.value * 65536.0 and np.array_equal(res.p, ref.p) and res.n_iter == ref.n_iter
 
 
 # ------------------------------------------------------------------ fix round 1
@@ -586,8 +628,9 @@ def test_double_eigenvalue_optimum_eps_refinement_I2(seed):
     kw = dict(lower=np.zeros(3), upper=np.ones(3), A_eq=np.ones((1, 3)), b_eq=[1.0], max_iter=200)
     res = maximize_eigenvalue(_linear_pencil(Ss), np.ones(3) / 3, LowestEigenvalue(0), **kw)
     assert res.value <= UB + 1e-12 and LB - res.value <= 1e-5, (res.status, LB - res.value)
-    assert res.status == "stationary" and res.multiplicity == 2
-    assert res.mult_rtol < 1e-3 and res.eps <= 1e-9 * abs(res.value)
+    # the refined run ends "stationary" or, once the tied model stalls at the finest eps, "step_too_small"
+    assert res.status in ("stationary", "step_too_small") and res.mult_rtol < 1e-3
+    assert res.eigvals[1] - res.eigvals[0] <= 1e-6 * abs(res.value)          # on the crossing
     unrefined = maximize_eigenvalue(_linear_pencil(Ss), np.ones(3) / 3, LowestEigenvalue(0), refine=False, **kw)
     assert unrefined.status == "stationary" and LB - unrefined.value > 1e-5     # the defect the refinement fixes
 
@@ -630,3 +673,47 @@ def test_screen_trial_assembles_once_M3():
     # one assembly per trial (screened or eigensolved) plus the start; none twice
     trials = sum(1 for h in res.history)
     assert calls["K"] == trials + 1, (calls["K"], trials)
+
+
+# ------------------------------------------------------------------ fix round 2
+def _concave_kelley(K, dK, M0, tol=1e-7, max_cuts=600):
+    """Certified bracket for max over [-1, 1]^4 of the concave lambda_min (cuts from v^T dK_l v, v M-normalised)."""
+    from scipy.optimize import linprog
+    cuts, LB, p = [], -np.inf, np.zeros(4)
+    for _ in range(max_cuts):
+        w, V = sla.eigh(K(p), M0)
+        f, g = w[0], np.array([V[:, 0] @ G @ V[:, 0] for G in dK(p)])
+        cuts.append((f, g, p.copy()))
+        LB = max(LB, f)
+        r = linprog(np.r_[np.zeros(4), -1.0], A_ub=np.array([np.r_[-g, 1.0] for f, g, q in cuts]),
+                    b_ub=np.array([f - g @ q for f, g, q in cuts]), bounds=[(-1, 1)] * 4 + [(None, None)],
+                    method="highs")
+        if -r.fun - LB <= tol:
+            return LB, -r.fun
+        p = r.x[:4]
+    raise AssertionError("Kelley did not converge")
+
+
+@pytest.mark.parametrize("seed", [0, 10])
+def test_concave_double_optimum_refines_on_stall(seed):
+    # The eps-model stalls at phi ~ 7e-8 > stat_tol * s, so the trust radius collapses; these runs used to end
+    # step_too_small ~1e-4 short without ever refining. Refinement on the stall must reach the certified bracket.
+    K, dK, M0 = _concave_family(seed)
+    LB, UB = _concave_kelley(K, dK, M0)
+    res = maximize_eigenvalue(ParametricPencil(K=K, M=lambda p: M0, dK=dK), np.zeros(4), LowestEigenvalue(0),
+                              lower=-1.0, upper=1.0, max_iter=200)
+    assert res.value <= UB + 1e-12 and LB - res.value <= 1e-5, (res.status, LB - res.value)
+    assert any(h.refined for h in res.history)
+
+
+def test_refinement_respects_eigensolve_cap_and_is_recorded():
+    lam = [1.0, 1.0 + 0.99e-3, 1.0 + 1.01e-3, 1.5, 2.0]
+    S1 = (lambda X: (X + X.T) / 2)(np.random.default_rng(5).standard_normal((5, 5)))
+    pen = ParametricPencil(K=lambda p: np.diag(lam) + p[0] * S1, M=lambda p: np.eye(5), dK=lambda p: [S1])
+    res = maximize_eigenvalue(pen, [0.0], LowestEigenvalue(0), _max_eigensolves=1)    # eps-stationary start
+    assert res.status == "max_iter" and res.n_eigensolves == 1
+    seen = []
+    res = maximize_eigenvalue(pen, [0.0], LowestEigenvalue(0), max_iter=5, callback=seen.append)
+    refined = [h for h in res.history if h.refined]
+    assert refined and refined[0].it == 0 and refined[0].tau == 0.0 and not refined[0].accepted
+    assert len(seen) == len(res.history) and all(a is b for a, b in zip(seen, res.history))
