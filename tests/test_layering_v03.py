@@ -52,7 +52,7 @@ def test_v01_modules_do_not_import_v02():
 def test_version_and_error():
     import bolzakit
     from bolzakit.errors import CertificationFailed, BolzakitError
-    assert bolzakit.__version__ == "0.3.0"
+    assert tuple(int(x) for x in bolzakit.__version__.split(".")[:3]) >= (0, 3, 0)   # exact pin: test_docs_v02
     assert issubclass(CertificationFailed, BolzakitError)
 
 

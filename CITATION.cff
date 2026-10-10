@@ -1,10 +1,10 @@
 cff-version: 1.2.0
 message: "If you use bolzakit, please cite it using these metadata. If you use the quoted eigenvalues, please also cite Strohmaier and Uski (2013), arXiv:1110.2150."
 title: "bolzakit"
-abstract: "Exact and provenance-labelled computations on the Bolza surface (genus-2 hyperbolic surface), with a certified ball-arithmetic layer, an independent certificate checker and repeated-eigenvalue sensitivity."
+abstract: "Exact and provenance-labelled computations on the Bolza surface (genus-2 hyperbolic surface), with a certified ball-arithmetic layer, an independent certificate checker and the certificates of a computer-assisted proof that the Bolza surface is a strict local maximum of the first Laplace eigenvalue on genus-2 Teichmüller space. It also provides repeated-eigenvalue sensitivity for finite-element models, a multiple-eigenvalue optimiser (maximize_eigenvalue) and a degenerate-mode trim tool (trim_degenerate_pair) for resonators."
 type: software
-version: 0.2.0
-date-released: 2026-10-09
+version: 0.3.1
+date-released: 2026-10-10
 license: MIT
 authors:
   - family-names: Speagle

@@ -39,14 +39,18 @@ def test_sensitivity_md_near_tie_caveat():
 
 
 def test_versions_consistent():
-    # feat/apps is 0.3.0 (unreleased); CITATION.cff stays at the last release, 0.2.0, until 0.3.0 ships.
-    cff = _read("CITATION.cff")
-    assert "version: 0.2.0" in cff or 'version: "0.2.0"' in cff
-    assert "2026-10-09" in cff
-    assert "## [0.2.0]" in _read("CHANGELOG.md") or "## 0.2.0" in _read("CHANGELOG.md")
-    assert "## [0.3.0]" in _read("CHANGELOG.md")
+    # invariant: CITATION.cff, pyproject.toml and bolzakit.__version__ agree, and the CHANGELOG has a dated heading
     import bolzakit
-    assert bolzakit.__version__ == "0.3.0"
+    v = bolzakit.__version__
+    cff = _read("CITATION.cff")
+    m = re.search(r'^version:\s*"?([0-9][^"\s]*)"?\s*$', cff, re.M)
+    assert m and m.group(1) == v, (m and m.group(1), v)
+    assert re.search(r'^date-released:\s*"?\d{4}-\d{2}-\d{2}"?\s*$', cff, re.M)
+    py = re.search(r'^version\s*=\s*"([^"]+)"', _read("pyproject.toml"), re.M)
+    assert py and py.group(1) == v
+    log = _read("CHANGELOG.md")
+    assert re.search(r"^## \[" + re.escape(v) + r"\] — \d{4}-\d{2}-\d{2}$", log, re.M), v
+    assert "## [0.3.0]" in log and ("## [0.2.0]" in log or "## 0.2.0" in log)
 
 
 def test_verification_rows_cover_golden_certificates():
