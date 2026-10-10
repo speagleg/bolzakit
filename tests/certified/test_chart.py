@@ -73,7 +73,7 @@ def test_trace_coords_perturbed_contains_tau():
     assert r.certified and r.certificate.certified and r.certificate.inputs["tau"] == tau
 
 
-# ------------------------------------------------------------------ fix round 2: NaN / infinite balls never "enclose 0"
+# ------------------------------------------------------------------ NaN / infinite balls never "enclose 0"
 _BAD = {"nan": "nan", "inf": "[+/- inf]"}
 
 

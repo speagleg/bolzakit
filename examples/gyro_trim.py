@@ -7,7 +7,7 @@ minimal-mass trim from the FE model and checks it with an independent dense eige
 (a) Free-free thin ring (mean radius 1, width 0.05, plane stress, nu = 0.3, E = rho0 = 1, Quad2 elements, 96 cells
     around, 2 across) with a 4th-harmonic density imperfection rho0 * eps * cos(4(theta - phi)), eps = 1e-3,
     phi = 0.3. Thin-ring theory: the pair (3, 4) (indices 0-2 are rigid modes) splits at rates +-(3/10) lam_bar eps
-    (spec 5.10, correcting research note 02). Measured here: 0.29984.
+    (correcting research note 02; see docs/results-and-corrections.md). Measured here: 0.29984.
 (b) The same ring on 8 tapered spokes clamped at a hub (r = 0.3): a geometry with no closed-form split rule. Random
     element-wise Young's modulus and density (1 + 0.005 xi, xi ~ N(0, 1)), five seeds. The n = 2 pair is (6, 7).
 
@@ -243,7 +243,7 @@ def main(quick: bool = False):
                                        else f"did not tie within {n_ - 1} rounds (split {_val(rel_[-1], r, '.1e')})"))
         print(f" {x['seed']:4d}  " + "  |  ".join(cells))
     print(f"label: NUMERICAL (discrete problem); {time.perf_counter() - t_start:.1f} s")
-    # self-checks (spec 10.1)
+    # self-checks
     assert abs(a["rate"] - 0.3) < 5e-4
     ra = a["res"]
     assert ra.rel_split_after <= 1e-3 * ra.rel_split_before and a["dense"] <= 1e-3 * ra.rel_split_before

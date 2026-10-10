@@ -1,4 +1,4 @@
-"""Fundamental-frequency maximisation benchmark (Task 9'): the model, and a quick run of every method."""
+"""Fundamental-frequency maximisation benchmark: the model, and a quick run of every method."""
 import pathlib, sys
 import numpy as np
 import pytest

@@ -79,12 +79,12 @@ PROVED claims that rest on AI-written arguments should be treated accordingly un
 bolzakit's code, tests, documentation and Lean files were also written and reviewed by AI agents (Claude) under Gordon
 Speagle's direction; Gordon directed and approved the work.
 
-## Sub-project F (0.3.0): environment
+## Sensitivity extensions (0.3.0): environment
 
 Local runs used the bolzakit venv (Python 3.12) with numpy 2.5.3, scipy 1.18.1, scikit-fem 12.0.2; the benchmark also
 used pymoto 2.0.1 (a benchmark-only tool, not a dependency).
 
-## Sub-project F (0.3.0): measurements
+## Sensitivity extensions (0.3.0): measurements
 
 | Item | Check | Measured | Where |
 |---|---|---|---|

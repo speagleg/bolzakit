@@ -1,4 +1,4 @@
-"""Examples of sub-project F run and pass their own assertions (spec 9.7). The v0.2 examples (membrane, bolza_*) run
+"""The 0.3.0 examples run and pass their own assertions. The v0.2 examples (membrane, bolza_*) run
 in tests/test_docs_v02.py::test_examples_run; the frequency benchmark in tests/test_frequency_benchmark.py."""
 import importlib, pathlib, sys
 import pytest

@@ -629,7 +629,7 @@ def certify_cluster(direction="F_A", degree=1, n=96, lam1: Lam1Input = None, gap
     re-derives; the *_inprocess fields keep the (marginally tighter) in-memory values that the published goldens pin.
     Precision is set internally (96 bits)."""
     if lam1 is None or gap is None:
-        raise ValueError("lam1 and gap inputs are required (spec §3.4)")
+        raise ValueError("lam1 and gap inputs are required")
     if float(lam1.lower) > float(lam1.upper):
         raise ValueError(f"lam1 interval is empty: lower {lam1.lower} > upper {lam1.upper}")
     if float(gap.lower) <= float(lam1.upper):
@@ -648,7 +648,7 @@ def certify_cluster(direction="F_A", degree=1, n=96, lam1: Lam1Input = None, gap
     if second_order:
         raise NotImplementedError("the second-order (Ky Fan) test needs degree=2")
     if direction != "F_A":
-        raise NotImplementedError("first-order P1 test is published for F_A; use degree=2 via Task 9 for other "
+        raise NotImplementedError("first-order P1 test is published for F_A; use degree=2 (Ky Fan) for other "
                                   "directions")
     with prec(96):
         A_float, b_ee_upper, ok, cert = _first_order(n, lam1, gap, sym)

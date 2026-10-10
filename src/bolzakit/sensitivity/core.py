@@ -167,7 +167,7 @@ def _check_range(cluster, n: int) -> tuple[int, int]:
 
 
 def _gap(w, i: int, j: int, gap_ratio_min: float):
-    """Core gap rule (spec 5.1). Returns (lam_bar, g_in, g_out, thresh, ratio)."""
+    """Core gap rule. Returns (lam_bar, g_in, g_out, thresh, ratio)."""
     lam = w[i:j + 1]
     lam_bar = float(lam.mean())
     g_in = float(lam[-1] - lam[0])

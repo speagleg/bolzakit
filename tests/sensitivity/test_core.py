@@ -122,7 +122,7 @@ def test_near_tie_rates_are_reduced_model_slopes_not_derivatives(delta):
 
 
 def test_eigensolve_count_is_j_plus_2(monkeypatch):
-    # Off-by-one regression (spec 4.1 item 2): v0.2 asked for j + 3 pairs.
+    # Off-by-one regression: v0.2 asked for j + 3 pairs.
     import bolzakit.sensitivity.core as core
     seen = []
     real = core._eigs

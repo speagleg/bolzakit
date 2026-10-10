@@ -398,7 +398,7 @@ norm and dependency blow-up. At the side-midpoint elements the sampled true sup 
 33.4. Overestimation is safe.
 
 **Robustness (review_cert_1 row 4.6).**
-- Robustness in λ₁'s lower bound: evaluated monotonically at the endpoint (exc/(λ₄−λ) is decreasing in λ), the bound still certifies at λ₁ ≥ 3.83788 (≈ −0.0078, thin margin). Under the certificate's plain ball assembly, which treats μ−λ and λ₄−λ as independent, it does NOT certify there (+0.0103; bolzakit v0.2 T8 measurement, confirmed by its reviewer). The SU13-free bound 3.8388757010527… certifies comfortably (b(e,e) ≤ −3.0383·m).
+- Robustness in λ₁'s lower bound: evaluated monotonically at the endpoint (exc/(λ₄−λ) is decreasing in λ), the bound still certifies at λ₁ ≥ 3.83788 (≈ −0.0078, thin margin). Under the certificate's plain ball assembly, which treats μ−λ and λ₄−λ as independent, it does NOT certify there (+0.0103; a bolzakit v0.2 measurement, confirmed by an independent re-run). The SU13-free bound 3.8388757010527… certifies comfortably (b(e,e) ≤ −3.0383·m).
 - With λ₄ ≥ 3.9 it still gives −1.89.
 - A mesh-only deformation (where A = 0 exactly) is correctly *not* certified (+1.409).
 

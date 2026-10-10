@@ -1,4 +1,4 @@
-"""trim_degenerate_pair: first-order trim LP plus Newton re-solves (Task 8')."""
+"""trim_degenerate_pair: first-order trim LP plus Newton re-solves."""
 import numpy as np
 import pytest
 import scipy.linalg as sla
@@ -242,7 +242,7 @@ def _gyro():
 
 def test_ring_rate_is_three_tenths_and_trim_gains_three_orders():
     a = _gyro().part_a()
-    assert abs(a["rate"] - 0.3) < 5e-4                       # spec 5.10 (w/R = 0.05, N_theta = 96: 0.29984)
+    assert abs(a["rate"] - 0.3) < 5e-4                       # 3/10 (w/R = 0.05, N_theta = 96: 0.29984)
     r = a["res"]
     assert r.rel_split_after <= 1e-3 * r.rel_split_before
     assert a["dense"] <= 1e-3 * r.rel_split_before            # independent dense eigensolve

@@ -1,11 +1,13 @@
 # Limitations
 
-These limits are deliberate for v0.1. They are recorded in math-pursuits `ASSESSMENT.md` §8.
+These limits are deliberate. They were first recorded for v0.1 in math-pursuits `ASSESSMENT.md` §8 and still apply,
+except that the certified layer (v0.2) adds deformations near Bolza and the sensitivity module works with any
+finite-element model.
 
 ## It covers one surface
 
 Everything in bolzakit is about the Bolza surface. Codes, larger lattice experiments and genus-3 work need families of
-surfaces (covers, other genera), and v0.1 has none. The Γ(p) golden-geodesic function concerns congruence covers of
+surfaces (covers, other genera), and bolzakit has none. The Γ(p) golden-geodesic function concerns congruence covers of
 the modular surface, not covers of Bolza.
 
 ## The FEM is a cross-check only
@@ -24,8 +26,8 @@ most physics users build. bolzakit gives the continuum data such a layer would b
 ## The Green's function is local to the Weierstrass charts
 
 `green().G(z, w)` and `regular(z, w)` are validated only when both points lie within Poincaré radius 0.45 of the same
-Weierstrass point, in a chart centred there. Other pairs raise `OutOfValidityRange`; a general-position G_Σ is not in
-v0.1. The charts cover the surface (covering radius 0.4056), so every single point is valid and `robin_mass` works
+Weierstrass point, in a chart centred there. Other pairs raise `OutOfValidityRange`; a general-position G_Σ is not
+provided. The charts cover the surface (covering radius 0.4056), so every single point is valid and `robin_mass` works
 everywhere. The omitted heat-kernel tail limits accuracy to about 4e-6 in value at T = 2.6. Only the validated
 parameter pairs (T, D_ball) = (2.6, 15) and (2.6, 13) are accepted; other pairs raise `OutOfValidityRange` (un-validated
 pairs can be off by up to 25%).
@@ -42,7 +44,7 @@ pairs can be off by up to 25%).
   e^ℓ.
 - `tau_bounds` data is bundled. Regenerating it takes about 30 minutes and 8 GB of RAM.
 
-## Roadmap (v0.2)
+## Roadmap
 
 1. **Congruence covers of Bolza.** Reduce the exact ℤ[ζ₈] generators modulo prime ideals 𝔭 of ℤ[ζ₈] and enumerate the
    finite quotients Γ/Γ(𝔭). From each quotient, build the genus-g cover:

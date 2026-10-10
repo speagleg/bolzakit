@@ -5,7 +5,7 @@ flint = pytest.importorskip("flint")
 from bolzakit.certified.cluster import certify_cluster, Lam1Input, GapInput
 
 # Published numbers (SRC cert_sign_{24_48,48_96,48_nosym}.json) were produced with LAM = arb("3.8388872588",
-# "1.0000001e-6"); LEGACY is that interval, so goldens reproduce them to 1e-6 (controller ruling, ledger).
+# "1.0000001e-6"); LEGACY is that interval, so goldens reproduce them to 1e-6 (deliberate tolerance).
 LEGACY = Lam1Input(lower="3.8388862587999999", upper="3.8388882588000001",
                    source="SU13 as used in item-23 scripts: arb('3.8388872588','1.0000001e-6')", dep_id="D1")
 SU13 = Lam1Input(lower="3.83888625884", upper="3.83888825884", source="SU13 (D1)")

@@ -87,7 +87,7 @@ def test_optimality_of_dstar(m):
     assert abs(_lmin(A, r.d) - r.phi) < 1e-12 and abs(np.linalg.norm(r.d) - 1) < 1e-12
 
 
-# ------------------------------------------------------------------ fix round 1: stationarity, restarts, census
+# ------------------------------------------------------------------ stationarity, restarts, census
 def _sym(rng, *shape):
     A = rng.standard_normal(shape)
     return (A + A.transpose(0, 2, 1)) / 2
@@ -118,14 +118,14 @@ def test_default_args_stationary_stops_quickly(case):
 
 
 def _plate_like(rng, m=4):
-    """Area equality (null_basis of ones, non-square) plus ~90% of the variables at bounds: the Task 7/9 plate set-up."""
+    """Area equality (null_basis of ones, non-square) plus ~90% of the variables at bounds: the plate set-up of the frequency benchmark."""
     return (_sym(rng, 64, m, m),), {"null_basis": sla.null_space(np.ones((1, 64))),
                                     "bound_signs": rng.choice([-1.0, 0.0, 1.0], 64, p=[0.45, 0.1, 0.45])}
 
 
 def test_census_no_max_iter():
     """Correctness census. Wall-clock limits are loose guards (~10x the unloaded times, so shared CI runners pass);
-    the strict spec 13 targets (< 50 ms) are measured by the benchmark / perf docs, not asserted. The load-independent
+    the strict performance targets (< 50 ms) are measured by the benchmark / perf docs, not asserted. The load-independent
     guard is the iteration count."""
     times, stops, iters = [], [], []
     instances = []
@@ -189,7 +189,7 @@ def test_unreachable_tol_stops_no_progress_with_best_certificate():
 @pytest.mark.parametrize("kind", ["m4_bounds", "gap_bounds", "plate_m4"])
 def test_d64_with_bounds_fast(kind):
     """d = 64, m <= 4 with many variables at bounds (and, for plate_m4, the area equality via a non-square
-    null_basis): the configuration of Task 9. The strict spec 13 target (< 50 ms) is measured by the benchmark /
+    null_basis): the configuration of the frequency benchmark. The strict performance target (< 50 ms) is measured by the benchmark /
     perf docs, not asserted; here wall clock is only a loose guard (~10x the unloaded times, for shared CI
     runners) and the load-independent guard is the iteration count."""
     rng = np.random.default_rng(64)
@@ -217,7 +217,7 @@ def test_d64_with_bounds_fast(kind):
     assert med < 0.25 and max(times) < 2.5
 
 
-# ------------------------------------------------------------------ fix round 4: full-rank faces, certificate checks
+# ------------------------------------------------------------------ full-rank faces, certificate checks
 def _assert_certificate(r, Au, Al=None, null_basis=None, bound_signs=None, stat_tol=0.0, f_value=0.0, tol=1e-10):
     """Recompute every certificate property from the returned fields: d unit-or-zero, in span N, sign feasible;
     phi = lambda_min(A_upper(d)) - lambda_max(A_lower(d)); Y on the spectraplex, mu >= 0 on the bounds only;
@@ -282,7 +282,7 @@ def test_project_face_full_rank_returns_exact_zeros():
 
 
 def _sub_bounds_gap_seed47_instance0():
-    """The review's reproducer: the reviewer census (seed 47) draws 50 'sub_bounds' instances, then this one."""
+    """A regression reproducer: a census with seed 47 draws 50 'sub_bounds' instances, then this one."""
     rng = np.random.default_rng(47)
     for _ in range(50):
         d = int(rng.choice([6, 8, 12]))
@@ -480,9 +480,9 @@ def test_cluster_growth_without_split_error_R3():
     assert ref.mult_rtol < 1e-3
 
 
-# ------------------------------------------------------------------ review focus (driver)
+# ------------------------------------------------------------------ driver edge cases
 def test_sparse_pencil_with_screen_review_focus():
-    # Review Focus 2: FE users pass scipy.sparse K, M, dK; the driver (eigensolve, splitting, screen) must accept them.
+    # FE users pass scipy.sparse K, M, dK; the driver (eigensolve, splitting, screen) must accept them.
     import scipy.sparse as sp
     n = 60
     e = np.ones(n)
@@ -498,7 +498,7 @@ def test_sparse_pencil_with_screen_review_focus():
 
 
 def test_scalar_bounds_and_integer_p0_review_focus():
-    # Review Focus 4: p0 as a Python list of ints and scalar bounds are broadcast, not rejected.
+    # p0 as a Python list of ints and scalar bounds are broadcast, not rejected.
     pen = ParametricPencil(K=lambda p: np.diag([p[0], 2 - p[0]]), M=lambda p: np.eye(2),
                            dK=lambda p: [np.diag([1.0, -1.0])])
     res = maximize_eigenvalue(pen, [0], LowestEigenvalue(0), lower=0, upper=2)
@@ -506,7 +506,7 @@ def test_scalar_bounds_and_integer_p0_review_focus():
 
 
 def test_gap_with_upper_cluster_at_top_of_spectrum_review_focus():
-    # Review Focus 5: Gap(k) whose upper cluster ends at lambda_{n-1}: no out-of-range access, a status is returned.
+    # Gap(k) whose upper cluster ends at lambda_{n-1}: no out-of-range access, a status is returned.
     pen = ParametricPencil(K=lambda p: np.diag([1.0, 2.0 + p[0], 2.0 + p[1]]), M=lambda p: np.eye(3),
                            dK=lambda p: [np.diag([0.0, 1.0, 0.0]), np.diag([0.0, 0.0, 1.0])])
     res = maximize_eigenvalue(pen, [0.0, 0.0], Gap(0), lower=-0.5, upper=0.5, max_iter=20)
@@ -514,9 +514,9 @@ def test_gap_with_upper_cluster_at_top_of_spectrum_review_focus():
     assert res.value >= 1.0 - 1e-12
 
 
-# ------------------------------------------------------------------ scaling (controller ruling, Task 6 review)
+# ------------------------------------------------------------------ scaling
 def _concave_family(seed):
-    """lambda_min of K(p) = A0 + sum p_l S_l - sum p_l^2 D_l (D_l >= 0 diagonal) is concave in p (fix round 2 family);
+    """lambda_min of K(p) = A0 + sum p_l S_l - sum p_l^2 D_l (D_l >= 0 diagonal) is concave in p (the concave test family);
     M = I for even seeds, a fixed SPD M for odd ones. n = 6, d = 4, box [-1, 1]^4."""
     rng = np.random.default_rng(1000 + seed)
     n, d = 6, 4
@@ -574,7 +574,7 @@ def test_power_of_two_scaling_is_bit_identical():
     assert res.value == ref.value * 65536.0 and np.array_equal(res.p, ref.p) and res.n_iter == ref.n_iter
 
 
-# ------------------------------------------------------------------ fix round 1
+# ------------------------------------------------------------------ regressions
 def test_rounding_level_armijo_does_not_cycle_I1():
     # lambda_0 = 1 - |p| with p1 >= 0.1: maximum 0.9 at (0.1, 0), smooth there. Once armijo * tau * phi < ulp(f) the
     # Armijo target rounds to f; equal-value steps must not be accepted (they 2-cycled p2 = +-4e-9 to max_iter).
@@ -675,7 +675,7 @@ def test_screen_trial_assembles_once_M3():
     assert calls["K"] == trials + 1, (calls["K"], trials)
 
 
-# ------------------------------------------------------------------ fix round 2
+# ------------------------------------------------------------------ eps-refinement and fallback reporting
 def _concave_kelley(K, dK, M0, tol=1e-7, max_cuts=600):
     """Certified bracket for max over [-1, 1]^4 of the concave lambda_min (cuts from v^T dK_l v, v M-normalised)."""
     from scipy.optimize import linprog

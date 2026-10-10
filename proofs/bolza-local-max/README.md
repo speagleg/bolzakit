@@ -32,6 +32,16 @@ The documents are copied from math-pursuits item 23 (`work/`, `paper/`) as of 20
 53bc014). They refer to item-23 script and output names (`lp_count.py`, `cert_sign_48_96.json`, …); the certificates here are their bolzakit
 regenerations.
 
+**Reading the record.** PROOF.md, LB_*.md and the reviews are kept as written, so they cite item-23 working files
+that are not in this repository: the detailed records PROOF.md supersedes (RESULTS.md, CERT_RESULTS.md, CERT_SIGN.md,
+CERT_P6.md, F1_PROOF.md, CERT_G3.md, LITERATURE.md), the producer scripts and their `.out` files, and the reviewers'
+working directories (`scratch_*/`). Every number the proof uses is restated in PROOF.md, and the certified ones are
+regenerated here as certificates. The reviews also use the labels of the AI-assisted workflow that produced them:
+"the controller" is the coordinating agent that commissioned a review and applied its fixes, and "Rule R",
+"track R" and "track RS" name review assignments under the project's verification rules (see
+[VERIFICATION.md](../../VERIFICATION.md)). [LEAN.md](LEAN.md) is the item-23 formalisation record; its header notes
+how the copy in `lean/` differs.
+
 ## The chain, in one screen
 
 PROOF.md §2 has the details and §"Theorem: assembly" the assembly. In short:

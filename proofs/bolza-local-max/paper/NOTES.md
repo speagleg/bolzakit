@@ -32,9 +32,9 @@ references and no overfull boxes. BibTeX gives no warnings.
 
 ## 2. Claims I could not fully source (or that are my own wording or speculation)
 
-1. **"An independent lower bound is in progress"** (Remark 10.1). This was added because the task asked for it. The
-   project files only list it as an *optional next step* (README §5, PROOF.md D1). Confirm that it is actually in
-   progress before submission.
+1. *(Resolved.)* An earlier draft of Remark 10.1 said "an independent lower bound is in progress". That bound is now
+   certified (Lehmann–Goerisch: main.tex `prop:LG` in `subsec:LG`, and PROOF.md Lemma 1(d)), and main.tex no longer contains
+   the sentence.
 2. Remark 10.3: "A quantitative version … could in principle reduce the global problem to a compact region away
    from B." This is my speculation, marked "we have not attempted this". Delete it if unwanted.
 3. Remark 10.4(2): the suggestion to apply the method to the Klein quartic is mine. It is motivated by FBP-LP's

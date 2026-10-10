@@ -368,7 +368,7 @@ assert hits == [3, 7, 47]                                 # prime Lucas numbers 
 Outputs: `systole` is NUMERICAL (float64 of the exact closed form). `lengths` is NUMERICAL: the half-traces are exact
 and the multiplicities are rounded from sums with integrality residual ≤ 1.1e-8. `automorphisms` is PROVED.
 `golden_geodesic_is_systole` is PROVED: the arithmetic step (L_{n(p)} = p²−2 ⇔ p = L_{2^j}) is a Lean theorem; the
-geometric part is item 05's written proof. It accepts odd primes only and raises `ValueError` otherwise (other p are
+geometric part is math-pursuits item 05's written proof. It accepts odd primes only and raises `ValueError` otherwise (other p are
 outside the theorem's scope).
 
 ### (d) Spectral geometry and quantum chaos
@@ -531,7 +531,7 @@ Details and sources are in [docs/results-and-corrections.md](docs/results-and-co
 
 More detail is in [docs/limitations.md](docs/limitations.md).
 
-- **It covers one surface.** Everything is for the Bolza surface. The certified layer adds only deformations near
+- **It covers one surface.** Everything except the general-purpose sensitivity module is for the Bolza surface. The certified layer adds only deformations near
   it (|t| ≤ 0.05), and its eigenvalue counts are for Bolza only. Codes, larger lattice experiments and genus-3 work
   need families of surfaces, which bolzakit does not have.
 - **Certified runs are slow, and the checker has a trust boundary.** See
@@ -604,6 +604,7 @@ What is in place:
 - the tests check the numbers against independent computations.
 
 The verification policy is in [VERIFICATION.md](VERIFICATION.md).
+
 ## Licence
 
 MIT. See [LICENSE](LICENSE).

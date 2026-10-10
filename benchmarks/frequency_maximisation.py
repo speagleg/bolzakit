@@ -339,7 +339,7 @@ def main(quick: bool = False, budget: int | None = None, n_seeds: int | None = N
         with open(markdown, "w", encoding="utf-8") as fh:
             fh.write("\n".join(out))
     print(f"label: NUMERICAL (discrete problem); {time.perf_counter() - t_start:.1f} s")
-    # self-checks (spec 10.1): constraints hold and our accepted iterates never decrease; nothing about who wins
+    # self-checks: constraints hold and our accepted iterates never decrease; nothing about who wins
     for r in rows:
         assert r["bnd"] <= 1e-12
         assert r["vol"] <= (1e-3 if "MMA" in r["method"] else 1e-9)

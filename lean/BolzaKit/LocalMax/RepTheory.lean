@@ -1,5 +1,5 @@
 /-
-# Lemmas 5–7 / P6 of work/PROOF.md: exact representation theory (ARITHMETIC CHECKED BY THE LEAN KERNEL)
+# Lemmas 5–7 / P6 of PROOF.md (proofs/bolza-local-max/): exact representation theory (ARITHMETIC CHECKED BY THE LEAN KERNEL)
 
 All data come from `work/cert_chars.py` (Part A, exact arithmetic in Q(ζ₂₄)):
 

@@ -1,7 +1,7 @@
 /-
 Copyright: item 23 (Bolza λ₁ extremality), Lean skeleton.
 
-# Lemma 10 of work/PROOF.md: the local-max criterion (PROVED IN LEAN, no axioms beyond Mathlib's)
+# Lemma 10 of PROOF.md (proofs/bolza-local-max/): the local-max criterion (PROVED IN LEAN, no axioms beyond Mathlib's)
 
 Setting.  `V` is any finite-dimensional real normed space (in the application `V = ℝ⁶`, the
 tangent space of the chart `S` of Lemma 9, identified with TT tensors via σ).

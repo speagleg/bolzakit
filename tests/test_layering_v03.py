@@ -56,7 +56,7 @@ def test_version_and_error():
     assert issubclass(CertificationFailed, BolzakitError)
 
 
-# ------------------------------------------------------------------ sub-project F (spec 3.1)
+# ------------------------------------------------------------------ sensitivity layering (0.3.0)
 SENS = SRC / "bolzakit" / "sensitivity"
 NO_FRAMEWORK = [SENS / "core.py", SENS / "errors.py", SENS / "optimize.py", SENS / "trim.py", SENS / "__init__.py",
                 SENS / "adapters" / "_util.py"]
@@ -87,14 +87,14 @@ def _is(m, root):
 
 def test_core_errors_optimize_import_no_framework():
     for f in NO_FRAMEWORK:
-        if not f.exists():            # optimize.py arrives in Task 6
+        if not f.exists():            # tolerate a partial tree
             continue
         bad = [m for m in _mods(f) if _is(m, "torch") or _is(m, "jax") or _is(m, "jaxlib")]
         assert bad == [], (f.name, bad)
 
 
 def test_errors_module_is_stdlib_only():
-    if not (SENS / "errors.py").exists():   # errors.py arrives in Task 1
+    if not (SENS / "errors.py").exists():   # tolerate a partial tree
         pytest.skip("errors.py not written yet")
     assert _mods(SENS / "errors.py") <= {"__future__"}
 
@@ -139,7 +139,7 @@ def test_new_layer_check_sees_package_level_imports(tmp_path):
 
 
 def _core_imports():
-    """The core modules that exist so far (optimize.py arrives in Task 6)."""
+    """The core sensitivity modules present in the tree."""
     mods = ["bolzakit.sensitivity"] + [f"bolzakit.sensitivity.{m}" for m in ("optimize", "trim")
                                        if (SENS / f"{m}.py").exists()]
     return ", ".join(mods)

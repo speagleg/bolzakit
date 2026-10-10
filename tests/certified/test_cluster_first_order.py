@@ -5,7 +5,7 @@ flint = pytest.importorskip("flint")
 from bolzakit.certified.cluster import certify_cluster, Lam1Input, GapInput
 
 # Published numbers (SRC cert_first_order_{48,96_192}.json) were produced with LAM = arb("3.8388872588",
-# "1.0000001e-6"); LEGACY is that interval, so the goldens reproduce them to 1e-6 (controller ruling, ledger).
+# "1.0000001e-6"); LEGACY is that interval, so the goldens reproduce them to 1e-6 (deliberate tolerance).
 LEGACY = Lam1Input(lower="3.8388862587999999", upper="3.8388882588000001",
                    source="SU13 as used in item-23 scripts: arb('3.8388872588','1.0000001e-6')")
 SU13 = Lam1Input(lower="3.83888625884", upper="3.83888825884", source="SU13 (D1)")
@@ -118,8 +118,8 @@ def test_n192_lehmann_goerisch_lam1_certifies():
 @pytest.mark.slow
 def test_weak_lam1_lower_does_not_certify():
     # PROOF.md Lemma 5's robustness remark ("survives any lambda_1 lower bound >= 3.83788") does NOT hold for this
-    # P1 n=192 test: measured b_ee_upper/m = +0.01027 (mu - lam1 grows to 1.2e-3, so q(w)/m ~ 0.03). The plan's
-    # test asserted it certifies; reported to the controller instead of loosening anything.
+    # P1 n=192 test: measured b_ee_upper/m = +0.01027 (mu - lam1 grows to 1.2e-3, so q(w)/m ~ 0.03). An earlier
+    # draft of this test asserted it certifies; the assertion was corrected to the measured behaviour.
     weak = Lam1Input(lower="3.83788", upper="3.83888825884", source="weak")
     r = certify_cluster("F_A", degree=1, n=192, lam1=weak, gap=GAP)
     assert not r.A_nonzero and abs(r.b_ee_upper_inprocess - 0.0102731604129076) < 1e-4

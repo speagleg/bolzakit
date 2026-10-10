@@ -6,6 +6,7 @@ type: software
 version: 0.3.1
 date-released: 2026-10-10
 license: MIT
+repository-code: "https://github.com/speagleg/bolzakit"
 authors:
   - family-names: Speagle
     given-names: Gordon

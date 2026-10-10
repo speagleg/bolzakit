@@ -68,7 +68,7 @@ def test_check_gap_false_reports_ratio():
     K = np.diag([1.0, 1.0005, 1.001, 3.0])
     with pytest.raises(ValueError, match="splits"):
         splitting_matrices(K, np.eye(4), [np.eye(4)], None, (0, 1))
-    with pytest.raises(ClusterSplitError) as e:                    # exact type (spec 9.1)
+    with pytest.raises(ClusterSplitError) as e:                    # exact type
         splitting_matrices(np.diag([1.0, 1.0, 3.0]), np.eye(3), [np.eye(3)], None, (0, 0))
     assert type(e.value) is ClusterSplitError
     sm = splitting_matrices(K, np.eye(4), [np.eye(4)], None, (0, 1), check_gap=False)

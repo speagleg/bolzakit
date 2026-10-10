@@ -4,9 +4,9 @@ At a multiple eigenvalue lambda_k is not differentiable, only directionally: f'(
 A(d) = sum_l d_l A_l the splitting matrices of the active cluster (Seyranian-Lund-Olhoff 1994; Overton 1988/1992).
 The steepest-ascent direction solves max_{d feasible, |d| <= 1} lambda_min(A(d)), whose dual is
     phi* = min_{Y in S, mu >= 0} || P_eq (g(Y) + sum_{l in B} mu_l s_l e_l) ||,   g(Y)_l = <Y, A_l>,
-over the spectraplex S = {Y >= 0, tr Y = 1} and bound multipliers mu (spec 5.8). phi* = 0 is the SLO/KKT first-order
-condition. With eps-active (near-tied) clusters the model is the reduced model of spec 5.2, so "stationary" means
-eps-stationary with eps = mult_rtol * s.
+over the spectraplex S = {Y >= 0, tr Y = 1} and bound multipliers mu. phi* = 0 is the SLO/KKT first-order
+condition. With eps-active (near-tied) clusters the model is the eps-reduced model (eigenvalues within eps are
+treated as tied), so "stationary" means eps-stationary with eps = mult_rtol * s.
 
 NUMERICAL: computed for the discrete pencil (K, M) as given; discretisation error relative to any continuum operator
 is not controlled. Imports only numpy/scipy and bolzakit.sensitivity.
@@ -206,7 +206,7 @@ def ascent_direction(A_upper, A_lower=None, *, null_basis=None, bound_signs=None
     Every returned result passes a final recomputation of these properties (d in span N to 1e-10, sign feasible,
     phi = lambda_min(...) and phi <= phi_upper to 1e-12 * gscale, Y and mu dual feasible); a result that fails is
     replaced by d = 0, phi = 0 with the stop relabelled "stationary" or "no_progress" by the size of phi_upper.
-    Callers (the Task 7/9 driver) take a step only for phi > 0, treat "stationary" as convergence, and treat
+    Callers (such as maximize_eigenvalue) take a step only for phi > 0, treat "stationary" as convergence, and treat
     "no_progress"/"max_iter" with d = 0 as stationary to accuracy phi_upper.
 
     Cost: typically 10-30 iterations and a few ms (d = 64, m <= 4, with bounds and equalities: median ~10-15 ms).
@@ -583,8 +583,8 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
                         _direction: Callable | None = None, _max_eigensolves: int | None = None,
                         _subproblem_max_iter: int = 2_000) -> EigenOptResult:
     """Maximise lambda_k(p) (LowestEigenvalue(k)) or lambda_{k+1}(p) - lambda_k(p) (Gap(k)) subject to
-    lower <= p <= upper and A_eq p = b_eq, by multiple-eigenvalue steepest ascent with an Armijo trust region
-    (spec 7). Raises ValueError for an infeasible p0 or an out-of-range objective.k, and TypeError for an unknown
+    lower <= p <= upper and A_eq p = b_eq, by multiple-eigenvalue steepest ascent with an Armijo trust region.
+    Raises ValueError for an infeasible p0 or an out-of-range objective.k, and TypeError for an unknown
     objective. Statuses:
     - "stationary": phi* = 0 to the subproblem's accuracy (its "stationary" stop, or its rule (b) met by the
       certified bound phi_upper): a stationary point of the reduced model that ties the eigenvalues of each active
@@ -881,7 +881,7 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
             accepted = fq >= target and fq > f       # strict: a rounding-level target equals f (see docstring)
             log(IterRecord(it, f, mult, phi, ad.phi_upper, tau, accepted, False, ad.rates))
             if accepted:
-                # spec 7 step 8; a bound-limited step (tau < Delta) never shrinks Delta
+                # trust-region update; a bound-limited step (tau < Delta) never shrinks Delta
                 if fq - f >= 0.75 * tau * phi:
                     Delta = min(max(2 * tau, Delta), Dmax)
                 elif fq - f < 0.25 * tau * phi:          # poor agreement: shrink (avoids a zigzag at fixed tau)
