@@ -1,4 +1,4 @@
-"""Arithmetic of the Bolza curve y² = x⁵ − x over Q (item 15c). Needs the optional extra: pip install bolzakit[pari].
+"""Arithmetic of the Bolza curve y² = x⁵ − x over Q (see docs/arith.md). Needs the optional extra: pip install bolzakit[pari].
 The Jacobian is Q-simple (L_3 = x⁴−2x²+9 is irreducible over Q) and splits over Q(√2) as E′² with CM by Z[√−2]."""
 from __future__ import annotations
 from ..provenance import provenance, require
@@ -27,7 +27,7 @@ def _check_good_prime(p) -> int:
     return p
 
 
-@provenance("PROVED", "item 15c: an abelian surface whose Frobenius char. poly at a good prime is irreducible over Q "
+@provenance("PROVED", "proof in docs/arith.md: an abelian surface whose Frobenius char. poly at a good prime is irreducible over Q "
             "is Q-simple; L_3 = x^4-2x^2+9 is irreducible (PARI polisirreducible). True is proved; None means "
             "inconclusive at the given primes")
 def jacobian_is_Q_simple(primes=(3,)) -> bool | None:

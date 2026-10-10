@@ -1,6 +1,6 @@
 """Provenance labels. Every public function is decorated with @provenance(label, source, error).
 
-Labels (math-pursuits VERIFICATION_POLICY.md):
+Labels (see VERIFICATION.md):
   EXACT      integer / algebraic arithmetic
   PROVED     exact computation plus an argument, or a Lean theorem
   CERTIFIED  rigorous enclosure (interval / ball arithmetic, exact tail bounds)

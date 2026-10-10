@@ -1,4 +1,4 @@
-"""Bolza-surface ring dynamics: port of item 03 `dynamics.py` (mode-m energy-momentum Hessian of an N-ring centred at
+"""Bolza-surface ring dynamics: port of the original `dynamics.py` (mode-m energy-momentum Hessian of an N-ring centred at
 the Weierstrass point z0 = 0, FULL surface Green function).
 
 H_Sigma = sum_{i<j} G1(d_ij) + S,  S = sum_{i<j} R(z_i,z_j) + (1/2) sum_i R(z_i,z_i)   (Boatto-Koiller (3.8), our sign).
@@ -6,7 +6,7 @@ H_tanh part: ringmodes.py (mpmath, exact model).  S part: double precision, cent
 step h = 2e-3 (S is float64, so the mpmath step 10^(-dps/3) of ringmodes.analyse would be rounding-dominated).
 Restricted to the 4-dim mode-m subspace {s cos, s sin, theta cos, theta sin}(m theta_k).
 
-bolzakit edits relative to item 03 (porting rule): imports; N is a parameter (item 03 hard-codes the module constant
+bolzakit edits relative to the original (porting rule): imports; N is a parameter (the original hard-codes the module constant
 N = 7); `mp.mp.dps = 30` (global side effect) became `mp.workdps(dps)`; main() dropped; `lam_sigma` added -- it
 evaluates only the (0,0) and (1,1) entries of the same restricted Hessian (the cos and sin copies `lam_sigma`,
 `lam_sigma_sin` of `analyse`), which needs 4 S-evaluations per mode instead of 33. Formulas are unchanged.
@@ -53,7 +53,7 @@ def restricted_hessian(f, X0, basis, h):
 
 
 def analyse(g, xi, m=3, h=2e-3, N=7, dps=30):
-    """Item 03 `analyse`, verbatim up to the N / dps parameters. Requires 2m != N (else the sin basis vanishes)."""
+    """The original `analyse`, verbatim up to the N / dps parameters. Requires 2m != N (else the sin basis vanishes)."""
     s0 = 0.5 * math.log(xi)
     X0 = np.r_[np.full(N, s0), 2 * np.pi * np.arange(N) / N]
     fS = lambda X: g.S_ring(zs_of(X, N))

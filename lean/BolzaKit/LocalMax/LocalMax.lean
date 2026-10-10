@@ -1,5 +1,5 @@
 /-
-Copyright: item 23 (Bolza λ₁ extremality), Lean skeleton.
+Bolza λ₁ extremality, Lean skeleton.
 
 # Lemma 10 of PROOF.md (proofs/bolza-local-max/): the local-max criterion (PROVED IN LEAN, no axioms beyond Mathlib's)
 

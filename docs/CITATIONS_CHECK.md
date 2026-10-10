@@ -30,16 +30,12 @@ end.
 | reference | status | what was done |
 |---|---|---|
 | Aurich–Steiner (Physica D 1988, 1989) | not cited directly | A web search did not reach the papers. The docs mention them only through [SU13]'s own words, e.g. "Aurich and Steiner [AS89] ... give the value 3.8388 which was obtained using the finite element method". No claim rests on Aurich–Steiner. |
-| Lück, *The relation between the Baum–Connes conjecture and the trace conjecture*, Invent. Math. 149 (2002) 123–152 | removed | Crossref confirms the metadata (10.1007/s002220200215), but we did not read the theorem. Item 04's note uses it for trace integrality. The docs instead rest the Kadison–Kaplansky step on [MY02, Thm 21], which we read, and point to the note for the Lück route. |
-| Jolissaint 1990 (property RD), Nica–Špakula 2016 | not cited | They are used in item 04's note but not needed for anything the docs claim. |
-| Grotta-Ragazzo–Gustafsson–Koiller (incompleteness of the Boatto–Koiller model) | not cited | The docs state the model-conditionality as a fact recorded in item 03's note, without citing GGK. |
+| Lück, *The relation between the Baum–Connes conjecture and the trace conjecture*, Invent. Math. 149 (2002) 123–152 | removed | Crossref confirms the metadata (10.1007/s002220200215), but we did not read the theorem. An earlier research note uses it for trace integrality. The docs instead rest the Kadison–Kaplansky step on [MY02, Thm 21], which we read, and point to the note for the Lück route. |
+| Jolissaint 1990 (property RD), Nica–Špakula 2016 | not cited | They are used in an earlier research note but not needed for anything the docs claim. |
+| Grotta-Ragazzo–Gustafsson–Koiller (incompleteness of the Boatto–Koiller model) | not cited | The docs state the model-conditionality as a fact recorded in the original research code, without citing GGK. |
 | "fold-transversal gates" (an earlier use-case description) | removed | The claim was never sourced; the codes use case now says only that the automorphism group supplies candidate symmetries. |
 | "{8,8} Bolza cell" (earlier design-document wording) | reworded | The docs say "eight octagons meet at every vertex", which follows from the interior angle π/4 in `exact/group.py`. |
 
 ## Internal (non-literature) sources
 
-The math-pursuits notes are cited by path and section. They are the project's own work, not literature:
-- items 02, 03 (`review_1.md` §3.A, `note.tex`), 04 (`note.tex`), 05 and 15;
-- `ASSESSMENT.md` §8.
-
-Their content was read directly from the files, which are read-only for this repository.
+Some statements rest on notes from the private research archive in which bolzakit was developed (not public; it cannot be followed from this repository). They are the project's own work, not literature, and are cited here only as "an earlier research note" or "original research code".

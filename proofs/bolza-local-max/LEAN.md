@@ -1,16 +1,16 @@
-# LEAN.md — Lean 4 / Mathlib skeleton of the item-23 proof
+# LEAN.md — Lean 4 / Mathlib skeleton of the proof
 
-**In this repository.** This is the record of the original item-23 formalisation. The files are in
+**In this repository.** This is the record of the original formalisation (done in a private research archive, not public). The files are in
 [`lean/BolzaKit/LocalMax/`](../../lean/BolzaKit/LocalMax/) (modules `BolzaKit.LocalMax.*`, root
-`lean/BolzaKit/LocalMax.lean`); item 23 called the directory `BolzaLean/` and the root `BolzaLean.lean`, and the
+`lean/BolzaKit/LocalMax.lean`); the original called the directory `BolzaLean/` and the root `BolzaLean.lean`, and the
 record below keeps those names. Two differences from the record:
 - the field `BolzaInputs.g_sign` now assumes the SU13-free constant g″(0) ≤ −9.3411 (Lemma 8 with the
   Lehmann–Goerisch λ₁ ball) instead of −12.8504; `Cert.sign_su13_implies_lg` checks that the SU13 value also
   discharges it. The Lean files do not check the Lehmann–Goerisch certificate's own arithmetic
   (−9.3411481 ≤ −9.3411); that link is made by hand, like the other certificate links;
-- the build runs through `lake build` (CI) or `lean/build_local.sh`, which replaces item 23's `build.sh` (§4).
+- the build runs through `lake build` (CI) or `lean/build_local.sh`, which replaces the original `build.sh` (§4).
 
-Project: `items/23-bolza-lambda1-extremality/lean/` (Lean 4.34.1, Mathlib v4.34.1, reused read-only from
+Original project (private archive, not public): its `lean/` directory (Lean 4.34.1, Mathlib v4.34.1, reused read-only from
 `bolzakit/lean/.lake/packages`). About 2250 lines in 8 files. The build has **no `sorry`**, **no `axiom`
 declarations** and **no `native_decide`**. Every analytic or geometric input is a named field (an explicit
 hypothesis) of the structure `Bolza.BolzaInputs` in `BolzaLean/Assembly.lean` (here `lean/BolzaKit/LocalMax/Assembly.lean`). Each field's docstring cites
@@ -173,13 +173,13 @@ What the Lean theorem does **not** cover:
 ## 4. Build
 
 In this repository, build with `lake build` (as CI does) or with `lean/build_local.sh`, which compiles the same
-files against prebuilt Mathlib oleans. The record below is the original item-23 build.
+files against prebuilt Mathlib oleans. The record below is the original build.
 
 Verified route (read-only with respect to bolzakit). The oleans were copied to a local scratch directory for
 speed, because memory-mapping them from a network or WSL-mounted filesystem is very slow:
 
 ```
-cd items/23-bolza-lambda1-extremality/lean
+cd <original project>/lean   # private archive; not in this repository
 PKGS=<dir containing <pkg>/lean copies of bolzakit/lean/.lake/packages/<pkg>/.lake/build/lib/lean> ./build.sh
 # or simply ./build.sh  (reads bolzakit's oleans in place; same commands, much slower first load;
 #  this variant was not re-run end-to-end)
@@ -187,7 +187,7 @@ PKGS=<dir containing <pkg>/lean copies of bolzakit/lean/.lake/packages/<pkg>/.la
 
 `build.sh` runs `nice lean -o build/BolzaLean/<F>.olean` for
 F = RepTheory, LocalMax, Taylor, RepReal, Certificates, KyFan, Assembly, Model, then `lean BolzaLean.lean`.
-A clean build took 2 min 33 s, with 0 errors and 0 `sorry` (the full log, `lean/build.log`, stayed with item 23). The
+A clean build took 2 min 33 s, with 0 errors and 0 `sorry` (the full log, `lean/build.log`, stayed with the private archive). The
 `lakefile.lean` is provided for convenience and was not used; see the caution in it.
 
 `#print axioms` output (from `BolzaLean.lean`):

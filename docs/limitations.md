@@ -1,6 +1,6 @@
 # Limitations
 
-These limits are deliberate. They were first recorded for v0.1 in math-pursuits `ASSESSMENT.md` §8 and still apply,
+These limits are deliberate. They were first recorded for v0.1 in an earlier assessment in the original research code (private archive) and still apply,
 except that the certified layer (v0.2) adds deformations near Bolza and the sensitivity module works with any
 finite-element model.
 
@@ -36,7 +36,7 @@ pairs can be off by up to 25%).
 
 - The λ₃ series holds only for N = 7 in the SO(2)-invariant degree-7 truncation of the Boatto–Koiller model.
 - In the full Bolza Hamiltonian the ring is only an approximate relative equilibrium, with an O(ξ⁴) residual.
-- The Boatto–Koiller model freezes the harmonic degrees of freedom (item 03 note). See [vortex.md](vortex.md).
+- The Boatto–Koiller model freezes the harmonic degrees of freedom (recorded in the original research code). See [vortex.md](vortex.md).
 
 ## Other
 

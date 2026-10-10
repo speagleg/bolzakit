@@ -3,7 +3,7 @@
 **Theorem.** Let B be the Bolza surface and T₂ the Teichmüller space of genus 2. There is a neighbourhood N of B
 in T₂ such that λ₁(X) < λ₁(B) for every X ∈ N ∖ {B}.
 
-**Status** (copied verbatim from the Status row of math-pursuits item 23's README; there, `work/PROOF.md` is
+**Status** (copied verbatim from the Status row of the README of the private research archive in which this proof was developed (not public); there, `work/PROOF.md` is
 [PROOF.md](PROOF.md) in this folder):
 
 > **PROVED (computer-assisted), conditional on the cited inputs in work/PROOF.md §Dependencies: FBP Lemmas 7.2–7.3 and §7.4 geodesic data, the Selberg trace formula, the Lehmann–Goerisch theorem (quoted from secondary sources), and standard facts. No longer depends on Strohmaier–Uski (SU13): λ₁ ≥ 3.8388757010 is now certified in-house (review_lb_1: ACCEPT). Every component second-read; integrated proof read: ACCEPT-WITH-FIXES, fixes applied.**
@@ -28,18 +28,21 @@ review.
 | [certificates/](certificates/) | The golden `bolzakit-cert/1` JSON certificates, regenerated through the bolzakit API |
 | [reproduce.py](reproduce.py) | Checks or regenerates the certificates and prints claim / certified / published / provenance / match |
 
-The documents are copied from math-pursuits item 23 (`work/`, `paper/`) as of 2026-10-09 (math-pursuits commit
-53bc014). They refer to item-23 script and output names (`lp_count.py`, `cert_sign_48_96.json`, …); the certificates here are their bolzakit
+The documents are copied from the private working repository ("math-pursuits", not public) in which this proof was developed, as of
+2026-10-09; everything the proof needs is restated in this repository. The scripts and the record behind them are not in this repository: what is here is bolzakit's
+[reproduce.py](reproduce.py) and the [certificates/](certificates/). The documents refer to the original script and output names (`lp_count.py`, `cert_sign_48_96.json`, …); the certificates here are their bolzakit
 regenerations.
 
-**Reading the record.** PROOF.md, LB_*.md and the reviews are kept as written, so they cite item-23 working files
+**Certificate `source` fields.** The `source` strings inside the certificate JSON files (for example "math-pursuits item 23 LB_RESULTS" or "item-23 scripts") name files of the private research archive in which the proof was developed (not public). They are part of the signed record and are kept as written.
+
+**Reading the record.** PROOF.md, LB_*.md and the reviews are kept as written, so they cite working files of the private archive
 that are not in this repository: the detailed records PROOF.md supersedes (RESULTS.md, CERT_RESULTS.md, CERT_SIGN.md,
 CERT_P6.md, F1_PROOF.md, CERT_G3.md, LITERATURE.md), the producer scripts and their `.out` files, and the reviewers'
 working directories (`scratch_*/`). Every number the proof uses is restated in PROOF.md, and the certified ones are
 regenerated here as certificates. The reviews also use the labels of the AI-assisted workflow that produced them:
 "the controller" is the coordinating agent that commissioned a review and applied its fixes, and "Rule R",
 "track R" and "track RS" name review assignments under the project's verification rules (see
-[VERIFICATION.md](../../VERIFICATION.md)). [LEAN.md](LEAN.md) is the item-23 formalisation record; its header notes
+[VERIFICATION.md](../../VERIFICATION.md)). [LEAN.md](LEAN.md) is the record of the original formalisation; its header notes
 how the copy in `lean/` differs.
 
 ## The chain, in one screen
@@ -84,7 +87,7 @@ python -m bolzakit_check proofs/bolza-local-max/certificates/*.json
   test, which does *not* certify, as published, and the n = 24 Ky Fan test).
 - `--full` regenerates the golden set through the bolzakit API.
 - Both print a table of claim | certified value | published value | provenance | match, and exit 0 only if every
-  row matches. The provenance column names the item-23 file a value is published in, or marks it as a bolzakit
+  row matches. The provenance column names the file of the original research code a value is published in, or marks it as a bolzakit
   regression pin (two rows: the Ky Fan LG n = 96 value and the n = 24 first-order value).
 - `bolzakit_check` exits 0 if every file is unconditionally VALID, 2 if none is INVALID but some is only
   conditionally VALID, and 1 if any file is INVALID. On the golden set it exits 2, with six conditional files:
@@ -107,8 +110,8 @@ python -m bolzakit_check proofs/bolza-local-max/certificates/*.json
 | `rank.json` | a 6×6 minor of the trace-coordinate Jacobian is non-zero | det ≈ 7.8724e18 |
 | `lg_lower_n48.json` | λ₁ ≥ (Lehmann–Goerisch, P2 + RT₂, n = 48, ρ = 5), given λ₄ ≥ 4.0 | ≥ 3.83887570105272 |
 
-The `_lg` certificates use exactly λ₁ ∈ [3.8388757010, 3.8388872830]. Their bounds are slightly weaker than item
-23's (−3.0383476 and −9.3411545), because item 23's scripts (`lb_cert_first_order.py`, `lb_cert_sign.py`) used the
+The `_lg` certificates use exactly λ₁ ∈ [3.8388757010, 3.8388872830]. Their bounds are slightly weaker than the
+original code's (−3.0383476 and −9.3411545), because the original scripts (`lb_cert_first_order.py`, `lb_cert_sign.py`) used the
 ball arb("3.83888149202636215", "5.791e-6"). That ball starts at 3.8388757010263, slightly above 3.8388757010 but
 still below the certified Lehmann–Goerisch bound 3.8388757010527 (`lg_lower_n48`). Both versions certify the sign.
 The `_lg` certificates' λ₁ input (dependency D15) names `lg_lower_n48.json` for its lower end, which attests a
@@ -117,7 +120,7 @@ value" column is the upper end of the ball stored in the certificate (rounded up
 and the checker re-derives.
 
 **Corrected erratum.** PROOF.md Lemmas 5 and 8 used to attribute −3.0383476242423058 and −9.341154560446736 to
-the λ ball [3.8388757010, 3.8388872830]. Those values come from item 23's script ball
+the λ ball [3.8388757010, 3.8388872830]. Those values come from the original script ball
 [3.838875701026362, 3.838887283026362] (see above), and PROOF.md now says so. For exactly
 [3.8388757010, 3.8388872830] the in-process Ky Fan value is −9.3411487 (the pin −9.341148662), and
 `kyfan_FB_n96_lg.json` attests the slightly weaker ≤ −9.3411481 (the upper end of its stored enclosure, as in the
@@ -160,7 +163,7 @@ recomputed.
 - **The cited inputs** of PROOF.md §Dependencies: FBP's lemmas and geodesic data, the Selberg trace formula, the
   Lehmann–Goerisch theorem, and the standard facts.
 - **The λ₁ lower bound's Gram data and its ρ.** The Lehmann–Goerisch computation is regenerated by bolzakit
-  (`certify_lam1_lower`, a port of item 23's `lb_core.py` / `lb_bolza.py`) and its last step is re-derived by the
+  (`certify_lam1_lower`, a port of the original `lb_core.py` / `lb_bolza.py`) and its last step is re-derived by the
   checker. The checker does not see the element integrals or the H(div) conformity of the RT₂ fluxes behind A0,
   A1, A2; those are trusted like the other Gram data. **The computation cannot detect a wrong ρ**: ρ = 7.5
   violates the hypothesis (λ̃₅ ≈ 6.354) and still returns a plausible value below the true λ₁ (review_lb_1 row
@@ -173,7 +176,7 @@ recomputed.
   λ₁ ≥ 3.3 is discharged by hand by `lp_A`. The β bounds in the cluster certificates are stored data, trusted
   like the Gram data.
 - **The non-certificate steps.** Lemmas 2–4, 6–7, 10–11 and the assembly are written arguments or exact
-  computations in item 23. They are not certificates and the checker does not see them. Lean
+  computations in the original research code. They are not certificates and the checker does not see them. Lean
   (see [LEAN.md](LEAN.md)) machine-checks the logical chain, conditional on these computational inputs.
 
 **What has not happened.** No human expert has read the proof. The reviews are AI second reads.

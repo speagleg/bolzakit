@@ -110,7 +110,7 @@ from ..provenance import provenance  # noqa: E402
 
 
 @provenance("NUMERICAL", "exact half-traces; multiplicities rounded from axis sums and confirmed by the "
-            "Selberg trace formula (item 02)",
+            "Selberg trace formula",
             "integrality residual <= 1.1e-8 (max 1.09e-8 at half-trace 59+42*sqrt2)")
 def lengths(max_half_trace: float = 120.0, compute: bool = False) -> list[dict]:
     """Primitive length spectrum: entries with half-trace p+q√2 <= max_half_trace, sorted by length.

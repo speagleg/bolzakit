@@ -1,6 +1,6 @@
 """Certified eigenvalue counts for the Bolza surface via the Selberg trace formula (linear programming).
 
-Port of math-pursuits item 23 ``lp_count.py``. Method: Fortier Bourque--Petri, arXiv:2111.14699, Section 3
+Port of the original research code ``lp_count.py``. Method: Fortier Bourque--Petri, arXiv:2111.14699, Section 3
 (Lemma 3.2, Cohn--Elkies strategy), with the variant "Lemma A" (window (0, a] instead of [a, b]).
 
 Conventions (FBP (3.1)): fhat(xi) = (2pi)^(-1/2) int f(x) e^{-i xi x} dx;  r(lam)^2 = lam - 1/4;

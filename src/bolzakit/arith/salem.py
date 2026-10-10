@@ -3,12 +3,12 @@ import mpmath as mp
 from ..provenance import provenance
 
 
-@provenance("EXACT", "item 15b (PARI: reciprocal, irreducible, norm from Q(√2))")
+@provenance("EXACT", "proof in docs/arith.md (reciprocal, irreducible, norm from Q(√2))")
 def bolza_quartic() -> list[int]:
     return [1, -4, -2, -4, 1]
 
 
-@provenance("PROVED", "item 15b: largest root = 1+√2+√(2+2√2) = e^{ℓ_sys/2}; two roots on |x|=1")
+@provenance("PROVED", "proof in docs/arith.md: largest root = 1+√2+√(2+2√2) = e^{ℓ_sys/2}; two roots on |x|=1")
 def salem_number(dps: int = 50):
     with mp.workdps(dps):
         return 1 + mp.sqrt(2) + mp.sqrt(2 + 2 * mp.sqrt(2))

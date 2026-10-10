@@ -1,10 +1,10 @@
 """Regular N-rings of unit vortices centred at a Weierstrass point (Bolza) or at the origin (flat / H² models).
 
-flat / sinh / tanh: energy-momentum Hessian in mpmath by central differences (item 03 ringmodes.py), step 10^(-dps/3).
-bolza: H_Sigma = H_tanh + S_ring (item 03 dynamics.py): the tanh part in mpmath as above, the float64 smooth part
+flat / sinh / tanh: energy-momentum Hessian in mpmath by central differences (original research code, ringmodes.py), step 10^(-dps/3).
+bolza: H_Sigma = H_tanh + S_ring (original research code, dynamics.py): the tanh part in mpmath as above, the float64 smooth part
 S_ring by central differences with step h = 2e-3 in the cos(m theta_k) radial direction, plus the Omega correction
 -dOmega j''(s0), dOmega = (dS/ds)/j'(s0); the same for the sin(m theta_k) direction, and modes() returns the mean
-of the two copies (C7-symmetrised). Units: C1 (c_norm = 1/2pi, as item 03).
+of the two copies (C7-symmetrised). Units: C1 (c_norm = 1/2pi, as the original).
 """
 from __future__ import annotations
 import mpmath as mp
@@ -13,7 +13,7 @@ from ..provenance import provenance
 from . import ringmodes as RM
 
 _MODELS = {"flat": RM.H_flat, "sinh": RM.H_sinh, "tanh": RM.H_tanh}
-BOLZA_H = 2e-3            # item 03 dynamics.analyse default step for the float64 S part
+BOLZA_H = 2e-3            # the original dynamics.analyse default step for the float64 S part
 
 
 def _real_xi(xi):
@@ -51,7 +51,7 @@ class Ring:
                     f"ring radius sqrt(xi)={float(mp.sqrt(self.xi)):.3f} exceeds {VALIDITY_RADIUS}")
 
     def _bolza_pairs(self) -> dict:
-        """{m: (cos copy, sin copy)} for m = 1..N//2 (item 03 dynamics.py), cached."""
+        """{m: (cos copy, sin copy)} for m = 1..N//2 (original research code, dynamics.py), cached."""
         if self._bolza is None:
             from ..green import green
             from . import dynamics as D
@@ -64,7 +64,7 @@ class Ring:
         """{m: lambda_m} for m = 1..N-1, C1 units (radial-mode Rayleigh quotient of Hess(H - Omega J)).
 
         flat/sinh/tanh: the cos(m theta_k) radial mode (cos and sin copies coincide by the exact SO(2) symmetry).
-        bolza: the MEAN of item 03's cos copy `lam_sigma` and sin copy `lam_sigma_sin`, i.e. the C_N-symmetrised
+        bolza: the MEAN of the original code's cos copy `lam_sigma` and sin copy `lam_sigma_sin`, i.e. the C_N-symmetrised
         eigenvalue, which is what the degree-7 truncated model and `lambda3_series` describe. The two copies differ
         by `split(m)`, an O(xi^4) symmetry breaking between the surface's C8 (at the Weierstrass point) and the
         ring's C7: about 1000 xi^4 for m = 3. lambda_{N-m} = lambda_m."""
@@ -88,8 +88,8 @@ class Ring:
         return float(c - s)
 
 
-@provenance("NUMERICAL", "energy–momentum Hessian by central differences: mpmath for flat/sinh/tanh (item 03 "
-            "ringmodes.py); bolza = tanh (mpmath) + float64 S_ring smooth part, step 2e-3 (item 03 dynamics.py), "
+@provenance("NUMERICAL", "energy–momentum Hessian by central differences: mpmath for flat/sinh/tanh (original research code "
+            "ringmodes.py); bolza = tanh (mpmath) + float64 S_ring smooth part, step 2e-3 (original research code, dynamics.py), "
             "C7-symmetrised (mean of cos and sin copies)",
             "flat/sinh/tanh O(h^2), h = 10^(-dps/3). bolza: residual vs the λ3 series is dominated by the O(ξ^4) "
             "C8-vs-C7 cos/sin splitting (≈1000 ξ^4 for m=3, removed by the symmetrisation) plus an O(ξ) "
@@ -98,7 +98,7 @@ def ring(N: int, xi, model: str = "bolza", dps: int = 30, *, T: float = 2.6, D_b
     return Ring(N, xi, model, dps, T=T, D_ball=D_ball)
 
 
-@provenance("PROVED", "item 03 note.tex: C_k momentum-map structure + closed-form β3; valid for N=7 in the "
+@provenance("PROVED", "derivation in docs/vortex.md: C_k momentum-map structure + closed-form β3; valid for N=7 in the "
             "Boatto–Koiller model with the degree-7 truncation of the regular part")
 def lambda3_series() -> dict:
     from ..green import constants

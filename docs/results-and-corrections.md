@@ -1,7 +1,7 @@
 # Results and corrections
 
 This page collects the results that bolzakit computes or relies on which correct, sharpen or add to the literature and
-to the math-pursuits notes it was built from. Each item gives its source and how bolzakit checks it.
+to the earlier research notes it was built from (private archive, not public). Each item gives its source and how bolzakit checks it.
 
 ## 1. Aut⁺(Bolza) ≅ GL(2,3), not S₄×ℤ₂
 
@@ -21,11 +21,11 @@ hyperbolic surfaces."
 
 With the reflection z ↦ z̄ the full isometry group has order 96 (`full_order`).
 
-Label: PROVED (item 02): the normaliser check is exact; the 48 cosets and their multiplication table are enumerated with floating-point Möbius maps (keyed by rounding), and the index 48 agrees with the area formula 4π/(π/12).
+Label: PROVED: the normaliser check is exact; the 48 cosets and their multiplication table are enumerated with floating-point Möbius maps (keyed by rounding), and the index 48 agrees with the area formula 4π/(π/12).
 
-## 2. Strict fractionality of τ(P₋(h)) (math-pursuits item 04)
+## 2. Strict fractionality of τ(P₋(h))
 
-Source: `math-pursuits/items/04-kadison-kaplansky-strict-fractionality/work/note.tex`, Theorem 1.
+Source: Theorem 1 of an earlier research note from the private archive (not public). Its proof is restated below from the cited literature, so this section stands on this page and [MY02]/[Laf12].
 
 **Setting.**
 - Γ is a discrete group, C*_r(Γ) its reduced group C*-algebra, and L(Γ) its group von Neumann algebra.
@@ -43,20 +43,20 @@ Source: `math-pursuits/items/04-kadison-kaplansky-strict-fractionality/work/note
 
 Since ℂΓ ⊂ C*_r(Γ), C4 and C5 apply to every nonzero self-adjoint trace-zero h in the group ring.
 
-**How it is proved (from the note).**
+**How it is proved.**
 - C4 uses only faithfulness of τ. If τ(P₋) = 0 then P₋ = 0, so h ≥ 0 with τ(h) = 0, which forces h = 0.
-- C1 is the Baum–Connes conjecture for hyperbolic groups. The note applies Lafforgue [Laf12, Théorème 0.4] to the
+- C1 is the Baum–Connes conjecture for hyperbolic groups. The original note applies Lafforgue [Laf12, Théorème 0.4] to the
   orbit Γz₀ ⊂ H²; alternatively, Γ is word-hyperbolic and Mineyev–Yu [MY02, Thm 20] applies.
 - C2 is the Kadison–Kaplansky conjecture. [MY02, Thm 21] states: "The Kadison-Kaplansky conjecture holds for any torsion
   free subgroup G of a hyperbolic group, i.e. there exists no non-trivial projection in the reduced group C ∗ -algebra
   Cr∗ (G)."
 - C3 follows from C2 by continuous functional calculus. C5 needs both C4 (so that P₋(h) ≠ 0, 1) and C2/C3 (so that
   P₋(h) ∉ C*_r(Γ) and the spectrum is an interval).
-- The note's proof of the trace integrality in C2 also uses Lück's theorem relating Baum–Connes to the trace conjecture,
-  and its Proposition on the element h^Γ uses Jolissaint's property (RD). bolzakit's docs do not rely on those two
-  citations; see the note for them.
+- The original note also used Lück's theorem relating Baum–Connes to the trace conjecture, and Jolissaint's property (RD). The
+  argument above does not rely on those two citations: C2 rests on [MY02, Thm 21], and C3–C5 follow from C1, C2 and
+  C4 as shown.
 
-**Novelty.** The note says the ingredients are known and the corollary is "a short (folklore-level) observation". No
+**Novelty.** The original note says the ingredients are known and the corollary is "a short (folklore-level) observation". No
 novelty is claimed.
 
 **In bolzakit.** `spectral.tau_bounds` computes certified bounds on τ(P₋(h)) for elements h of this kind. The theorem
@@ -95,15 +95,15 @@ the radial m = 3 mode, giving a split of order ξ⁴ (≈1000·ξ⁴ in C1 units
   `ring(7, xi, "bolza").split(3)` ≈ 1000·ξ⁴   (1.006e-5 at ξ = 0.01 with D_ball = 13; 1.015e-5 at D_ball = 15).
 
 The tests check 900 < split(3)/ξ⁴ < 1100. The (AI) code review of this module found the split independent of the
-finite-difference step. Item 03's AI second reader measured the O(ξ⁴) tangential-force residual of the ring (ratio 256 between
-ξ = 0.01 and 0.04); the size of the mode splitting is not recorded in math-pursuits item 03; no literature search was done. `modes()` returns the mean of the two copies, which is what the λ₃ series
+finite-difference step. The original research code's AI second reader measured the O(ξ⁴) tangential-force residual of the ring (ratio 256 between
+ξ = 0.01 and 0.04); the size of the mode splitting is not recorded in the original research code (private archive); no literature search was done. `modes()` returns the mean of the two copies, which is what the λ₃ series
 describes.
 
 Label: NUMERICAL.
 
-## 6. Ring mode-pair split coefficient: 3/10, not 1/4 (research note 02)
+## 6. Ring mode-pair split coefficient: 3/10, not 1/4 (earlier research note)
 
-**The note's statement.** `docs/research/02-degenerate-mode-resonators.md` §4 derived (flagged as an unverified own
+**The note's statement.** An earlier unpublished note derived (flagged as an unverified own
 derivation) that a density imperfection `δρ = ρ₀ε cos(4(θ − φ))` splits the n = 2 pair of a thin ring at rates
 `±ω²ε/4`.
 

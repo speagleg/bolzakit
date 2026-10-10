@@ -7,7 +7,7 @@
 
 Both modes print a markdown table: claim | certified value | published value | provenance | match.
 - certified value: the certificate-attested bound.
-- published value: the reference value; provenance says whether it is published in an item-23 file or is a bolzakit
+- published value: the reference value; provenance says whether it is published in a file of the original research code (private archive) or is a bolzakit
   regression pin.
 - match: the value agrees with the reference to the stated tolerance (API rows compare the in-process value; stored
   rows compare the attested bound one-sidedly), AND the certificate's claims hold (for the one non-certifying n = 24
@@ -27,12 +27,12 @@ HERE = pathlib.Path(__file__).resolve().parent
 CERTS = HERE / "certificates"
 
 # Reference values.  name -> (claim, value, tolerance, relative, provenance).  provenance says where the value comes
-# from: an item-23 file (math-pursuits items/23-bolza-lambda1-extremality/work/, SRC commit 53bc014), or a bolzakit
+# from: a file of the original research code (private archive, not public), or a bolzakit
 # regression pin (this implementation, fixed ARPACK start vector) with the reason it is used.
 # The table shows certificate-attested values; rr, first-order, Ky Fan and LG rows from the API are matched on the
 # in-process values (SpectrumResult.upper_inprocess, ClusterResult.*_upper_inprocess,
-# LowerBoundResult.lam1_lower_inprocess), which is what item 23 published.
-I23 = "item 23 "
+# LowerBoundResult.lam1_lower_inprocess), which is what the original research code published.
+I23 = "original code "
 PUBLISHED = {
     "lp_A_3.3": ("LP count in (0, 3.3] < 1 (mode A)", 0.912612, 1e-6, False, I23 + "lp_A_3.3.json"),
     "lp_B_3.3_4.0": ("LP count in [3.3, 4.0] < 4 (mode B, given lambda_1 >= 3.3)", 3.869661, 1e-6, False,
@@ -47,20 +47,20 @@ PUBLISHED = {
                                -3.0383476242423058, 1e-6, False, I23 + "lb_cert_first_order_96_192.json"),
     "kyfan_FB_n96_su13": ("Ky Fan F_B, P2 n=96: D2 Lambda(v,v) < 0 (SU13 lambda_1 ball)",
                           -12.850476214196528, 1e-6, False, I23 + "cert_sign_48_96.json"),
-    # item 23's lb_cert_sign_96.json publishes -9.341154560 from a lambda ball starting at 3.8388757010263 (above
+    # the original lb_cert_sign_96.json publishes -9.341154560 from a lambda ball starting at 3.8388757010263 (above
     # the decimal 3.8388757010 used here, below the certified LG bound); for exactly [3.8388757010, 3.8388872830]
     # the value is this pin.
     "kyfan_FB_n96_lg": ("Ky Fan F_B, P2 n=96: D2 Lambda(v,v) < 0 (Lehmann-Goerisch lambda_1 ball)",
                         -9.341148662380872, 1e-6, False, "bolzakit regression pin (v0.2, exact LG ball)"),
     "rank": ("rank d(pi) = 6: det of the chosen 6x6 minor != 0", 7872428136359854080.0, 1e-6, True,
              I23 + "cert_dpi_rank.json"),
-    # item 23 publishes float(lb.lower()) rounded to nearest (review_lb_1 F2: ~2.5e-16 above the Arb endpoint); the
+    # the original code publishes float(lb.lower()) rounded to nearest (review_lb_1 F2: ~2.5e-16 above the Arb endpoint); the
     # in-process value here is rounded down, and the stored row is the attested (rounded-down) enclosure end.
     "lg_lower_n48": ("lambda_1 >= (Lehmann-Goerisch, P2 + RT2, n=48, rho=5, given lambda_4 >= 4.0)",
                      3.8388757010527246, 1e-12, False, I23 + "lb_bolza_48.json"),
 }
 # n <= 24 analogues for --quick.  The n=24 first-order test does NOT certify (b(e,e)/m > 0).  Its value is a bolzakit
-# regression pin: no item-23 file has it (cert_first_order_24_48.json predates the energy-weighted transfer bound).
+# regression pin: no file of the original research code has it (cert_first_order_24_48.json predates the energy-weighted transfer bound).
 QUICK = {
     "rr_p1_n24": ("lambda_3 <= (P1, n=24)", 3.857985420933427, 1e-5, False, I23 + "cert_rr_bolza_12_24.json"),
     "rr_p2_n24": ("lambda_3 <= (P2, n=24)", 3.838893606899935, 1e-9, False, I23 + "cert_rr_p2_bolza_24_48_96.json"),
@@ -81,9 +81,11 @@ STORED_SLACK_LOWER = {"lg_lower": 1e-15}
 
 def _inputs():
     from bolzakit.certified import GapInput, Lam1Input
-    # SU13 as item 23's scripts used it: arb('3.8388872588', '1.0000001e-6') (the published SU13 numbers use this).
+    # SU13 as the original scripts used it: arb('3.8388872588', '1.0000001e-6') (the published SU13 numbers use this).
     # dep_id follows the source (PROOF.md §Dependencies): D1 = SU13; D15 = the Lehmann-Goerisch theorem, whose
     # instance here is the lg_lower_n48 certificate.
+    # The two `source` strings below are stored in the certificates verbatim (the signed record), so they must not be
+    # reworded; they name files of the private research archive.
     su13 = Lam1Input(lower="3.8388862587999999", upper="3.8388882588000001",
                      source="SU13 as used in item-23 scripts: arb('3.8388872588','1.0000001e-6')", dep_id="D1")
     lg = Lam1Input("3.8388757010", "3.8388872830",
@@ -98,7 +100,7 @@ def compute(name):
     """(attested, pinned, certificate) for a golden or quick-analogue name, through the bolzakit API.
 
     attested: the certificate-attested bound (shown in the table); pinned: the value compared with the published
-    one (for rr / first-order / Ky Fan the in-process value item 23 published; otherwise the same as attested)."""
+    one (for rr / first-order / Ky Fan the in-process value the original code published; otherwise the same as attested)."""
     from bolzakit.certified import Surface, certify_cluster, certify_rank, certify_spectrum, count_eigenvalues
     lam, gap = _inputs()
     if name.startswith("lp_"):

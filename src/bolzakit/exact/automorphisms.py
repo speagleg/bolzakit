@@ -334,7 +334,7 @@ def _automorphisms() -> Automorphisms:
     return Automorphisms()
 
 
-@provenance("PROVED", "generators of the normaliser conjugate Γ into Γ exactly; quotient enumerated (item 02); "
+@provenance("PROVED", "generators of the normaliser conjugate Γ into Γ exactly; quotient enumerated; "
             "isomorphism to GL(2,3) by explicit map")
 def automorphisms() -> Automorphisms:
     return _automorphisms()

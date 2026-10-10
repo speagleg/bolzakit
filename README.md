@@ -6,6 +6,8 @@ written proof of a computer-assisted theorem: the Bolza surface is a strict loca
 eigenvalue λ₁ on genus-2 Teichmüller space. Its sensitivity module, which works with any finite-element model, adds a
 repeated-eigenvalue optimiser and a trim tool for degenerate-mode resonators.
 
+bolzakit was developed in a private working repository ("math-pursuits", not public); everything the proofs and labels in this repository need is restated here, and references to that repository are provenance notes only.
+
 The Bolza surface is the closed hyperbolic surface (curvature −1, area 4π) of genus 2 with the most symmetry. You get it by
 gluing opposite sides of a regular hyperbolic octagon with interior angles π/4, so eight octagons meet at every vertex.
 Its orientation-preserving automorphism group is GL(2,3), of order 48, or 96 if you include reflections. Its systole
@@ -368,7 +370,7 @@ assert hits == [3, 7, 47]                                 # prime Lucas numbers 
 Outputs: `systole` is NUMERICAL (float64 of the exact closed form). `lengths` is NUMERICAL: the half-traces are exact
 and the multiplicities are rounded from sums with integrality residual ≤ 1.1e-8. `automorphisms` is PROVED.
 `golden_geodesic_is_systole` is PROVED: the arithmetic step (L_{n(p)} = p²−2 ⇔ p = L_{2^j}) is a Lean theorem; the
-geometric part is math-pursuits item 05's written proof. It accepts odd primes only and raises `ValueError` otherwise (other p are
+geometric part (the stabiliser of the golden axis) is proved in [docs/arith.md](docs/arith.md). It accepts odd primes only and raises `ValueError` otherwise (other p are
 outside the theorem's scope).
 
 ### (d) Spectral geometry and quantum chaos
@@ -515,7 +517,7 @@ Details and sources are in [docs/results-and-corrections.md](docs/results-and-co
   S₄×ℤ₂ has none. bolzakit computes the group as the quotient of the (2,3,8) triangle group by Γ and gives an explicit
   isomorphism to GL(2,3): the normaliser check is exact; the 48 cosets and their multiplication table are enumerated
   with floating-point Möbius maps (keyed by rounding), and the index 48 agrees with the area formula 4π/(π/12).
-- **Strict fractionality (math-pursuits item 04).** Let Γ be a torsion-free cocompact Fuchsian group, such as the
+- **Strict fractionality.** Let Γ be a torsion-free cocompact Fuchsian group, such as the
   Bolza group, and let h = h* ∈ C*_r(Γ) be nonzero with τ(h) = 0 (in particular, any such h in ℂΓ). Then
   0 < τ(P₋(h)) < 1, P₋(h) ∉ C*_r(Γ), and spec(h) = [a, b] with a < 0 < b. The first statement holds for every discrete
   group and uses only faithfulness of τ. The others use the Baum–Connes conjecture for hyperbolic groups [MY02, Laf12]
@@ -588,7 +590,7 @@ Each reference was checked against its source; see [docs/CITATIONS_CHECK.md](doc
 
 ## AI-assisted development
 
-bolzakit's code was ported from the math-pursuits research project. The derivations and notes there, and their
+bolzakit's code was ported from the original research code, developed in a private research archive (not public). The derivations and notes there, and their
 second-reader reviews, were produced by AI agents (Claude) working under Gordon Speagle's direction. No human specialist
 or peer review has checked them yet. The provenance labels, including PROVED, reflect machine-checked computation, Lean
 proofs where stated, and AI-written arguments that are cited. Treat PROVED claims that rest on such arguments

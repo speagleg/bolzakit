@@ -1,5 +1,5 @@
 /-
-Root of the LocalMax skeleton (item 23) (Bolza λ₁ local maximality).  See proofs/bolza-local-max/LEAN.md.
+Root of the LocalMax skeleton (Bolza λ₁ local maximality).  See proofs/bolza-local-max/LEAN.md.
 Building this file prints the axioms used by the main theorems.
 -/
 import BolzaKit.LocalMax.RepTheory

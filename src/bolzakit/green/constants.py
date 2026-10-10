@@ -1,14 +1,14 @@
-"""Closed-form Green/Bergman constants at a Bolza Weierstrass point (item 03, review 1).
+"""Closed-form Green/Bergman constants at a Bolza Weierstrass point (derivation in docs/green.md).
 
 I0 = ∫_C d²x/|x⁵−x| = (π/4) g(1/8) g(1/2) g(3/8), with g(x) = Γ(x)/Γ(1−x)  (complex beta integral, w = x⁴).
 B_Σ(0,0) = 2|a|²/I0, |a| = s(1)/(tanh(c/2)·108^{1/8}), s(1) by Gauss's ₂F₁(1) formula.
 Here c is the hyperbolic distance with tanh(c/2) = th in the code, where cosh c = 1/(2 sin(π/8)) (`ch`).
 β1 = (1/π − B)/4,  β2 = 1/(8π),  β3 = −(4|a|⁶/(2 I0) − 3/π)/36.
-β2 rests on there being no holomorphic 1-form of character 1 mod 8 (item 03 README).
+β2 rests on there being no holomorphic 1-form of character 1 mod 8.
 
-Derivation: math-pursuits items/03-compact-surface-n7-stability/work/review_1.md §3.A (Schwarz map
+Derivation: an AI second reader in the original research code (private archive; not independently checked), §3.A (Schwarz map
 s(τ)=τ^{1/8}F(a+1/8,b+1/8;9/8;τ)/F(a,b;7/8;τ), a=17/48, b=1/48; I0 via the complex beta integral) and
-note.tex §5 'Closed form'; reproduced in bolzakit docs/green.md.
+the original note's §5 'Closed form'; reproduced in bolzakit docs/green.md.
 """
 from __future__ import annotations
 import mpmath as mp
@@ -29,8 +29,8 @@ def _core(dps):
         return I0, aa, B
 
 
-@provenance("PROVED", "(2,3,8) Schwarz map + complex beta integral (item 03 review 1); agrees with the Hejhal "
-            "1-form computation and the heat-kernel image sum to 8e-12; derivation: item 03 review_1 §3.A; "
+@provenance("PROVED", "(2,3,8) Schwarz map + complex beta integral (original research code, review 1); agrees with the Hejhal "
+            "1-form computation and the heat-kernel image sum to 8e-12; derivation: an AI second reader (not independently checked); "
             "see docs/green.md")
 def constants(dps: int = 30) -> dict:
     I0, aa, B = _core(dps)

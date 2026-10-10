@@ -1,6 +1,6 @@
 """Certified lower bound for lambda_1(Bolza) by Lehmann-Goerisch, P2 trial functions and RT2 fluxes.
 
-A port of the Bolza lambda1 research code (math-pursuits item 23: lb_core.py, lb_bolza.py; reviewed in
+A port of the Bolza lambda1 research code (the original research code: lb_core.py, lb_bolza.py; reviewed in
 review_lb_1.md, ACCEPT).  Changes from SRC: the precision (128 bits) and the series order (K = 14) are fixed and set
 internally, never at import; the precision-dependent tables are built lazily; the P2 shapes and polynomial helpers
 are reused from ``forms`` (identical code); every SRC ``assert`` is an explicit fail-closed check; non-finite element

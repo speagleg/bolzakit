@@ -26,7 +26,7 @@ def test_bergman_numeric_matches_closed_form():
 def test_constants_provenance_cites_derivation():
     from bolzakit.provenance import info
     src = info(green.constants).source
-    assert "review_1" in src and "docs/green.md" in src
+    assert "second reader" in src and "docs/green.md" in src
 
 
 def test_constants_match_reference_json():

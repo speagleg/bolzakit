@@ -66,7 +66,7 @@ def _clusters(vals, rel=1e-9):
     return [(float(v), m) for v, m in out]
 
 
-@provenance("NUMERICAL", "FEM (bundled, item 02) or Strohmaier–Uski 2013 (QUOTED, downloaded)",
+@provenance("NUMERICAL", "FEM (bundled) or Strohmaier–Uski 2013 (QUOTED, downloaded)",
             "FEM: relative error <= 2e-4 vs Strohmaier–Uski")
 def eigenvalues(source: str = "fem", n: int | None = None) -> list[tuple[float, int]]:
     """Non-zero Laplace eigenvalue clusters (value, multiplicity), ascending.

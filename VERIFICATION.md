@@ -1,6 +1,6 @@
 # Verification policy
 
-This policy is adapted from the math-pursuits project, where the code was developed. It defines the provenance labels
+This policy is adapted from the one used in the private research archive (not public) where the code was developed. It defines the provenance labels
 used in bolzakit and the rules the evidence behind them has to meet.
 
 ## Labels
@@ -70,7 +70,7 @@ assembly behind the Gram data: `--deep` samples it as a consistency check only.
 
 ## How this was developed, and what has not happened
 
-bolzakit's code was ported from the math-pursuits research project. The derivations there, and the second-reader
+bolzakit's code was ported from the original research code, developed in a private research archive (not public). The derivations there, and the second-reader
 reviews of them, were produced by AI agents (Claude) working under Gordon Speagle's direction. No human specialist or
 peer review has checked them yet. The "second reader" in these rules was therefore another AI agent, not an independent
 human. The Lean proofs are machine-checked, and the test suite compares numbers against independent computations, but

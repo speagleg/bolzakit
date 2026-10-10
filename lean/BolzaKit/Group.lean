@@ -1,7 +1,7 @@
 /-
-Item 02 — Bolza surface: the defining relation of the Bolza Fuchsian group, checked exactly.
+Bolza surface: the defining relation of the Bolza Fuchsian group, checked exactly.
 
-Model (see items/02-bolza-infrastructure/work/bolza/group.py).  Let ζ = e^{iπ/4}, μ = √(2+2√2).
+Model (ported from the original research code).  Let ζ = e^{iπ/4}, μ = √(2+2√2).
 A group element is the SU(1,1) matrix [[A, μB], [μ·conj B, conj A]] with A, B ∈ ℤ[ζ]; it is stored as
 the pair (A, B).  Since μ² = 2 + 2√2 ∈ ℤ[ζ], the product of such matrices is again of this form:
   (A₁,B₁)(A₂,B₂) = (A₁A₂ + μ² B₁ conj B₂,  A₁B₂ + B₁ conj A₂).

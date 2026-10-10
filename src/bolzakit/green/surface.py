@@ -1,5 +1,4 @@
-"""G_Sigma, regular part R and Robin mass on the Bolza surface (heat-kernel splitting, ported from math-pursuits
-item 03).
+"""G_Sigma, regular part R and Robin mass on the Bolza surface (heat-kernel splitting, ported from the original research code).
 
 Method (heat-kernel splitting, heat.py):  for points z, w in a neighbourhood of the Weierstrass point 0,
     R(z, w)      = G_Sigma(z, w) - G1(d(z, w))
@@ -65,13 +64,13 @@ class BolzaGreen:
     def R(self, z, w):
         """Regular part R(z, w) (Tail omitted) for scalar z, w."""
         gw = mobius(self.a, self.b, w)
-        # stability fix vs item 03 original (final review I1): 2 asinh(|z-w|/sqrt(...)) instead of acosh(1 + 2|z-w|^2/...)
+        # stability fix vs the original research code (final review I1): 2 asinh(|z-w|/sqrt(...)) instead of acosh(1 + 2|z-w|^2/...)
         d = _pdist(z, gw)
         d0 = _pdist1(z, w)
         return float(self.Ftab(d).sum() - self.Etab(np.array([d0]))[0] - self.T / A_AREA)
 
     def G(self, z, w):
-        # stability fix vs item 03 original (final review I1)
+        # stability fix vs the original research code (final review I1)
         d0 = _pdist1(z, w)
         if d0 < COINCIDE_TOL:
             raise ValueError(f"points coincide on the surface (distance < {COINCIDE_TOL:g}); use robin_mass(z) or "
@@ -90,10 +89,10 @@ class BolzaGreen:
         tot = 0.0
         for i in range(n):
             zi = zs[i]
-            d = _pdist(zi, gw[:, i:])        # stability fix vs item 03 original (final review I1)
+            d = _pdist(zi, gw[:, i:])        # stability fix vs the original research code (final review I1)
             vals = self.Ftab(d.ravel()).reshape(d.shape).sum(axis=0)   # per j >= i
             for jj, j in enumerate(range(i, n)):
-                d0 = _pdist1(zi, zs[j]) if j != i else 0.0      # stability fix vs item 03 original (final review I1)
+                d0 = _pdist1(zi, zs[j]) if j != i else 0.0      # stability fix vs the original research code (final review I1)
                 r = vals[jj] - self.Etab(np.array([d0]))[0] - self.T / A_AREA
                 tot += r if j != i else r / 2
         return tot
@@ -135,7 +134,7 @@ def check_T_D(T, D_ball) -> tuple[float, float]:
 
 
 class SurfaceGreen:
-    """Green's function of the Bolza surface: -Δ G = δ - 1/A, ∫ G dA = 0 (heat-kernel splitting, item 03).
+    """Green's function of the Bolza surface: -Δ G = δ - 1/A, ∫ G dA = 0 (heat-kernel splitting).
     Validated only when both points lie within Poincaré radius 0.45 of the SAME Weierstrass point (chart coordinates)."""
 
     def __init__(self, T: float = 2.6, D_ball: float = 15.0):
@@ -171,17 +170,17 @@ class SurfaceGreen:
                 f"(best chart {i}: |z|={abs(zl):.3f}, |w|={abs(wl0):.3f}); general-position G_Σ is not in v0.1")
         return zl, wl0
 
-    @provenance("NUMERICAL", "heat-kernel splitting (item 03) in a Weierstrass chart", _ERR)
+    @provenance("NUMERICAL", "heat-kernel splitting in a Weierstrass chart", _ERR)
     def G(self, z: complex, w: complex) -> float:
         zl, wl = self._local_pair(z, w)
         return self._core.G(zl, wl)       # raises ValueError if d(zl, wl) < COINCIDE_TOL (coincident on the surface)
 
-    @provenance("NUMERICAL", "heat-kernel splitting (item 03) in a Weierstrass chart", _ERR)
+    @provenance("NUMERICAL", "heat-kernel splitting in a Weierstrass chart", _ERR)
     def regular(self, z: complex, w: complex) -> float:
         zl, wl = self._local_pair(z, w)
         return self._core.R(zl, wl)
 
-    @provenance("NUMERICAL", "heat-kernel splitting (item 03) in a Weierstrass chart", _ERR)
+    @provenance("NUMERICAL", "heat-kernel splitting in a Weierstrass chart", _ERR)
     def robin_mass(self, z: complex) -> float:
         zl, _ = self._local_pair(z, z)
         return self._core.robin_mass(zl)
@@ -192,7 +191,7 @@ def _green(T: float, D_ball: float) -> SurfaceGreen:
     return SurfaceGreen(T, D_ball)
 
 
-@provenance("NUMERICAL", "heat-kernel image sum over exact group elements + omitted spectral tail (item 03)",
+@provenance("NUMERICAL", "heat-kernel image sum over exact group elements + omitted spectral tail",
             _ERR)
 def green(T: float = 2.6, D_ball: float = 15.0) -> SurfaceGreen:
     """Green's function of the Bolza surface (cached per (T, D_ball)).

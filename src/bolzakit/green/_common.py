@@ -1,6 +1,6 @@
-"""Shared helpers for the Green's-function code (ported from math-pursuits item 03); uses bolzakit.exact.group.
+"""Shared helpers for the Green's-function code (ported from the original research code); uses bolzakit.exact.group.
 
-Conventions (fixed for all of item 03):
+Conventions (fixed for the whole port):
   * Poincare disk, curvature -1, area form dA = 4 dx dy/(1-|z|^2)^2, Delta = (1-|z|^2)^2/4 * 4 d_z d_zbar.
   * A = area(Bolza) = 4 pi.
   * G1(d) = -(1/2pi) ln tanh(d/2)  (free Green function, -Delta G1 = delta).
@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 import numpy as np
 
-from ..exact import group as BG          # exact group (ported from item 02)
+from ..exact import group as BG          # exact group (ported from the original research code)
 from ..provenance import provenance
 
 A_AREA = 4 * math.pi
@@ -29,7 +29,7 @@ def rows_to_ab(X: np.ndarray):
 
 
 def ball(R: float):
-    """All gamma with d(0, gamma 0) <= R (exact enumeration from item 02), as complex (a, b) arrays, identity first removed flag."""
+    """All gamma with d(0, gamma 0) <= R (exact enumeration from the original research code), as complex (a, b) arrays, identity first removed flag."""
     X = BG.ball_by_displacement(R)
     a, b = rows_to_ab(X)
     ident = (np.abs(b) < 1e-12) & (np.abs(a - 1) < 1e-12)
@@ -49,7 +49,7 @@ def u_of(z, w):
 
 
 def dist(z, w):
-    # stability fix vs item 03 original (final review I1): 2 asinh(sqrt(u/2)) == arccosh(1 + u), no cancellation
+    # stability fix vs the original research code (final review I1): 2 asinh(sqrt(u/2)) == arccosh(1 + u), no cancellation
     return 2 * np.arcsinh(np.sqrt(u_of(z, w) / 2))
 
 

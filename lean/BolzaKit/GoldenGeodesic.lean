@@ -1,5 +1,5 @@
 /-
-Item 05 — Golden geodesic and the systole of Γ(p).
+Golden geodesic and the systole of Γ(p).
 
 Formalised here (complete proofs, no placeholders):
 * `cayley_hamilton_two`, `trace_mul_self`, `trace_pow_add_two`, `trace_dvd_trace_pow_odd`:
@@ -23,7 +23,7 @@ Formalised here (complete proofs, no placeholders):
 * `stab_golden` (axis stabiliser, algebraic part): A ∈ SL₂(ℤ) commuting with Q ⇒ A = ±Q^{2m} or
   ±(Q − 1)^{2m} = ±Q^{−2m}; the norm-±1 units of ℤ[φ] are handled by an integer descent (`lin_isPmQPow`).
 
-NOT formalised (stated and proved on paper in work/note.tex):
+NOT formalised (stated and proved on paper in docs/arith.md of the bolzakit repository):
 * the geometric translation |tr| ↦ length 2·arccosh(|tr|/2), closed geodesics of Γ(p)\H ↔ primitive
   hyperbolic conjugacy classes, and the identification of ±Γ(p) and Γ(p) in PSL₂(ℤ);
 * "A fixes φ ⇔ A commutes with Q" for A ∈ SL₂(ℤ), the no-endpoint-swap argument (torsion-freeness),

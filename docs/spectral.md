@@ -42,7 +42,7 @@ eigenvalues published by Strohmaier and Uski [SU13], and they are **QUOTED**:
 ## The FEM data: a 9-cluster cross-check
 
 The bundled `eigenvalues_fem.json` holds 9 clusters (multiplicities 3, 4, 2, 4, 3, 3, 4, 1, 3). They come from P1
-finite elements on meshes n = 40 and 80, with h² Richardson extrapolation of the cluster means (item 02).
+finite elements on meshes n = 40 and 80, with h² Richardson extrapolation of the cluster means.
 
 - **Role.** The FEM data exists to cross-check the quoted data independently, and to give an offline answer for the
   lowest clusters. It is not meant to replace [SU13].

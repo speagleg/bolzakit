@@ -343,10 +343,10 @@ from .. import data as _data  # noqa: E402
 from ..provenance import provenance  # noqa: E402
 
 
-@provenance("CERTIFIED", "exact-group moments τ(h^k) + self-certifying polynomial bounds (item 02, run_tau.py); "
+@provenance("CERTIFIED", "exact-group moments τ(h^k) + self-certifying polynomial bounds (scripts/regen_tau.py); "
             "recompute with `python scripts/regen_tau.py` (~30 min, ~8 GB RAM)")
 def tau_bounds(case="systole_shell") -> dict:
-    """Two-sided bounds on τ(P₋(h)), the von Neumann trace of the spectral projection of h onto (−∞, 0) (item 02 B12).
+    """Two-sided bounds on τ(P₋(h)), the von Neumann trace of the spectral projection of h onto (−∞, 0) (original research code).
     case: 'systole_shell' (h = c·Σ_{k=0}^{7} u_{g_k}) or 0..3 (G₁-weighted ball operators; see details['R'], ['z0'])."""
     import json as _json
     d = _data.load("tau")

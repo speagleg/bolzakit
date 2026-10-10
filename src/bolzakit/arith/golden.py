@@ -1,5 +1,5 @@
 """Γ(p) ⊂ SL(2,Z): the golden geodesic (axis of Q = [[1,1],[1,0]]) is a systole of Γ(p)\\H iff p is a prime Lucas
-number L_{2^j} (3, 7, 47, 2207, ...).  Item 05; Lean: MathPursuits.Item05_GoldenGeodesic.golden_systolic_iff.
+number L_{2^j} (3, 7, 47, 2207, ...).  Lean: golden_systolic_iff.
 This concerns congruence covers of the modular surface, not the Bolza group."""
 from __future__ import annotations
 import math
@@ -39,11 +39,11 @@ def _n_of_p(p: int, cap: int):
     return None
 
 
-@provenance("PROVED", "item 05 proof + Lean theorem golden_systolic_iff (no sorry)")
+@provenance("PROVED", "proof in docs/arith.md + Lean theorem golden_systolic_iff (no sorry)")
 def golden_geodesic_is_systole(p: int) -> bool:
     """True iff the golden geodesic is a systole of Gamma(p)\\H, for p prime.
 
-    Theorem (item 05): let k be the rank of apparition of p (least k >= 1 with p | F_k) and
+    Theorem: let k be the rank of apparition of p (least k >= 1 with p | F_k) and
     n(p) = k if k is even, else 2k. Then the geodesic is a systole iff L_{n(p)} = p^2 - 2,
     equivalently p is a prime Lucas number L_{2^j} (3, 7, 47, 2207, ...).
 
@@ -51,7 +51,7 @@ def golden_geodesic_is_systole(p: int) -> bool:
     scope, which covers odd primes only.
     """
     if isinstance(p, bool) or not isinstance(p, int) or p == 2 or not _is_prime(p):
-        raise ValueError("criterion proved for odd primes only (item 05 theorem)")
+        raise ValueError("criterion proved for odd primes only (see docs/arith.md)")
     phi = (1 + 5 ** 0.5) / 2
     n = _n_of_p(p, int(2 * math.log(p, phi)) + 4)
     return n is not None and lucas(n) == p * p - 2

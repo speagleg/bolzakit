@@ -3,14 +3,14 @@
 B(z, w) near 0.
 
 A holomorphic 1-form is f(z) dz with f(g z) g'(z) = f(z) for all g in Gamma.  rho: z -> zeta8 z is an automorphism
-(item 02), so the 2-dim space splits into rho-eigenforms, f(z) = z^k sum_n c_n z^{8n} (residue class k).  Because
+(ported from the original research code), so the 2-dim space splits into rho-eigenforms, f(z) = z^k sum_n c_n z^{8n} (residue class k).  Because
 rho g0 rho^{-1} = g1 etc., for a rho-eigenform the automorphy under g0 implies it under all g_j, and the g_j generate
 Gamma; so it suffices to collocate f(g0 z) g0'(z) = f(z) on points z of side 4 (g0 maps side 4 onto side 0).
 The collocation matrix is very ill-conditioned in floating point (high powers live near the vertices), so it is
 solved in mpmath at 50-60 digits; the null vector is separated from the rest of the spectrum by ~15 orders.
 
 Bergman kernel, orthonormal in <f, g> = int_F f conj(g) dx dy:  B(z, w) = sum_i f_i(z) conj(f_i(w)) / ||f_i||^2.
-Item 03 uses:  d_z d_wbar G_Sigma(z, w) = -(1/4) B(z, w) for z != w (note.tex, Lemma 2).
+The derivation in docs/green.md uses:  d_z d_wbar G_Sigma(z, w) = -(1/4) B(z, w) for z != w (Lemma, docs/green.md §1).
 """
 from __future__ import annotations
 import sys, math, time
@@ -114,12 +114,12 @@ def automorphy_check(k, c, P, ntest=30):
 from ..provenance import provenance  # noqa: E402
 
 
-@provenance("NUMERICAL", "Hejhal-type computation of holomorphic 1-forms (item 03 bergman.py)",
+@provenance("NUMERICAL", "Hejhal-type computation of holomorphic 1-forms (original research code, bergman.py)",
             "about 5e-20 from the closed form at the defaults (dps=50, M=24, npts=50); "
             "automorphy residual < 1e-23 at dps=70, M=40")
 def bergman_at_weierstrass(dps: int = 50, M: int = 24, npts: int = 50):
     """B_Σ(0, 0) at the Weierstrass point 0, i.e. 1/||f_0||² with f_0 the normalised 1-form of residue class 0.
-    Same call sequence as item 03 bergman.py's __main__ driver. An independent cross-check of the closed form."""
+    Same call sequence as the original bergman.py's __main__ driver. An independent cross-check of the closed form."""
     saved = mp.mp.dps                       # setup() sets the global precision; restore it for the caller
     try:
         P = setup(dps)
