@@ -1345,11 +1345,11 @@ irreducibility is not formalised; instead, the facts actually used (Schur-type i
 $K_0$, the absence of invariant subspaces in $W_0$, and the involution argument) are proved
 directly over $\R$.
 
-The Lean development was written against the constant $-12.8504$ of the run under
-Hypothesis~\ref{hyp:SU}. The argument uses that constant only through $c<0$, so the SU-free constant
-$-9.3411$ plays the same role. The corresponding \texttt{norm\_num} check
-($-9.341154560446736\le-9.3411$) and the Lehmann--Goerisch step have not been added to the
-formalisation.
+The Lean development takes the SU-free constant $-9.3411$ of Proposition~\ref{prop:sign} as its hypothesis on
+$g''(0)$; the constant $-12.8504$ obtained under Hypothesis~\ref{hyp:SU} is recorded as an
+alternative that discharges the same hypothesis. The argument uses the constant only through $c<0$.
+The Lehmann--Goerisch certificate that produces $-9.3411$ is checked by the independent certificate
+checker, not in Lean.
 
 \subsection{Observations from the formalisation}
 \begin{enumerate}
