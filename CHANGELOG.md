@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.1] — unreleased
+
+### Added
+
+- `trim_degenerate_pair(objective="peak")`: minimise the largest weighted trim max_l c_l |t_l| instead of the sum.
+
+### Fixed
+
+- `trim_degenerate_pair` no longer stalls on strongly nonlinear trims: a rejected (split-increasing) iterate is
+  halved toward the last accepted one, up to `backtrack=4` times in a row (history step `"halve"`; `backtrack=0`
+  restores the 0.3.0 behaviour). Default-objective runs that never reject a step are unchanged.
+
 ## [0.3.0] — unreleased
 
 ### Added

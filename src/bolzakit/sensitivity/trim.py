@@ -82,6 +82,47 @@ class TrimResult:
     caveat: str = DISCRETE_CAVEAT
 
 
+def _bounds(L, lower, upper, cost):
+    """Broadcast and validate (lower, upper, cost) for L trims."""
+    for name, v in (("lower", lower), ("upper", upper), ("cost", cost)):
+        if v is not None and np.ndim(v) > 0 and np.shape(v) != (L,):
+            raise ValueError(f"{name} must be a scalar or have length {L} (one entry per trim), got shape "
+                             f"{np.shape(v)}")
+    lo = np.broadcast_to(np.asarray(lower, float), (L,)).copy()
+    hi = np.full(L, np.inf) if upper is None else np.broadcast_to(np.asarray(upper, float), (L,)).copy()
+    if np.any(lo > hi):
+        raise ValueError("lower must not exceed upper")
+    c = np.ones(L) if cost is None else np.asarray(cost, float)
+    c = np.broadcast_to(c, (L,)).copy()
+    if np.any(c < 0):
+        raise ValueError("cost must be non-negative (the objective is the trim magnitude sum c |t|)")
+    return lo, hi, c
+
+
+def _lp(G, b, lo, hi, c, objective="sum"):
+    """min sum c|x| ("sum") or min max c|x| ("peak") subject to G x = b, lo <= x <= hi, posed over x = p - q with
+    p, q >= 0. Returns (x, "") on success, (None, "infeasible") for linprog status 2, (None, "lp_failed") otherwise.
+    Status 3 (unbounded) cannot occur: c >= 0 bounds the objective below by 0."""
+    L = len(c)
+    bounds = list(zip(np.maximum(lo, 0.0), np.maximum(hi, 0.0))) + list(zip(np.maximum(-hi, 0.0),
+                                                                             np.maximum(-lo, 0.0)))
+    if objective == "sum":
+        res = linprog(np.concatenate([c, c]), A_eq=np.hstack([G, -G]), b_eq=b, bounds=bounds, method="highs")
+    else:                              # z >= c_l (p_l + q_l); a small sum term makes p_l q_l = 0 at the optimum
+        A_ub = np.hstack([np.diag(c), np.diag(c), -np.ones((L, 1))])
+        res = linprog(np.concatenate([1e-6 / L * c, 1e-6 / L * c, [1.0]]), A_ub=A_ub, b_ub=np.zeros(L),
+                      A_eq=np.hstack([G, -G, np.zeros((G.shape[0], 1))]), b_eq=b, bounds=bounds + [(0, None)],
+                      method="highs")
+    if res.status == 0:
+        return np.asarray(res.x[:L] - res.x[L:2 * L], dtype=float), ""
+    return None, ("infeasible" if res.status == 2 else "lp_failed")
+
+
+def _check_objective(objective):
+    if objective not in ("sum", "peak"):
+        raise ValueError('objective must be "sum" or "peak"')
+
+
 def _zero_like(K):
     return sp.csc_matrix(K.shape) if sp.issparse(K) else np.zeros(K.shape)
 
@@ -131,13 +172,20 @@ def _strictly_inside(t, lo):
 
 
 def trim_degenerate_pair(K, M, dKs, dMs, pair, *, lower=0.0, upper=None, cost=None, tol: float = 1e-10,
-                         max_iter: int = 20, gap_ratio_min: float = 1e-3) -> TrimResult:
+                         max_iter: int = 20, gap_ratio_min: float = 1e-3, objective: str = "sum",
+                         backtrack: int = 4) -> TrimResult:
     """Smallest-cost trim t (lower <= t <= upper) that ties the split pair (i, i + 1) of K x = lambda M x.
 
     ``dKs`` / ``dMs``: length-L sequences of the per-unit changes of K and M for each candidate trim (dense or
     sparse); None means that matrix is unchanged by every trim (not both None). ``cost`` (default ones, >= 0) weights
     the objective sum_l c_l |t_l| (the trim magnitude), e.g. 1 for every gram of added or removed mass. Returns a
-    TrimResult; see the module docstring (rel_floor is a conservative, possibly loose, estimate)."""
+    TrimResult; see the module docstring (rel_floor is a conservative, possibly loose, estimate).
+
+    ``objective="peak"`` minimises max_l c_l |t_l| instead of the sum (e.g. the largest tuning voltage squared).
+    ``backtrack``: when a step increases the split while the previous split is well above the resolution floor
+    (> 4 eps lambda_max), the step is halved, up to ``backtrack`` times in a row (history step "halve"); 0 disables
+    it. Strongly nonlinear trims (a first-order effect that nearly cancels, e.g. depth ablation of a ring) need it."""
+    _check_objective(objective)
     i, j = (int(pair[0]), int(pair[1]))
     if j != i + 1 or i < 0:
         raise ValueError("pair must be (i, i + 1) with i >= 0")
@@ -150,18 +198,7 @@ def trim_degenerate_pair(K, M, dKs, dMs, pair, *, lower=0.0, upper=None, cost=No
         raise ValueError("dKs and dMs must have the same length")
     if L == 0:
         raise ValueError("dKs / dMs must contain at least one candidate trim")
-    for name, v in (("lower", lower), ("upper", upper), ("cost", cost)):
-        if v is not None and np.ndim(v) > 0 and np.shape(v) != (L,):
-            raise ValueError(f"{name} must be a scalar or have length {L} (one entry per trim), got shape "
-                             f"{np.shape(v)}")
-    lo = np.broadcast_to(np.asarray(lower, float), (L,)).copy()
-    hi = np.full(L, np.inf) if upper is None else np.broadcast_to(np.asarray(upper, float), (L,)).copy()
-    if np.any(lo > hi):
-        raise ValueError("lower must not exceed upper")
-    c = np.ones(L) if cost is None else np.asarray(cost, float)
-    c = np.broadcast_to(c, (L,)).copy()
-    if np.any(c < 0):
-        raise ValueError("cost must be non-negative (the objective is the trim magnitude sum c |t|)")
+    lo, hi, c = _bounds(L, lower, upper, cost)
 
     def pencil(t):
         Kt, Mt = K, M
@@ -171,17 +208,11 @@ def trim_degenerate_pair(K, M, dKs, dMs, pair, *, lower=0.0, upper=None, cost=No
                 Mt = Mt + t[l] * dMs_l[l]
         return Kt, Mt
 
-    p_bounds = list(zip(np.maximum(lo, 0.0), np.maximum(hi, 0.0)))
-    q_bounds = list(zip(np.maximum(-hi, 0.0), np.maximum(-lo, 0.0)))
-
     def solve_lp(t, G, r):
-        """(new t, "") on success; (None, "infeasible") for linprog status 2; (None, "lp_failed") otherwise. Status 3
-        (unbounded) cannot occur: c >= 0 bounds the objective below by 0."""
-        res = linprog(np.concatenate([c, c]), A_eq=np.hstack([G, -G]), b_eq=r + G @ t,
-                      bounds=p_bounds + q_bounds, method="highs")
-        if res.status == 0:
-            return np.asarray(res.x[:L] - res.x[L:], dtype=float), ""
-        return None, ("infeasible" if res.status == 2 else "lp_failed")
+        return _lp(G, r + G @ t, lo, hi, c, objective)
+
+    lam_max = _lambda_max(K, M)
+    floor_abs = float(np.finfo(float).eps * lam_max)
 
     t = np.clip(np.zeros(L), lo, hi)
     hist: list = []
@@ -190,6 +221,7 @@ def trim_degenerate_pair(K, M, dKs, dMs, pair, *, lower=0.0, upper=None, cost=No
     first = None
     no_gain = 0
     status = "max_iter"
+    t_prev, g_prev, n_half = None, None, 0
     for it in range(max_iter + 1):
         Kt, Mt = pencil(t)
         w, V = smallest_eigenpairs(Kt, Mt, min(j + 2, Kt.shape[0]))
@@ -201,6 +233,14 @@ def trim_degenerate_pair(K, M, dKs, dMs, pair, *, lower=0.0, upper=None, cost=No
             _not_nearly_degenerate(w, i, j, gap_ratio_min, e)
             raise
         g, lb = float(w[j] - w[i]), float(sm.lam_bar)
+        rec = dict(it=it, t_cost=float(c @ np.abs(t)), split=g, rel_split=g / abs(lb), lam_bar=lb)
+        if (backtrack and t_prev is not None and g > g_prev and g_prev > 4.0 * floor_abs and n_half < backtrack
+                and it < max_iter):
+            n_half += 1                # reject the iterate: halve the step (not counted as an iteration without gain)
+            hist.append(TrimRecord(step="halve", **rec))
+            t = t_prev + 0.5 * (t - t_prev)
+            continue
+        n_half = 0
         if first is None:
             first = (g, w[i:j + 1].copy())
         if best is None or g < best[0]:
@@ -208,7 +248,6 @@ def trim_degenerate_pair(K, M, dKs, dMs, pair, *, lower=0.0, upper=None, cost=No
             best = (g, t.copy(), w[i:j + 1].copy())
         else:
             no_gain += 1
-        rec = dict(it=it, t_cost=float(c @ np.abs(t)), split=g, rel_split=g / abs(lb), lam_bar=lb)
         if g <= tol * abs(lb):
             status = "converged"
         elif no_gain >= 2:
@@ -234,13 +273,14 @@ def trim_degenerate_pair(K, M, dKs, dMs, pair, *, lower=0.0, upper=None, cost=No
                     status = why
             if t_new is not None:
                 hist.append(TrimRecord(step=step, **rec))
+                t_prev, g_prev = t.copy(), g
                 t = t_new
                 continue
         hist.append(TrimRecord(step="", **rec))
         break
     g, t_best, pair_w = best
     lb_best = float(pair_w.mean())
-    rel_floor = float(np.finfo(float).eps * _lambda_max(K, M) / abs(lb_best))
+    rel_floor = float(floor_abs / abs(lb_best))
     if status == "max_iter" and rel_floor >= tol and g / abs(lb_best) <= 2.0 * rel_floor:
         status = "stalled"             # out of iterations at the resolution floor (tol is below the floor)
     return TrimResult(t=t_best, cost=float(c @ np.abs(t_best)), split_before=first[0], split_after=g,

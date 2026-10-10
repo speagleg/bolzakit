@@ -30,9 +30,15 @@ available).
 ## API
 
 `trim_degenerate_pair(K, M, dKs, dMs, pair, *, lower=0.0, upper=None, cost=None, tol=1e-10, max_iter=20,
-gap_ratio_min=1e-3) -> TrimResult` with fields `t`, `cost`, `split_before`, `split_after`, `rel_split_before`,
+gap_ratio_min=1e-3, objective="sum", backtrack=4) -> TrimResult` with fields `t`, `cost`, `split_before`, `split_after`, `rel_split_before`,
 `rel_split_after`, `eigvals_before`, `eigvals_after`, `rel_floor`, `status`, `n_iter`, `n_eigensolves`, `history`
-(`TrimRecord`s: `it`, `t_cost`, `split`, `rel_split`, `lam_bar`, `step`), `label`, `caveat`. Statuses:
+(`TrimRecord`s: `it`, `t_cost`, `split`, `rel_split`, `lam_bar`, `step`), `label`, `caveat`. `objective="sum"` (default) minimises Σ c_l |t_l|; `objective="peak"` minimises max_l c_l |t_l|
+(e.g. the largest tuning voltage squared), which spreads the trim over equivalent sites instead of piling it on one or
+two. `backtrack` (default 4; 0 disables) is the step-halving limit: when an iterate raises the split while the
+previous split is above 4·eps·λ_max, the iterate is rejected, recorded in `history` with `step="halve"`, and the step
+is halved (up to `backtrack` times in a row). A rejected iterate is not counted toward `"stalled"` and cannot be the
+returned best. Strongly nonlinear trims, whose first-order effect nearly cancels (depth ablation of a ring), need it.
+Statuses:
 `"converged"` (split ≤ tol·|λ̄|), `"stalled"` (the resolution floor: two iterations without halving the best split,
 or out of iterations with `tol` below the floor, `rel_floor ≥ tol`, and the best split within a factor 2 of
 `rel_floor`), `"max_iter"` (out of iterations otherwise: budget exhaustion), `"infeasible"` (the LP has no solution: no

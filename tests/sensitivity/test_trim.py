@@ -203,6 +203,34 @@ def test_pair_must_be_isolated():
         trim_degenerate_pair(K, np.eye(4), [_outer(E[1])], None, (2, 3))
 
 
+def test_peak_objective_spreads_the_trim_over_equivalent_sites():
+    K = np.diag([1.0, 2.0, 2.03, 5.0])
+    dKs = [_outer(E[1])] * 3                      # three identical candidates (e.g. electrodes of one group)
+    s = trim_degenerate_pair(K, np.eye(4), dKs, None, (1, 2))
+    p = trim_degenerate_pair(K, np.eye(4), dKs, None, (1, 2), objective="peak")
+    assert s.status == p.status == "converged"
+    assert np.count_nonzero(s.t) == 1 and s.t.sum() == pytest.approx(0.03)
+    assert np.allclose(p.t, 0.01, atol=1e-9)
+    with pytest.raises(ValueError, match="objective"):
+        trim_degenerate_pair(K, np.eye(4), dKs, None, (1, 2), objective="max")
+
+
+def test_backtracking_rescues_a_strongly_nonlinear_trim():
+    rng = np.random.default_rng(120)                            # found by search: without halving the run stalls
+    K = np.diag([1.0, 2.0, 2.02, 2.6, 5.0, 9.0])
+    dKs, dMs = [], []
+    for _ in range(6):
+        v = rng.standard_normal(6)
+        v[3] *= 3                                               # strong coupling to the mode at 2.6
+        dKs.append(0.3 * _outer(v))
+        dMs.append(0.3 * 0.47 * _outer(v))                      # first-order pair effect nearly cancels
+    kw = dict(lower=-1.0, upper=1.0, max_iter=12)
+    r0 = trim_degenerate_pair(K, np.eye(6), dKs, dMs, (1, 2), backtrack=0, **kw)
+    r4 = trim_degenerate_pair(K, np.eye(6), dKs, dMs, (1, 2), **kw)
+    assert r0.status == "stalled" and r0.rel_split_after > 1e-4
+    assert r4.status == "converged" and "halve" in [h.step for h in r4.history]
+
+
 # ------------------------------------------------------------------ FE resonators (examples/gyro_trim.py; skfem)
 def _gyro():
     pytest.importorskip("skfem")
