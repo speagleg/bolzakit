@@ -12,9 +12,13 @@ minimal-mass trim from the FE model and checks it with an independent dense eige
     element-wise Young's modulus and density (1 + 0.005 xi, xi ~ N(0, 1)), five seeds. The n = 2 pair is (6, 7).
 
 Trim sites: point masses (lumped, both displacement components) at outer-rim nodes, 16 sites for (a), 32 for (b).
-Baseline: iterated antinode trimming. Each round adds, at the site where the higher mode moves most (largest
-first-order split reduction per unit mass), the mass that cancels the split to first order along that one site, then
-re-solves (10 rounds). It ignores the coupling term, which is why it can oscillate.
+Baseline: iterated single-site antinode trimming. Each round adds, at the site where the higher mode moves most
+(largest first-order split reduction per unit mass), `damping` times the mass that cancels the split to first order
+along that one site, then re-solves (up to 40 rounds, stopping once the pair is tied). It ignores the coupling term.
+Undamped (damping 1) it can oscillate and never tie; damped (damping 0.5) it is the fair standard. Mass ratios are
+reported only against baseline runs that tied the pair (split <= max(tol, 2 * rel_floor)); a run that did not tie is
+reported as such. Splits below the eigensolver's resolution (rel_floor = eps * lambda_max / lambda_pair, ~1.6e-8 for
+the plain ring) are not measurable and are printed as "at floor", never as a value.
 """
 from __future__ import annotations
 
@@ -107,8 +111,10 @@ class Model:
         return self._cond(asm(_mass, self.basis, rho=np.ones((self.ne, self.nqp)) if rho is None else rho))
 
 
-def naive_trim(K, M, dMs, pair, rounds=10):
-    """Iterated antinode trimming (the baseline; see the module docstring). Returns (t, rel_splits, eigensolves)."""
+def naive_trim(K, M, dMs, pair, rounds=10, damping=1.0, stop=0.0):
+    """Iterated single-site antinode trimming (the baseline; see the module docstring): each round adds `damping`
+    times the first-order cancelling mass at the best site; stops early once the relative split is <= `stop`.
+    Returns (t, rel_splits, eigensolves)."""
     i, j = pair
     t = np.zeros(len(dMs))
     zero = [sp.csc_matrix(K.shape)] * len(dMs)
@@ -118,13 +124,15 @@ def naive_trim(K, M, dMs, pair, rounds=10):
         w, V = smallest_eigenpairs(K, Mt, j + 2)
         g = w[j] - w[i]
         rel.append(g / w[i:j + 1].mean())
-        if r == rounds:
+        if r == rounds or rel[-1] <= stop:
             break
         A = splitting_matrices(K, Mt, zero, dMs, pair, eig=(w, V), validate=False).mats
         rate = A[:, 0, 0] - A[:, 1, 1]                               # split reduction per unit mass at each site
         s = int(np.argmax(rate))
-        t[s] += g / rate[s]
-    return t, np.array(rel), rounds + 1
+        if rate[s] <= 0:
+            raise ValueError("no site reduces the split to first order (rate <= 0)")
+        t[s] += damping * g / rate[s]
+    return t, np.array(rel), len(rel)
 
 
 def dense_split(K, M, pair):
@@ -132,6 +140,19 @@ def dense_split(K, M, pair):
     the pair. (The subset driver gvx can return a resolved pair as an exact tie, so it is not used.)"""
     w = sla.eigh(K.toarray(), M.toarray(), eigvals_only=True, driver="gvd")[list(pair)]
     return (w[1] - w[0]) / w.mean()
+
+
+ROUNDS = 40
+
+
+def _stop(res, tol=1e-10):
+    """A pair counts as tied when its relative split is <= max(tol, 2 * resolution floor)."""
+    return max(tol, 2.0 * res.rel_floor)
+
+
+def _val(x, res):
+    """A split as text; anything within twice the resolution floor is not a measurement."""
+    return f"at floor (<= {res.rel_floor:.1e})" if x <= 2.0 * res.rel_floor else f"{x:.2e}"
 
 
 def part_a():
@@ -146,9 +167,11 @@ def part_a():
     M = M0 + 1e-3 * dM4
     res = trim_degenerate_pair(K, M, None, m.dMs, pair)
     Mt = M + sum(tl * d for tl, d in zip(res.t, m.dMs) if tl)
-    tn, reln, nn = naive_trim(K, M, m.dMs, pair)
+    stop = _stop(res)
+    tn, reln, nn = naive_trim(K, M, m.dMs, pair, rounds=ROUNDS, stop=stop)
+    td, reld, nd = naive_trim(K, M, m.dMs, pair, rounds=ROUNDS, damping=0.5, stop=stop)
     return dict(rate=rate, res=res, dense=dense_split(K, Mt, pair), naive_t=tn, naive_rel=reln, naive_eigs=nn,
-                mass=float(M0.sum() / 2))
+                damped_t=td, damped_rel=reld, damped_eigs=nd, stop=stop, mass=float(M0.sum() / 2))
 
 
 def part_b(seeds=range(5)):
@@ -164,9 +187,11 @@ def part_b(seeds=range(5)):
         res = trim_degenerate_pair(K, M, None, m.dMs, pair)
         sec = time.perf_counter() - t0
         Mt = M + sum(tl * d for tl, d in zip(res.t, m.dMs) if tl)
-        tn, reln, nn = naive_trim(K, M, m.dMs, pair)
+        stop = _stop(res)
+        tn, reln, nn = naive_trim(K, M, m.dMs, pair, rounds=ROUNDS, stop=stop)
+        td, reld, nd = naive_trim(K, M, m.dMs, pair, rounds=ROUNDS, damping=0.5, stop=stop)
         out.append(dict(seed=seed, res=res, sec=sec, dense=dense_split(K, Mt, pair), naive_t=tn, naive_rel=reln,
-                        naive_eigs=nn))
+                        naive_eigs=nn, damped_t=td, damped_rel=reld, damped_eigs=nd, stop=stop))
     return dict(nominal=w0, runs=out, mass=float(m.M().sum() / 2))
 
 
@@ -175,22 +200,33 @@ def main(quick: bool = False):
     a = part_a()
     r = a["res"]
     print(f"(a) ring, 4th-harmonic imperfection: rate/lam_bar = {a['rate']:.5f} (thin-ring theory 0.3)")
-    print(f"    split/lam_bar {r.rel_split_before:.3e} -> {r.rel_split_after:.3e} ({r.status}, "
-          f"{r.n_eigensolves} eigensolves); dense check {a['dense']:.2e}; trim mass {r.cost:.4e} "
+    print(f"    split/lam_bar {r.rel_split_before:.3e} -> {_val(r.rel_split_after, r)} ({r.status}, "
+          f"{r.n_eigensolves} eigensolves); dense check {_val(a['dense'], r)}; trim mass {r.cost:.4e} "
           f"({r.cost / a['mass']:.2e} of the ring) at sites {np.flatnonzero(r.t).tolist()}")
     print(f"    history: {' '.join(f'{h.rel_split:.1e}' for h in r.history)}")
-    print(f"    baseline (antinode, {a['naive_eigs']} eigensolves): split {a['naive_rel'][-1]:.3e}, "
-          f"mass {a['naive_t'].sum():.4e} at sites {np.flatnonzero(a['naive_t']).tolist()}")
+    for name, k in (("undamped", "naive"), ("damped 0.5", "damped")):
+        t_, rel_, n_ = a[f"{k}_t"], a[f"{k}_rel"], a[f"{k}_eigs"]
+        print(f"    baseline {name} antinode: "
+              f"{'tied, ' if rel_[-1] <= a['stop'] else 'did not tie, '}split {_val(rel_[-1], r)}, "
+              f"{n_} eigensolves, mass {t_.sum():.4e} at sites {np.flatnonzero(t_).tolist()}"
+              + (f", {t_.sum() / r.cost:.2f}x our mass" if rel_[-1] <= a['stop'] else ""))
     b = part_b(range(2) if quick else range(5))
     print(f"\n(b) ring on 8 spokes, random E and rho (sigma 0.5 %); nominal pair lambda_6 = lambda_7 = "
           f"{b['nominal'][6]:.6f} (rel. diff {(b['nominal'][7] - b['nominal'][6]) / b['nominal'][6]:.1e})")
-    print(" seed  split before   ours: after  dense check  eigsolves  mass (rel)     sites   |  "
-          "antinode: after  mass (rel)  eigsolves")
+    print(" seed  split before   ours: after  dense check  eigsolves  mass (rel)     sites")
     for x in b["runs"]:
         r = x["res"]
         print(f" {x['seed']:4d}  {r.rel_split_before:11.3e}  {r.rel_split_after:11.2e}  {x['dense']:11.2e}  "
-              f"{r.n_eigensolves:9d}  {r.cost / b['mass']:9.2e}  {str(np.flatnonzero(r.t).tolist()):>9s}  |  "
-              f"{x['naive_rel'][-1]:15.2e}  {x['naive_t'].sum() / b['mass']:10.2e}  {x['naive_eigs']:9d}")
+              f"{r.n_eigensolves:9d}  {r.cost / b['mass']:9.2e}  {str(np.flatnonzero(r.t).tolist()):>9s}")
+    print("      single-site antinode baselines (mass ratio = baseline mass / our mass, only if it tied the pair):")
+    for x in b["runs"]:
+        r = x["res"]
+        cells = []
+        for name, k in (("undamped", "naive"), ("damped 0.5", "damped")):
+            t_, rel_, n_ = x[f"{k}_t"], x[f"{k}_rel"], x[f"{k}_eigs"]
+            cells.append(f"{name}: " + (f"{t_.sum() / r.cost:.2f}x mass, {n_} eigsolves" if rel_[-1] <= x["stop"]
+                                       else f"did not tie (oscillates / slow; {rel_[-1]:.1e} after {n_ - 1} rounds)"))
+        print(f" {x['seed']:4d}  " + "  |  ".join(cells))
     print(f"label: NUMERICAL (discrete problem); {time.perf_counter() - t_start:.1f} s")
     # self-checks (spec 10.1)
     assert abs(a["rate"] - 0.3) < 5e-4

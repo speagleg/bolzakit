@@ -76,6 +76,48 @@ def test_newton_converges_quadratically_and_matches_independent_eigh(seed):
     assert steps[0] == "lp" and steps[-1] == "" and set(steps[1:-1]) <= {"newton"}
 
 
+def test_negative_lower_bound_costs_removal_like_addition():
+    K = np.diag([1.0, 2.0, 2.01, 5.0])
+    ablate = trim_degenerate_pair(K, np.eye(4), [_outer(E[2])], None, (1, 2), lower=-1.0)
+    add = trim_degenerate_pair(K, np.eye(4), [_outer(E[1])], None, (1, 2), lower=-1.0)
+    assert ablate.status == "converged" and np.allclose(ablate.t, [-0.01], atol=1e-13)   # not maximal ablation
+    assert add.status == "converged" and np.allclose(add.t, [0.01], atol=1e-13)         # the mirrored-sign trim
+    assert abs(ablate.cost - add.cost) < 1e-13 and abs(ablate.cost - 0.01) < 1e-13
+    both = trim_degenerate_pair(K, np.eye(4), [_outer(E[1]), _outer(E[2])], None, (1, 2), lower=-1.0)
+    assert both.status == "converged" and abs(np.abs(both.t).sum() - 0.01) < 1e-13 and both.cost == pytest.approx(0.01)
+    assert np.count_nonzero(both.t) == 1
+
+
+def test_resolve_lp_when_newton_leaves_the_bounds_dk_and_dm_together():
+    rng = np.random.default_rng(29)               # found by search: lp, lp (Newton left the bounds), newton
+    n = 10
+    K = np.diag([1.0, 2.0, 2.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0])
+    X = rng.standard_normal((n, n))
+    M = np.eye(n) + 2e-3 * (X + X.T)
+    dMs = [1e-2 * _outer(rng.standard_normal(n)) for _ in range(8)]
+    dKs = [0.05 * _outer(rng.standard_normal(n)) for _ in range(8)]
+    r = trim_degenerate_pair(K, M, dKs, dMs, (1, 2), lower=-0.5, upper=0.3)
+    assert [h.step for h in r.history] == ["lp", "lp", "newton", ""] and r.status == "converged"
+    assert np.all(r.t >= -0.5) and np.all(r.t <= 0.3) and np.any(r.t < 0)
+    Kt = K + sum(tl * d for tl, d in zip(r.t, dKs))
+    Mt = M + sum(tl * d for tl, d in zip(r.t, dMs))
+    w = sla.eigh(Kt, Mt, eigvals_only=True)
+    assert (w[2] - w[1]) / w[1:3].mean() <= 1e-9
+
+
+def test_status_max_iter_and_stalled_at_the_resolution_floor():
+    K, M, dMs = _random_mass_problem(0)
+    r = trim_degenerate_pair(K, M, None, dMs, (1, 2), max_iter=1)
+    assert r.status == "max_iter" and r.n_iter == 1 and r.rel_split_after > 10 * r.rel_floor
+    rng = np.random.default_rng(0)                # lambda_max / lambda_pair = 1e6: floor ~ 2e-10 > tol below
+    Q, _ = np.linalg.qr(rng.standard_normal((6, 6)))
+    K = Q @ np.diag([1e-3, 1.0, 1.0 + 2e-3, 3, 50, 1e6]) @ Q.T
+    K = (K + K.T) / 2
+    r = trim_degenerate_pair(K, np.eye(6), [_outer(Q[:, 1]), _outer(Q[:, 2]), _outer(Q[:, 1] + Q[:, 2]) / 2], None, (1, 2),
+                              tol=1e-14)
+    assert r.status == "stalled" and r.rel_split_after <= 2 * r.rel_floor and 1e-11 < r.rel_floor < 1e-9
+
+
 def test_argument_validation():
     K = np.diag([1.0, 2.0, 2.01, 5.0])
     with pytest.raises(ValueError, match="pair"):
@@ -86,6 +128,13 @@ def test_argument_validation():
         trim_degenerate_pair(K, np.eye(4), [E, E], [E], (1, 2))
     with pytest.raises(ValueError, match="lower"):
         trim_degenerate_pair(K, np.eye(4), [E], None, (1, 2), lower=1.0, upper=0.0)
+    with pytest.raises(ValueError, match="at least one"):
+        trim_degenerate_pair(K, np.eye(4), [], None, (1, 2))
+    for kw in ({"lower": [0.0, 0.0]}, {"upper": [1.0, 1.0, 1.0]}, {"cost": [1.0, 1.0]}):
+        with pytest.raises(ValueError, match="length 1"):
+            trim_degenerate_pair(K, np.eye(4), [E], None, (1, 2), **kw)
+    with pytest.raises(ValueError, match="non-negative"):
+        trim_degenerate_pair(K, np.eye(4), [E], None, (1, 2), cost=[-1.0])
 
 
 def test_pair_must_be_isolated():
@@ -118,4 +167,7 @@ def test_spoked_ring_trim_converges_and_beats_antinode_mass():
     r = x["res"]
     assert r.status == "converged" and r.rel_split_after <= 1e-10
     assert x["dense"] <= 1e-9                                 # independent dense eigensolve
-    assert r.cost < x["naive_t"].sum()
+    for k in ("naive", "damped"):                             # single-site antinode baselines, 40 rounds
+        tied = x[f"{k}_rel"][-1] <= x["stop"]
+        assert (not tied) or r.cost < x[f"{k}_t"].sum()       # a baseline either fails to tie or costs more mass
+    assert x["damped_rel"][-1] > r.rel_split_after            # seed 1: the damped baseline is still far from tied

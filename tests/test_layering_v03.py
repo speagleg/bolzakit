@@ -135,3 +135,9 @@ def test_core_import_leaves_frameworks_unloaded_with_extras_installed():
     r = _run(f'import sys\nimport {_core_imports()}\n'
              'print(sorted(m for m in ("torch", "jax") if m in sys.modules))')
     assert r.returncode == 0 and r.stdout.strip() == "[]", (r.stdout, r.stderr)
+
+
+def test_trim_imports_only_core_numpy_scipy():
+    ok = ("bolzakit.sensitivity", "bolzakit.sensitivity.core", "numpy", "scipy", "__future__", "dataclasses")
+    bad = [m for m in _mods(SENS / "trim.py") if not any(_is(m, o) for o in ok)]
+    assert bad == []
