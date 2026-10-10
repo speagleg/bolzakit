@@ -27,3 +27,29 @@ def test_benchmark_quick_runs_and_reports_honestly():
         assert by[(s, "naive fixed-step")]["decreases"] >= 10          # the naive baseline chatters
         assert by[(s, "ours")]["final"] > 1.9                          # lambda_0 rises from 1.586 / 1.677 pi^4
     assert by[(0, "ours")]["mult"] == 3                                # symmetric start: a triple eigenvalue
+
+
+def test_cache_does_not_double_charge_and_tracks_best():
+    bm = fm.Benchmark(budget=20)
+    h = np.ones(bm.d)
+    with bm.counting():
+        a = bm.eig(h)
+        b = bm.eig(h.copy())
+        assert bm.count == 1 and a is b                                # re-evaluated design: no second charge
+        others = [bm.project(1 + 0.05 * np.sin(np.arange(bm.d) + k)) for k in range(1, 6)]
+        for o in others:
+            bm.eig(o)
+        assert bm.count == 6
+        bm.eig(h)                                                      # still within the last 8 designs
+        assert bm.count == 6
+    assert bm.best_val >= a[0][0]
+
+
+def test_budget_stop_raises_only_on_new_design():
+    bm = fm.Benchmark(budget=1)
+    h = np.ones(bm.d)
+    with bm.counting():
+        bm.eig(h)
+        bm.eig(h)                                                      # cached, free
+        with pytest.raises(fm._Budget):
+            bm.eig(bm.project(1 + 0.1 * np.cos(np.arange(bm.d))))
