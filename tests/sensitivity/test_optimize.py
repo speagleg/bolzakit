@@ -732,55 +732,114 @@ def _near_triple_pencil(seed):
     return pen, ga, gb
 
 
-@pytest.mark.parametrize("seed", [2, 3, 10])
-def test_unproductive_refinement_reports_coarse_triple_FU(seed):
-    # Plate-with-post symmetric-start defect (T7 follow-up). The tied triple model is stationary with internal gap
-    # eps > mult_rtol_min * s, so it is refined; each split step closes about half the gap, and this Zeno chain ends
-    # when the trust radius reaches 1e-10 * step0 with the gap still ~1e-11 relative. The driver used to report that
-    # last split model: step_too_small, multiplicity 1, phi ~ 1 (an ascent rate the tie forbids). The final split
-    # yields no accepted step, so the result must fall back to the coarse model: stationary, multiplicity 3.
+def _near_triple_reference(ga, gb):
+    """max over [-1, 1]^2 of min(a, b) for _near_triple_pencil, by SLSQP on the epigraph form."""
     from scipy.optimize import minimize
-    pen, ga, gb = _near_triple_pencil(seed)
-    res = maximize_eigenvalue(pen, np.zeros(2), LowestEigenvalue(0), lower=-1.0, upper=1.0, max_iter=300)
-    assert any(h.refined for h in res.history)
-    assert res.status == "stationary" and res.multiplicity == 3, (res.status, res.multiplicity, res.phi)
-    assert res.fallback_from == "step_too_small"             # the stop that ended the split model stays visible
-    assert res.phi == 0.0 and res.phi_upper <= 1e-8 * max(1.0, abs(res.value))
-    w = res.eigvals
-    assert w[2] - w[0] <= 1e-9 * abs(w[0]) and w[3] - w[2] > 1.0 and res.eps <= 1e-9 * abs(w[0])
     ref = minimize(lambda x: -x[2], np.zeros(3), method="SLSQP", bounds=[(-1, 1)] * 2 + [(None, None)],
                    constraints=[{"type": "ineq", "fun": lambda x: 1 + ga @ x[:2] - x[:2] @ x[:2] - x[2]},
                                 {"type": "ineq", "fun": lambda x: 1 + gb @ x[:2] - 2 * x[:2] @ x[:2] - x[2]}],
                    options={"ftol": 1e-14, "maxiter": 500})
-    assert abs(res.value - ref.x[2]) <= 1e-8, (res.value, ref.x[2])
+    return ref.x[2]
+
+
+def _first_refinement(res):
+    """The refinement round that opened the current unproductive refinement: the first refined record after the
+    last accepted step (the coarse model a fallback reports)."""
+    last = max((n for n, h in enumerate(res.history) if h.accepted), default=-1)
+    return next(h for h in res.history[last + 1:] if h.refined)
+
+
+def _assert_coarse_fallback(res, stat_tol=1e-8):
+    """The invariants of the coarse-model fallback, independent of the floating-point path that reached it: the run
+    ended on an uncertified stop inside an unproductive refinement, and the result is the coarse model that the
+    first round replaced (its cluster, value and certificate), with a verdict consistent with that certificate."""
+    assert res.fallback_from in ("step_too_small", "subproblem_not_converged", "max_iter"), res.fallback_from
+    rec = _first_refinement(res)
+    assert res.multiplicity == rec.multiplicity and res.value == rec.value
+    assert res.phi == rec.phi and res.phi_upper == rec.phi_upper
+    assert res.status in ("stationary", "step_too_small"), res.status
+    if res.status == "stationary":        # certified: phi* <= phi_upper <= stat_tol * s (or the subproblem's own
+        # rule (a), phi_upper <= 1e-10 * max(s, ||A||)); phi itself may be a tiny certified rate > 0
+        tol = max(stat_tol, 1e-9) * max(1.0, abs(res.value))
+        assert res.phi <= res.phi_upper <= tol, (res.phi, res.phi_upper)
+    else:                                 # an eps-limited stall: a certified ascent rate the model could not use
+        assert res.phi > 0.0 and res.phi_upper > stat_tol * abs(res.value), (res.phi, res.phi_upper)
+
+
+@pytest.mark.parametrize("seed", [2, 3, 10])
+def test_unproductive_refinement_reports_coarse_triple_FU(seed):
+    # Plate-with-post symmetric-start defect (T7 follow-up). The tied triple model has internal gap
+    # eps > mult_rtol_min * s, so it is refined; each split step closes about half the gap, and this Zeno chain ends
+    # when the trust radius reaches 1e-10 * step0 with the gap still ~1e-11 relative. The driver used to report that
+    # last split model: step_too_small, multiplicity 1, phi ~ 1 (an ascent rate the tie forbids). Which stop ends
+    # the run is rounding-dependent at this default tolerance (phi_upper of the tied model sits near stat_tol * s,
+    # and a split step may or may not be accepted first; both move with the BLAS kernel), so this asserts what
+    # holds on every path: the result is the triple, with no spurious ascent rate, at the reference optimum; and a
+    # fallback, when it happens, reports the coarse model consistently. The verdict branches are forced below.
+    pen, ga, gb = _near_triple_pencil(seed)
+    res = maximize_eigenvalue(pen, np.zeros(2), LowestEigenvalue(0), lower=-1.0, upper=1.0, max_iter=300)
+    assert any(h.refined for h in res.history)
+    assert res.multiplicity == 3 and res.phi_upper <= 1e-6 * abs(res.value), (res.status, res.multiplicity, res.phi)
+    assert res.status in ("stationary", "step_too_small", "subproblem_not_converged"), res.status
+    if res.fallback_from is not None:
+        _assert_coarse_fallback(res)
+    w = res.eigvals
+    assert w[2] - w[0] <= 1e-7 * abs(w[0]) and w[3] - w[2] > 1.0
+    assert abs(res.value - _near_triple_reference(ga, gb)) <= 1e-8
+
+
+@pytest.mark.parametrize("seed", [2, 3, 10])
+def test_stationary_verdict_fallback_reports_coarse_triple_FU(seed):
+    # The "stationary" branch, forced: with stat_tol = 1e-6 the coarse triple's phi_upper (~1e-8 rounding noise) is
+    # far below the threshold, so the first refinement round is triggered at its stationary point, whatever the
+    # BLAS. The unproductive split must report that stationary triple, not the split model's stop.
+    pen, ga, gb = _near_triple_pencil(seed)
+    res = maximize_eigenvalue(pen, np.zeros(2), LowestEigenvalue(0), lower=-1.0, upper=1.0, max_iter=300,
+                              stat_tol=1e-6)
+    _assert_coarse_fallback(res, stat_tol=1e-6)
+    assert res.status == "stationary" and res.multiplicity == 3
+    w = res.eigvals
+    assert w[2] - w[0] <= 1e-9 * abs(w[0]) and w[3] - w[2] > 1.0
+    assert abs(res.value - _near_triple_reference(ga, gb)) <= 1e-8
 
 
 def test_stall_verdict_fallback_reports_coarse_step_too_small_FU():
-    # T7 follow-up, the other fallback branch: the first refinement round at this p was triggered by an eps-limited
-    # stall (verdict "step_too_small"), not at a stationary point, and the split never paid off. The result reports
-    # the coarse model with its own verdict, and the stop that actually ended the run in fallback_from.
+    # T7 follow-up, the other verdict: the first refinement round at this p was triggered by an eps-limited stall
+    # (verdict "step_too_small"), not at a stationary point, and the split never paid off. Forced: stat_tol = 1e-14
+    # is below the rounding floor of phi_upper, so the coarse model is never certified stationary and its first
+    # refinement is a stall; the run then stops one iteration later (max_iter = that iteration + 1, no refinement
+    # budget), before the split model can accept a step. The result reports the coarse model with its own verdict,
+    # and the budget stop that actually ended the run in fallback_from.
     pen, _, _ = _near_triple_pencil(0)
-    res = maximize_eigenvalue(pen, np.zeros(2), LowestEigenvalue(0), lower=-1.0, upper=1.0, max_iter=300)
-    assert any(h.refined for h in res.history)
-    assert res.status == "step_too_small" and res.fallback_from == "step_too_small" and res.multiplicity == 3
-    w = res.eigvals
-    assert w[3] - w[2] > 1.0 and res.eps >= 0
+    kw = dict(lower=-1.0, upper=1.0, stat_tol=1e-14)
+    full = maximize_eigenvalue(pen, np.zeros(2), LowestEigenvalue(0), max_iter=300, **kw)
+    first = next(h for h in full.history if h.refined)
+    res = maximize_eigenvalue(pen, np.zeros(2), LowestEigenvalue(0), max_iter=first.it + 1, refine_max_iter=0, **kw)
+    _assert_coarse_fallback(res, stat_tol=1e-14)
+    assert res.status == "step_too_small" and res.fallback_from == "max_iter"
+    assert res.multiplicity == first.multiplicity and res.value == first.value
+    assert res.eigvals[res.multiplicity] - res.eigvals[res.multiplicity - 1] > 1.0 and res.eps > 0
 
 
-def test_budget_exhaustion_is_visible_under_the_coarse_verdict_FU():
-    # A run that runs out of budget inside an unproductive refinement reports the coarse verdict; fallback_from
-    # says the budget ran out (natural max_iter, and an eigensolve cap).
-    pen, _, _ = _near_triple_pencil(28)
-    res = maximize_eigenvalue(pen, np.zeros(2), LowestEigenvalue(0), lower=-1.0, upper=1.0, max_iter=300)
-    assert res.fallback_from == "max_iter" and res.status in ("stationary", "step_too_small")
-    assert res.n_iter >= 300
-    pen, _, _ = _near_triple_pencil(2)
-    full = maximize_eigenvalue(pen, np.zeros(2), LowestEigenvalue(0), lower=-1.0, upper=1.0, max_iter=300)
-    first = next(i for i, h in enumerate(full.history) if h.refined)
-    capped = maximize_eigenvalue(pen, np.zeros(2), LowestEigenvalue(0), lower=-1.0, upper=1.0, max_iter=300,
-                                 _max_eigensolves=full.n_eigensolves - 2)
-    assert any(h.refined for h in capped.history) and first < len(capped.history)
-    assert capped.status == "stationary" and capped.fallback_from == "max_iter" and capped.multiplicity == 3
+@pytest.mark.parametrize("seed", [0, 2, 3])
+def test_budget_exhaustion_is_visible_under_the_coarse_verdict_FU(seed):
+    # A run that runs out of budget inside an unproductive refinement reports the coarse verdict; fallback_from says
+    # the budget ran out. Both budgets are forced to end just after the first refinement round (no rounding-dependent
+    # path): the iteration budget (max_iter = that iteration + 1, refine_max_iter = 0), and an eigensolve cap equal
+    # to the eigensolves that run used (so the split model's first trial hits the cap).
+    pen, _, _ = _near_triple_pencil(seed)
+    kw = dict(lower=-1.0, upper=1.0)
+    full = maximize_eigenvalue(pen, np.zeros(2), LowestEigenvalue(0), max_iter=300, **kw)
+    first = next(h for h in full.history if h.refined)
+    res = maximize_eigenvalue(pen, np.zeros(2), LowestEigenvalue(0), max_iter=first.it + 1, refine_max_iter=0, **kw)
+    _assert_coarse_fallback(res)
+    assert res.fallback_from == "max_iter" and res.n_iter == first.it + 1
+    assert res.multiplicity == first.multiplicity and res.history[-1].refined
+    capped = maximize_eigenvalue(pen, np.zeros(2), LowestEigenvalue(0), max_iter=300,
+                                 _max_eigensolves=res.n_eigensolves, **kw)
+    _assert_coarse_fallback(capped)
+    assert capped.fallback_from == "max_iter" and capped.multiplicity == first.multiplicity
+    assert capped.status == res.status
 
 
 def test_fallback_from_is_none_for_a_run_s_own_stop():

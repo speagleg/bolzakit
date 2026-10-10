@@ -11,6 +11,7 @@ jobs:
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false        # one Python version failing must not cancel the others
       matrix: {python: ["3.10", "3.11", "3.12", "3.13"]}
     steps:
       - uses: actions/checkout@v4
