@@ -30,7 +30,9 @@ The labels are EXACT, PROVED, CERTIFIED, NUMERICAL and QUOTED; see the README. E
 
 ## Errors
 
-All errors derive from `bolzakit.errors.BolzakitError`.
+All errors derive from `bolzakit.errors.BolzakitError`, except those of `bolzakit.sensitivity`, which has its own
+`SensitivityError` hierarchy (it imports nothing from the rest of bolzakit; see
+[sensitivity.md](sensitivity.md#errors)).
 
 | error | when |
 |---|---|

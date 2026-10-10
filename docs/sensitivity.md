@@ -8,7 +8,8 @@ NUMERICAL. Adapters assemble the matrices from scikit-fem or FEniCSx forms.
 Contents: [Why clusters](#why-individual-repeated-eigenvalues-are-not-differentiable-while-cluster-sums-are) ·
 [Formulas](#formulas) · [Near-degenerate clusters](#near-degenerate-clusters) ·
 [Discrete vs continuum](#the-discrete-vs-continuum-caveat) · [Membrane example](#the-membrane-example) ·
-[Adapters](#adapters) · [0.3.0 additions](#splitting-matrices-optimisation-and-trimming-030) · [API](#api)
+[Adapters](#adapters) · [0.3.0 additions](#splitting-matrices-optimisation-and-trimming-030) · [API](#api) ·
+[Errors](#errors)
 
 ## Why individual repeated eigenvalues are not differentiable, while cluster sums are
 
@@ -49,9 +50,10 @@ eigenvectors U (n × m) and the cluster mean λ̄.
   This is the exact g''(0). It replaces the formula in the v0.2 plan, which dropped terms that vanish only when the
   prefix equals the cluster, and so was not an upper bound (Task 12 ruling). With the default correctors the bound
   is tight. It stays valid for any trial.
-- A gap check guards every call. `cluster_sensitivity` raises `ValueError` if the cluster splits a
-  (near-)degenerate group, that is, if g_out < max(gap_ratio_min·|λ̄|, 10·g_in). Here g_in is the spread inside the
-  cluster and g_out the distance to the nearest eigenvalue outside it.
+- A gap check guards every call. `cluster_sensitivity` raises `ClusterSplitError` (a `ValueError`; see
+  [Errors](#errors)) if the cluster splits a (near-)degenerate group, that is, if
+  g_out < max(gap_ratio_min·|λ̄|, 10·g_in). Here g_in is the spread inside the cluster and g_out the distance to the
+  nearest eigenvalue outside it.
 
 ## Near-degenerate clusters
 
@@ -102,15 +104,16 @@ Dirichlet dofs removed.
 - **scikit-fem** (`bolzakit.sensitivity.adapters.skfem.from_forms(basis, stiffness_form, mass_form, p0, h=1e-5,
   dirichlet_dofs=None)`; `pip install "bolzakit[skfem]"`). The forms read the parameter from `w["p"]`. The
   derivatives are central finite differences of the assembled matrices: O(h²) truncation error, plus O(eps/h²)
-  round-off in the second derivatives.
+  round-off in the second derivatives. It emits a `FiniteDifferenceWarning` (since 0.3.0) and raises `MissingExtra`
+  without scikit-fem.
 - **FEniCSx** (`bolzakit.sensitivity.adapters.fenicsx.from_forms(V, a, m, p, bcs=None)`). The parameter must be
   `p = ufl.variable(dolfinx.fem.Constant(mesh, value))`, and the derivative forms are `ufl.diff`, so the
   derivatives are exact, with no finite differencing. This adapter runs on one MPI rank only. dolfinx is not on
   PyPI: install it with conda or use the `dolfinx/dolfinx` docker image. The weekly `fenicsx.yml` workflow runs its
   test in that image.
 - **Your own code.** `from_callables(Kfun, Mfun, p0, v, cluster, h=1e-4)` takes the derivatives by central finite
-  differences of any K(p), M(p) along v and emits a `UserWarning`. `directional(...)` takes callables that return
-  dK(v), dM(v), and so on.
+  differences of any K(p), M(p) along v and emits a `FiniteDifferenceWarning` (a `UserWarning`).
+  `directional(...)` takes callables that return dK(v), dM(v), and so on.
 
 ## Splitting matrices, optimisation and trimming (0.3.0)
 
@@ -133,7 +136,39 @@ Dirichlet dofs removed.
 | `.trace_hessian` | d²/dt² of the cluster sum |
 | `.kyfan_upper` | an upper bound on d²/dt² of the prefix sum λ₀ + … + λ_j (discrete problem) |
 | `.label` | always `"NUMERICAL"` |
+| `.cluster`, `.lam_bar` | the `(i, j)` as passed, and the cluster mean λ̄ (0.3.0) |
+| `.gap_ratio` | g_out / max(gap_ratio_min·\|λ̄\|, 10·g_in), ≥ 1 for an accepted cluster (0.3.0) |
+| `.caveat` | the discrete-vs-continuum caveat text (0.3.0) |
 | `directional`, `from_callables` | see [Adapters](#adapters) |
+| `smallest_eigenpairs(K, M, count)` | the `count` smallest eigenpairs, ascending, M-orthonormal eigenvectors (0.3.0) |
+| `splitting_matrices(K, M, dKs, dMs, cluster, *, gap_ratio_min=1e-3, eig=None, check_gap=True, validate=True)` | a `SplittingMatrices` (`eigvals`, `basis`, `lam_bar`, `mats` with one A_l per parameter, `gap_ratio`); `eig=(w, V)` reuses eigenpairs from `smallest_eigenpairs` (0.3.0) |
+| `ritz_upper_bounds(K, M, W)` | Ritz values of the pencil on span W: upper bounds λ_i ≤ θ_i (Poincaré separation), discrete problem (0.3.0) |
+| `optimize.maximize_eigenvalue`, `optimize.ascent_direction` | see [sensitivity-optimize.md](sensitivity-optimize.md#api) |
+| `trim.trim_degenerate_pair` | see [sensitivity-trim.md](sensitivity-trim.md#api) |
 
-The sparse path uses shift-invert `eigsh` with an inertia-checked shift, and `spsolve`. Errors: `ValueError` if K
-or M is not symmetric, if M is not positive definite, or if the gap check fails.
+The sparse path uses shift-invert `eigsh` with an inertia-checked shift, and `spsolve`.
+
+## Errors
+
+`bolzakit.sensitivity.errors` defines the module's own exception hierarchy (also importable from
+`bolzakit.sensitivity`). Every error class also subclasses the builtin that v0.2 raised, so `except ValueError` and
+`except ImportError` handlers keep working.
+
+| Class | Bases | Raised when |
+|---|---|---|
+| `SensitivityError` | `Exception` | base class of all of them |
+| `PencilError` | `SensitivityError`, `ValueError` | K or M is not square or not symmetric, or M is not positive definite (every function that validates the pencil: `cluster_sensitivity`, `directional`, `from_callables`, `smallest_eigenpairs`, `splitting_matrices`, and through them `maximize_eigenvalue` and `trim_degenerate_pair`); `ritz_upper_bounds` with a rank-deficient W. The message keeps the v0.2 text "K and M must be symmetric with M positive definite" |
+| `ClusterRangeError` | `SensitivityError`, `ValueError` | `cluster = (i, j)` out of range or `i > j` |
+| `ClusterSplitError` | `SensitivityError`, `ValueError` | the gap check fails (the cluster splits a (near-)degenerate group; the message gives the ratio); `trim_degenerate_pair` when the pair is not isolated, or not nearly degenerate |
+| `NonSymmetricFunctionError` | `SensitivityError`, `ValueError` | reserved for a symmetry probe of a cluster function; no 0.3.0 function raises it |
+| `MissingExtra` | `SensitivityError`, `ImportError` | an adapter's optional dependency is missing (scikit-fem: `pip install "bolzakit[skfem]"`; dolfinx: conda or the docker image) |
+| `FiniteDifferenceWarning` | `UserWarning` | a warning, not an error: `from_callables` and the scikit-fem adapter took derivatives by finite differences |
+
+Argument errors stay plain `ValueError` or `TypeError` (for example a bad `count`, mismatched `dKs`/`dMs` lengths,
+the optimiser's infeasible `p0`, the trim tool's bounds and costs, and the skfem adapter's `h must be positive`).
+Stopping conditions of the optimiser and of the trim tool are statuses, not exceptions.
+
+**Separate from `bolzakit.errors`.** These classes do not derive from `bolzakit.errors.BolzakitError`, on purpose:
+`bolzakit.sensitivity` imports nothing from the rest of bolzakit (it is usable with numpy and scipy alone), so it
+cannot subclass `BolzakitError`, and `bolzakit.errors`, a v0.1 module, does not import `sensitivity` either. To catch
+everything bolzakit raises, catch both `BolzakitError` and `SensitivityError`.

@@ -15,10 +15,12 @@ Trim sites: point masses (lumped, both displacement components) at outer-rim nod
 Baseline: iterated single-site antinode trimming. Each round adds, at the site where the higher mode moves most
 (largest first-order split reduction per unit mass), `damping` times the mass that cancels the split to first order
 along that one site, then re-solves (up to 40 rounds, stopping once the pair is tied). It ignores the coupling term.
-Undamped (damping 1) it can oscillate and never tie; damped (damping 0.5) it is the fair standard. Mass ratios are
-reported only against baseline runs that tied the pair (split <= max(tol, 2 * rel_floor)); a run that did not tie is
-reported as such. Splits below the eigensolver's resolution (rel_floor = eps * lambda_max / lambda_pair, ~1.6e-8 for
-the plain ring) are not measurable and are printed as "at floor", never as a value.
+It is run undamped (damping 1) and damped (damping 0.5, the fair standard). Mass ratios are reported only against
+baseline runs that tied the pair (split <= max(tol, 2 * rel_floor)); a run that did not tie within the 40 rounds is
+reported as such. Splits at or below the eigensolver's resolution estimate (rel_floor = eps * lambda_max /
+lambda_pair: ~1.6e-8 for the plain ring, ~2e-10 for the spoked ring) are not measurements: they are printed as
+"<= rel_floor (value)" (or "at floor (<= 2 rel_floor)" within a factor 2 above it), never as a value. The dense
+LAPACK check has its own rounding floor, so on the spoked ring it is printed as an upper bound "<= value".
 """
 from __future__ import annotations
 
@@ -150,9 +152,18 @@ def _stop(res, tol=1e-10):
     return max(tol, 2.0 * res.rel_floor)
 
 
-def _val(x, res):
-    """A split as text; anything within twice the resolution floor is not a measurement."""
-    return f"at floor (<= {res.rel_floor:.1e})" if x <= 2.0 * res.rel_floor else f"{x:.2e}"
+def _val(x, res, fmt=".2e"):
+    """A split as text; anything at or below twice the resolution floor is not a measurement."""
+    if x <= res.rel_floor:
+        return f"<= rel_floor ({res.rel_floor:.1e})"
+    if x <= 2.0 * res.rel_floor:
+        return f"at floor (<= 2 rel_floor = {2.0 * res.rel_floor:.1e})"
+    return format(x, fmt)
+
+
+def _hist(res):
+    """The relative split of each iterate; entries at or below 2 rel_floor are printed as 'floor'."""
+    return " ".join("floor" if h.rel_split <= 2.0 * res.rel_floor else f"{h.rel_split:.1e}" for h in res.history)
 
 
 def part_a():
@@ -203,7 +214,7 @@ def main(quick: bool = False):
     print(f"    split/lam_bar {r.rel_split_before:.3e} -> {_val(r.rel_split_after, r)} ({r.status}, "
           f"{r.n_eigensolves} eigensolves); dense check {_val(a['dense'], r)}; trim mass {r.cost:.4e} "
           f"({r.cost / a['mass']:.2e} of the ring) at sites {np.flatnonzero(r.t).tolist()}")
-    print(f"    history: {' '.join(f'{h.rel_split:.1e}' for h in r.history)}")
+    print(f"    history (floor = at or below 2 rel_floor): {_hist(r)}")
     for name, k in (("undamped", "naive"), ("damped 0.5", "damped")):
         t_, rel_, n_ = a[f"{k}_t"], a[f"{k}_rel"], a[f"{k}_eigs"]
         print(f"    baseline {name} antinode: "
@@ -211,13 +222,17 @@ def main(quick: bool = False):
               f"{n_} eigensolves, mass {t_.sum():.4e} at sites {np.flatnonzero(t_).tolist()}"
               + (f", {t_.sum() / r.cost:.2f}x our mass" if rel_[-1] <= a['stop'] else ""))
     b = part_b(range(2) if quick else range(5))
+    r0 = b["runs"][0]["res"]                       # floor of the first seed (the nominal model's is the same order)
+    nom = (b['nominal'][7] - b['nominal'][6]) / b['nominal'][6]
     print(f"\n(b) ring on 8 spokes, random E and rho (sigma 0.5 %); nominal pair lambda_6 = lambda_7 = "
-          f"{b['nominal'][6]:.6f} (rel. diff {(b['nominal'][7] - b['nominal'][6]) / b['nominal'][6]:.1e})")
-    print(" seed  split before   ours: after  dense check  eigsolves  mass (rel)     sites")
+          f"{b['nominal'][6]:.6f} (rel. diff {_val(nom, r0, '.1e')})")
+    print(f" seed  split before  {'ours: after (status)':<34s}  {'rel_floor':>9s}  {'dense check':>11s}  eigsolves  "
+          f"{'mass (rel)':>10s}  {'sites':>8s}")
     for x in b["runs"]:
         r = x["res"]
-        print(f" {x['seed']:4d}  {r.rel_split_before:11.3e}  {r.rel_split_after:11.2e}  {x['dense']:11.2e}  "
-              f"{r.n_eigensolves:9d}  {r.cost / b['mass']:9.2e}  {str(np.flatnonzero(r.t).tolist()):>9s}")
+        print(f" {x['seed']:4d}  {r.rel_split_before:12.3e}  {_val(r.rel_split_after, r) + f' ({r.status})':<34s}"
+              f"  {r.rel_floor:9.1e}  {'<= ' + format(x['dense'], '.1e'):>11s}  "
+              f"{r.n_eigensolves:9d}  {r.cost / b['mass']:10.2e}  {str(np.flatnonzero(r.t).tolist()):>8s}")
     print("      single-site antinode baselines (mass ratio = baseline mass / our mass, only if it tied the pair):")
     for x in b["runs"]:
         r = x["res"]
@@ -225,12 +240,13 @@ def main(quick: bool = False):
         for name, k in (("undamped", "naive"), ("damped 0.5", "damped")):
             t_, rel_, n_ = x[f"{k}_t"], x[f"{k}_rel"], x[f"{k}_eigs"]
             cells.append(f"{name}: " + (f"{t_.sum() / r.cost:.2f}x mass, {n_} eigsolves" if rel_[-1] <= x["stop"]
-                                       else f"did not tie (oscillates / slow; {rel_[-1]:.1e} after {n_ - 1} rounds)"))
+                                       else f"did not tie within {n_ - 1} rounds (split {_val(rel_[-1], r, '.1e')})"))
         print(f" {x['seed']:4d}  " + "  |  ".join(cells))
     print(f"label: NUMERICAL (discrete problem); {time.perf_counter() - t_start:.1f} s")
     # self-checks (spec 10.1)
     assert abs(a["rate"] - 0.3) < 5e-4
-    assert a["res"].rel_split_after <= 1e-3 * a["res"].rel_split_before and a["dense"] <= 1e-3 * r.rel_split_before
+    ra = a["res"]
+    assert ra.rel_split_after <= 1e-3 * ra.rel_split_before and a["dense"] <= 1e-3 * ra.rel_split_before
     for x in b["runs"]:
         r = x["res"]
         assert r.status == "converged" and r.rel_split_after <= 1e-3 * r.rel_split_before

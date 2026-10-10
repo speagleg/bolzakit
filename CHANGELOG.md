@@ -16,13 +16,35 @@
   bound constraints and a certified duality-gap bound on the optimal rate.
 - `bolzakit.sensitivity.optimize.maximize_eigenvalue`: multiple-eigenvalue steepest ascent for `LowestEigenvalue(k)`
   and `Gap(k)` with bounds and linear equality constraints (Armijo trust region, Poincaré screen, ε-refinement).
-  First order: ill-conditioned smooth maxima can end at `max_iter`.
+  First order: it can end at `max_iter` short of the maximum (seen on an ill-conditioned smooth test instance).
+  `EigenOptResult.fallback_from` names the stop that ended a run whose status reports the coarser model of an
+  unproductive ε-refinement (`"max_iter"`: the budget ran out).
 - `bolzakit.sensitivity.trim.trim_degenerate_pair`: the cheapest trim (minimal sum_l c_l |t_l|, so ablation costs
   like addition; LP on the splitting matrices, then Newton re-solves) that ties a split degenerate mode pair, with a
-  resolution-floor estimate `rel_floor`; `examples/gyro_trim.py` (ring and 8-spoke ring, with an
+  resolution-floor estimate `rel_floor` (splits below it are reported as "≤ rel_floor", never as a value) and the
+  statuses `converged`, `stalled`, `max_iter`, `infeasible` and `lp_failed` (HiGHS stopped without a solution for a
+  reason other than infeasibility); `examples/gyro_trim.py` (ring and 8-spoke ring, with an
   iterated-antinode baseline).
 - `benchmarks/frequency_maximisation.py`: fundamental-frequency maximisation of a post-supported plate against the
   bound formulation (SLSQP, trust-constr, pyMOTO MMA) and naive ascent; results in `docs/sensitivity-optimize.md`.
+
+### Changed
+
+These can affect existing v0.2 code:
+
+- Sensitivity exceptions are now typed subclasses (`PencilError`, `ClusterRangeError`, `ClusterSplitError`,
+  `MissingExtra`; see `docs/sensitivity.md#errors`). They keep the v0.2 bases (`ValueError`, `ImportError`), so
+  `except ValueError` still catches them, but they are not `bolzakit.errors.BolzakitError` subclasses.
+- The scikit-fem adapter's `from_forms` now emits `FiniteDifferenceWarning` (a `UserWarning`) on every call, so a
+  run under `-W error` (or `filterwarnings = error`) fails there unless the warning is filtered.
+- `MissingExtra` messages: the scikit-fem adapter's message changed from "pip install bolzakit[skfem]" to
+  "scikit-fem not available: pip install bolzakit[skfem]".
+- The sparse eigensolver (`eigsh`) uses a fixed start vector, so sparse results are reproducible run to run; they
+  can differ at rounding level from v0.2's (random-start) results.
+- `ClusterSensitivity` gained the fields `cluster`, `lam_bar`, `gap_ratio` and `caveat` (with defaults, after the
+  v0.2 fields, so existing construction keeps working; `dataclasses.fields` / `asdict` now list them too).
+- CI: the weekly FEniCSx workflow also runs the core sensitivity tests (optimize, trim, splitting, ritz, errors) in
+  the container; the slow job's `--runslow` also covers the gyro-trim example and the quick frequency benchmark.
 
 ### Corrected
 

@@ -90,9 +90,9 @@ used pymoto 2.0.1 (a benchmark-only tool, not a dependency).
 |---|---|---|---|
 | Membrane (spec §9.4) | rates −8π², −2π² (rtol 2e-3); S'' = 30π², Ky Fan prefix 36π² (rel. 5e-3) | unchanged from 0.2 | `tests/sensitivity/test_skfem.py` |
 | Ring rate/λ̄, 4th harmonic (w/R 0.05, Nθ 96) | 3/10 within 5e-4 | 0.29984 | `examples/gyro_trim.py`, `test_trim.py` |
-| Ring trim (a) | split reduced ≥ 1e3, dense check | 6.0e-4 → at the resolution floor (≤ 1.6e-8), dense check also at the floor; `stalled` (the floor), 7 eigensolves | same |
-| Spoked ring trim (b), 5 seeds | `converged`, ≥ 1e3, dense check | before 3.6e-4 to 8.9e-4; after 4.6e-13 to 1.0e-12; dense 1.9e-11 to 1.1e-10; 4 eigensolves each | same |
+| Ring trim (a) | split reduced ≥ 1e3, dense check | 6.0e-4 → ≤ rel_floor (1.6e-8), dense check also ≤ rel_floor; `stalled` (the floor), 7 eigensolves | same |
+| Spoked ring trim (b), 5 seeds | `converged`, ≥ 1e3, dense check | before 3.6e-4 to 8.9e-4; after ≤ rel_floor (2.0e-10) on every seed (below the eigensolver's resolution estimate, so no value is quoted); dense LAPACK check ≤ 1.1e-10 (its own floor); 4 eigensolves each | same |
 | Trim mass vs iterated antinode | reported | plain ring: undamped baseline 1.35× our mass (12 eigensolves), 0.5-damped 1.00× (19 eigensolves); ours 7 eigensolves, no mass advantage against the damped baseline. Spoked ring: undamped baseline tied 4/5 seeds at 1.2–5.6× our mass in 13–29 eigensolves; 0.5-damped tied 0/5 within 40 rounds | same |
 | Frequency benchmark (budget 200, 5 starts) | reported as measured | within 0.1 % of the best found within budget (not the optimum): SLSQP 3/5 (median 40 eigensolves), ours 1/5 (169), trust-constr 1/5 (194), MMA 1/5 (199; start-3 point mid-trajectory), naive 0/5; decreases: ours 0, SLSQP 138 | `benchmarks/frequency_maximisation.md` |
 | Post-supported plate spectrum | λ/π⁴ = 1.58608, 1.83370, 1.83370, 4.37522, 6.76920 | reproduced to 5e-5 | `tests/test_frequency_benchmark.py` |
-| `ascent_direction` d = 64, m = 4 (§13) | < 50 ms | see test | `tests/sensitivity/test_optimize.py::test_generic_d64_m4_fast` |
+| `ascent_direction` d = 64, m = 4 (§13) | < 50 ms (a target; the test prints the time and does not assert it) | 12.9 ms in one test run; 21 repeats: median 12.2 ms, max 38.9 ms (local dev machine, under load from another job; timings vary by machine) | `tests/sensitivity/test_optimize.py::test_generic_d64_m4_fast` |

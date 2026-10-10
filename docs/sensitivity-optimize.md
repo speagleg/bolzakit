@@ -31,6 +31,34 @@ shrinks the clustering tolerance when the tied model stalls on a cluster that is
 Statuses (never exceptions): `"stationary"`, `"subproblem_not_converged"`, `"step_too_small"`, `"max_iter"`,
 `"lower_coalescence"`, `"gap_closed"`; see the docstring for what each certifies. Accepted iterates are monotone.
 
+## API
+
+- `ParametricPencil(K, M, dK, dM=None)`: callables of `p`; `dK(p)` (and `dM(p)`) return the list of partial
+  derivatives, one per parameter. Objectives: `LowestEigenvalue(k=0)` (maximise `λ_k`) and `Gap(k)` (maximise
+  `λ_{k+1} − λ_k`).
+- `maximize_eigenvalue(pencil, p0, objective, *, lower=None, upper=None, A_eq=None, b_eq=None, step0=None,
+  max_iter=100, mult_rtol=1e-3, stat_tol=1e-8, armijo=1e-4, screen=True, refine=True, mult_rtol_min=1e-11,
+  refine_max_iter=100, callback=None) -> EigenOptResult`. `mult_rtol` is the clustering tolerance (relative to the
+  eigenvalue scale); `refine`, `mult_rtol_min` and `refine_max_iter` control the ε-refinement (it shrinks the
+  clustering tolerance down to `mult_rtol_min`, and the outer budget grows to `max_iter + refine_max_iter` once it
+  starts). `callback(IterRecord)` is called for every record. Raises `ValueError` for an infeasible `p0` or an
+  out-of-range `objective.k`, `TypeError` for an unknown objective; the core's `PencilError` / `ClusterSplitError`
+  propagate.
+- `EigenOptResult`: `p`, `value`, `eigvals`, `multiplicity`, `phi`, `phi_upper` (the certified bound on the best
+  first-order ascent rate), `Y_upper`, `Y_lower`, `mu` (dual certificate), `status`, `n_iter`, `n_eigensolves`,
+  `n_screened`, `history` (`IterRecord`s: `it`, `value`, `multiplicity`, `phi`, `phi_upper`, `tau`, `accepted`,
+  `screened`, `rates`, `refined`, the last true for an ε-refinement round), `mult_rtol` (the clustering tolerance in
+  force at the end), `eps` (the largest eigenvalue gap inside the active clusters: the reduced model treats
+  eigenvalues that far apart as tied), `fallback_from`, `label`, `caveat`. When an ε-refinement does not pay off, the
+  result reports the coarser model with its own status (`"stationary"` or `"step_too_small"`), and `fallback_from`
+  keeps the stop that actually ended the run (`"max_iter"` means the iteration or eigensolve budget ran out);
+  otherwise `fallback_from` is `None`.
+- `ascent_direction(A_upper, A_lower=None, *, null_basis=None, bound_signs=None, tol=1e-10, max_iter=10000,
+  stat_tol=0.0, f_value=0.0) -> AscentDirection` (`d`, `phi`, `phi_upper`, `duality_gap`, `Y_upper`, `Y_lower`,
+  `mu`, `rates`, `rates_lower`, `n_iter`, `stop`). Its stops: `"gap"` (a certified ascent direction of rate `phi`),
+  `"stationary"` (`φ* = 0` to accuracy), `"no_progress"` (two consecutive restarts without progress: the best
+  certified point seen) and `"max_iter"`; with the last two, `d` may be zero and `phi_upper` then bounds `φ*`.
+
 ## Benchmark against standard practice
 
 `benchmarks/frequency_maximisation.py` maximises the fundamental frequency of a Kirchhoff plate (simply supported
@@ -93,23 +121,28 @@ beat our method on both success rate and cost: it reached the best from 3 of 5 s
 λ₀/π⁴ = 2.0521) in a median of 40 eigensolves. Our method reached it from 1 of 5 starts (start 1, 2.0515, after 169
 eigensolves). From starts 2 to 4 it stopped at `max_iter` near 2.008 (where SLSQP from start 3 and trust-constr from
 starts 2 and 3 also ended), and from the symmetric start 0 it stopped `stationary` at the symmetric triple point
-1.9615, as did SLSQP; only trust-constr left the symmetric subspace there (2.0003, reached at 194 eigensolves).
+1.9615, where SLSQP also ended (on a budget stop); only trust-constr left the symmetric subspace there (2.0003, reached at 194 eigensolves).
 trust-constr and MMA each reached the best from 1 of 5 starts (medians 194 and 199 eigensolves), and naive fixed-step
 ascent from none. MMA's start-3 value, 2.0415, is a point mid-way along its trajectory when the budget ran out, not an
 optimum: SLSQP started from that design reaches 2.052.
 
-Where our method wins: its iterates never decreased (0 decreases, against 9 for trust-constr, 138 for SLSQP and 400
-to 435 for MMA and naive ascent), and every step comes with a certified bound `phi_upper` on the best first-order
+Where our method wins: its accepted iterates never decreased (0 decreases; the other methods' counts, 9 for
+trust-constr, 138 for SLSQP and 400 to 435 for MMA and naive ascent, count different things, see below), and every step comes with a certified bound `phi_upper` on the best first-order
 ascent rate, so a `stationary` stop certifies first-order stationarity of the reduced model. It does not win on
 success rate or eigensolve count here. Every method met the constraints to rounding (volume residual ≤ 1e-10) except
-MMA (volume as an inequality with tolerance 1e-3; residual up to 6.4e-5). MMA with pyMOTO defaults and naive ascent
-oscillated.
+MMA (volume as an inequality with tolerance 1e-3; residual up to 6.4e-5). The decrease counts are not comparable
+across methods, because each method's iterates are counted differently (see the definition above the table): ours
+counts accepted steps, SLSQP and trust-constr their callback iterates (a merit-function method may decrease λ₀
+legitimately), MMA and naive ascent every iterate. What the counts do show for MMA (pyMOTO defaults) and naive
+ascent is that λ₀ went down between successive iterates 50 to 91 and 80 to 103 times per run; the table does not
+record whether those decreases are an oscillation.
 
 ## Limits
 
-First-order steepest ascent only: on ill-conditioned smooth maxima it zigzags and can end at `max_iter` short of the
-maximum (seen in the tests on an ill-conditioned simplex instance, and on four of the five benchmark starts), and on
-the benchmark it needed several times more eigensolves than SLSQP. No Overton SQP on the fixed-multiplicity manifold
+First-order steepest ascent only: it can end at `max_iter` short of the maximum. In the tests this happens on an
+ill-conditioned smooth simplex instance, where the iterates zigzag. On the benchmark, four of the five starts ended
+with status `max_iter` (there the 200-eigensolve budget, `_max_eigensolves`); why those runs had not converged is not
+established. On the benchmark it needed several times more eigensolves than SLSQP. No Overton SQP on the fixed-multiplicity manifold
 and no quasi-Newton step (both deferred); no gap opening from a closed gap; `LowestEigenvalue(k>0)` stops at
 `lower_coalescence`; analytic partials required; real symmetric pencils only. From a symmetric start the iterates
 stay in the symmetric subspace. Scale invariance holds to rounding for converged runs; runs that stop at `max_iter`

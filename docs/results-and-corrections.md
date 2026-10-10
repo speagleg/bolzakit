@@ -110,7 +110,7 @@ derivation) that a density imperfection `δρ = ρ₀ε cos(4(θ − φ))` split
 **The correction.** The inextensional thin-ring model gives `A = −λ̄εc_n[[cos kφ, sin kφ], [sin kφ, −cos kφ]]` for
 `k = 2n`, with `c_n = (n² − 1)/(2(n² + 1))`, so the rates are `±(3/10)λ̄ε` for n = 2; each branch frequency moves by
 `±(c_n/2)εf̄` and the frequency split is `c_nε`. `examples/gyro_trim.py` measures 0.29984 (w/R = 0.05, Nθ = 96;
-`tests/sensitivity/test_trim.py` checks it to 5e-4), and the spec spike measured 0.29997 at w/R = 0.02, Nθ = 128.
+`tests/sensitivity/test_trim.py` checks it to 5e-4).
 
 Label: NUMERICAL (discrete pencil; spec §5.10).
 

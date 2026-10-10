@@ -179,8 +179,10 @@ pair at one frequency, and fabrication splits it. `trim_degenerate_pair` takes t
 candidate trims (point masses, ablation, stiffness patches) and returns the cheapest trim (least Σ c|t|, so ablation
 costs like addition) that ties the pair: a linear program on the splitting matrices, then Newton re-solves.
 [examples/gyro_trim.py](examples/gyro_trim.py) checks it with an independent dense eigensolve. On a ring on 8 spokes
-(no analytic rule) it tied every one of 5 random seeds in 4 eigensolves, from relative splits of 3.6e-4 to 8.9e-4 to
-at most 1.1e-12. Iterated antinode trimming tied 4 of the 5 seeds, using 1.2–5.6× our mass and 13–29 eigensolves,
+(no analytic rule) it tied every one of 5 random seeds in 4 eigensolves (status `converged`), from relative splits of
+3.6e-4 to 8.9e-4 to below the eigensolver's resolution estimate, ≤ rel_floor (2.0e-10); the independent dense LAPACK
+check gives ≤ 1.1e-10, its own rounding floor, so it confirms the tie to that level and no further. Iterated antinode
+trimming tied 4 of the 5 seeds, using 1.2–5.6× our mass and 13–29 eigensolves,
 and its 0.5-damped variant tied none within 40 rounds. On a plain ring both reach the resolution floor (≤ 1.6e-8);
 there the damped baseline matched our mass (1.00×) but needed 19 eigensolves to our 7
 ([docs/sensitivity-trim.md](docs/sensitivity-trim.md)):
@@ -200,8 +202,10 @@ eigenvalue (or a gap) of a parametrised pencil with steepest ascent that is corr
 formulation (SLSQP, trust-constr, MMA) on a plate whose optimum has a repeated fundamental frequency. On that
 benchmark SLSQP beat it on success rate and cost: SLSQP came within 0.1 % of the best value found within the
 200-eigensolve budget (not the optimum) from 3 of 5 starts in a median of 40 eigensolves, ours from 1 of 5 in 169.
-Ours wins only on monotone progress (0 objective decreases, against 138 for SLSQP) and on its certified bound
-`phi_upper` on the ascent rate. It is a first-order method, so ill-conditioned smooth maxima can end at `max_iter`.
+Ours wins only on monotone progress (its accepted iterates never decreased; SLSQP's callback iterates decreased 138
+times, and the benchmark notes define the count per method) and on its certified bound `phi_upper` on the ascent
+rate. It is a first-order method and can end at `max_iter` short of the maximum: in the tests on an ill-conditioned
+instance, and on four of the five benchmark starts (there the eigensolve budget; the cause is not established).
 The table is in [docs/sensitivity-optimize.md](docs/sensitivity-optimize.md).
 
 ## Use cases
@@ -445,7 +449,7 @@ Details and sources are in [docs/results-and-corrections.md](docs/results-and-co
   charts of radius 0.45 cover the surface (covering radius 0.4056). The m = 3 mode of a 7-ring at a Weierstrass point
   splits by about 1000·ξ⁴.
 - **Ring mode-pair split coefficient 3/10, not 1/4.** Research note 02 derived split rates ±ω²ε/4 for a 4th-harmonic
-  density imperfection of a thin ring; the correct rates are ±(3/10)λ̄ε (measured 0.29984 to 0.29997).
+  density imperfection of a thin ring; the correct rates are ±(3/10)λ̄ε (measured 0.29984 by `examples/gyro_trim.py`).
 
 ## Limitations
 
