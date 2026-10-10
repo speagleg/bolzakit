@@ -58,7 +58,7 @@ def test_version_and_error():
 
 # ------------------------------------------------------------------ sub-project F (spec 3.1)
 SENS = SRC / "bolzakit" / "sensitivity"
-NO_FRAMEWORK = [SENS / "core.py", SENS / "errors.py", SENS / "optimize.py", SENS / "__init__.py",
+NO_FRAMEWORK = [SENS / "core.py", SENS / "errors.py", SENS / "optimize.py", SENS / "trim.py", SENS / "__init__.py",
                 SENS / "adapters" / "_util.py"]
 
 
@@ -100,7 +100,7 @@ def test_errors_module_is_stdlib_only():
 
 
 def test_nothing_outside_sensitivity_imports_the_new_layers():
-    new = ("bolzakit.sensitivity.optimize",)
+    new = ("bolzakit.sensitivity.optimize", "bolzakit.sensitivity.trim")
     bad = []
     for f in (SRC / "bolzakit").rglob("*.py"):
         if SENS in f.parents:
@@ -113,7 +113,8 @@ def test_nothing_outside_sensitivity_imports_the_new_layers():
 
 def _core_imports():
     """The core modules that exist so far (optimize.py arrives in Task 6)."""
-    mods = ["bolzakit.sensitivity"] + (["bolzakit.sensitivity.optimize"] if (SENS / "optimize.py").exists() else [])
+    mods = ["bolzakit.sensitivity"] + [f"bolzakit.sensitivity.{m}" for m in ("optimize", "trim")
+                                       if (SENS / f"{m}.py").exists()]
     return ", ".join(mods)
 
 
