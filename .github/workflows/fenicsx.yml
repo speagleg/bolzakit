@@ -11,5 +11,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install bolzakit
         run: pip install -e . pytest
-      - name: Run FEniCSx adapter test
-        run: pytest tests/sensitivity/test_fenicsx.py -v
+      - name: Run FEniCSx adapter test and the core tests (numpy/scipy version skew)
+        run: >-
+          pytest -v tests/sensitivity/test_fenicsx.py tests/sensitivity/test_core.py
+          tests/sensitivity/test_errors.py tests/sensitivity/test_splitting.py tests/sensitivity/test_ritz.py
+          tests/sensitivity/test_optimize.py tests/sensitivity/test_trim.py

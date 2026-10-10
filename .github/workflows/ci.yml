@@ -32,7 +32,9 @@ jobs:
           if [ "$rc" -eq 0 ] || [ "$rc" -eq 2 ]; then echo "checker exit $rc: OK"; else echo "checker exit $rc: FAIL"; exit 1; fi
   slow:
     # Weekly (and on demand): slow tests, the Strohmaier–Uski download and network tests, and the proof package's
-    # quick reproduction (checker on the golden set plus the n <= 24 analogues).
+    # quick reproduction (checker on the golden set plus the n <= 24 analogues). --runslow also runs the gyro-trim
+    # example (tests/test_examples.py) and the quick frequency benchmark (tests/test_frequency_benchmark.py; the
+    # pyMOTO row is skipped because pymoto is benchmark-only and never installed in CI).
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 240
