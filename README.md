@@ -1,8 +1,10 @@
 # bolzakit
 
-Exact and provenance-labelled computations on the Bolza surface, the most symmetric closed hyperbolic surface of genus 2.
-
-## Introduction
+bolzakit is a Python library for exact, certified and provenance-labelled computations on the Bolza surface, the most
+symmetric closed hyperbolic surface of genus 2. It also contains the certificates, an independent checker and the
+written proof of a computer-assisted theorem: the Bolza surface is a strict local maximum of the first Laplace
+eigenvalue λ₁ on genus-2 Teichmüller space. Its sensitivity module, which works with any finite-element model, adds a
+repeated-eigenvalue optimiser and a trim tool for degenerate-mode resonators.
 
 The Bolza surface is the closed hyperbolic surface (curvature −1, area 4π) of genus 2 with the most symmetry. You get it by
 gluing opposite sides of a regular hyperbolic octagon with interior angles π/4, so eight octagons meet at every vertex.
@@ -20,27 +22,28 @@ natural minimal, maximally symmetric test case.
 
 bolzakit gives you the exact Fuchsian group (matrix entries in ℤ[ζ₈]), the automorphism group, the length spectrum,
 Laplace eigenvalues, Green's-function and Bergman-kernel data at the Weierstrass points, vortex-ring stability data and a
-few arithmetic facts. It ships with tests and three Lean 4 proofs (the group relation, the arithmetic core of the
-golden-geodesic criterion and the Salem-norm identity). Every public function listed in
-[docs/provenance.md](docs/provenance.md) carries a provenance label (EXACT, PROVED, CERTIFIED, NUMERICAL or QUOTED) —
-ask for it with `with_provenance=True`.
-
-Version 0.2 adds three things:
+few arithmetic facts. Every public function listed in [docs/provenance.md](docs/provenance.md) carries a provenance
+label (EXACT, PROVED, CERTIFIED, NUMERICAL or QUOTED); ask for it with `with_provenance=True`. On top of that:
 - a **certified layer** (`bolzakit.certified`): Arb-ball Rayleigh–Ritz upper bounds, trace-formula eigenvalue counts,
   a Lehmann–Goerisch lower bound, certified cluster perturbation tests and a certified trace chart, for Bolza and
   for small deformations of it. Every result comes with a JSON certificate, and the independent checker
   `bolzakit_check` re-derives the claims ([docs/certified.md](docs/certified.md));
 - a standalone **sensitivity** module (`bolzakit.sensitivity`) for repeated eigenvalues of any finite-element pencil,
-  with scikit-fem and FEniCSx adapters ([docs/sensitivity.md](docs/sensitivity.md));
-- the proof package [proofs/bolza-local-max/](proofs/bolza-local-max/): a computer-assisted proof that the Bolza
-  surface is a strict local maximum of λ₁, with its golden certificates and `reproduce.py`, and a Lean 4 skeleton
-  of its logical chain ([below](#the-bolza-surface-is-a-strict-local-maximum-of-λ₁-computer-assisted-conditional-on-cited-inputs)).
+  with scikit-fem and FEniCSx adapters, a multiple-eigenvalue optimiser (`maximize_eigenvalue`) and a degenerate-pair
+  trim tool (`trim_degenerate_pair`) ([docs/sensitivity.md](docs/sensitivity.md));
+- the proof package [proofs/bolza-local-max/](proofs/bolza-local-max/) (below), and Lean 4 files: three complete
+  proofs (the group relation, the arithmetic core of the golden-geodesic criterion and the Salem-norm identity) and a
+  skeleton of the local-maximum proof's logical chain.
 
 ## Contents
 
-- [Install](#install)
-- [Quick-start](#quick-start)
 - [The Bolza surface is a strict local maximum of λ₁ (computer-assisted, conditional on cited inputs)](#the-bolza-surface-is-a-strict-local-maximum-of-λ₁-computer-assisted-conditional-on-cited-inputs)
+- [Install](#install)
+- [Verify the certificates](#verify-the-certificates)
+- [Reproduce the proof's computations](#reproduce-the-proofs-computations)
+- [Lean status](#lean-status)
+- [Module overview](#module-overview)
+- [Quick-start](#quick-start)
 - [For software engineers](#for-software-engineers)
 - [For physicists](#for-physicists)
 - [For engineers](#for-engineers)
@@ -58,22 +61,116 @@ Version 0.2 adds three things:
 - [Roadmap](#roadmap)
 - [Documentation](#documentation)
 - [References](#references)
-- [Citing](#citing)
-- [Licence](#licence)
 - [AI-assisted development](#ai-assisted-development)
+- [Licence](#licence)
+- [Citing](#citing)
+
+## The Bolza surface is a strict local maximum of λ₁ (computer-assisted, conditional on cited inputs)
+
+**Theorem** ([PROOF.md](proofs/bolza-local-max/PROOF.md) §0). Let B be the Bolza surface and T₂ the Teichmüller space
+of closed hyperbolic surfaces of genus 2. Then B is a strict local maximum of λ₁ on T₂: there is a neighbourhood N of B
+in T₂ such that λ₁(X) < λ₁(B) for every X ∈ N∖{B}.
+
+**Status.** The proof is computer-assisted and conditional on the cited inputs listed in
+[PROOF.md §Dependencies](proofs/bolza-local-max/PROOF.md#dependencies-complete-list-of-external-inputs). The
+load-bearing ones are:
+- Fortier Bourque–Petri's Lemmas 7.2–7.3 (no 1- or 2-dimensional irreducible representation in the λ₁-eigenspace)
+  and their §7.4 geodesic data (QUOTED; PROOF.md calls these among the weakest inputs);
+- the Selberg trace formula in Fortier Bourque–Petri's normalisation (QUOTED);
+- the Lehmann–Goerisch theorem, quoted from secondary sources (Liu–Plum, and Behnke–Mertins–Plum–Wieners via
+  Vejchodský), not from Goerisch's original papers;
+- standard facts (elliptic regularity, min-max and Ky Fan, the Poincaré polygon theorem, the manifold structure of
+  T₂, and others listed there) and the trusted software (python-flint/Arb; sympy in the producer only).
+
+The Strohmaier–Uski eigenvalue (SU13) is optional: λ₁ ≥ 3.8388757010 is certified in-house, and each SU13-based
+number has an SU13-free twin. No human expert has read the proof yet. Its "second reads" were done by AI reviewers.
+The checker re-derives the certified claims from stored Gram data, but it does not re-check the element assembly or
+the links between certificates, which are made by hand ([trust model](docs/certified.md#trust-model)). The package
+contains the integrated proof (PROOF.md), the paper, the review record, ten golden certificates and `reproduce.py`;
+its [README](proofs/bolza-local-max/README.md) gives the chain of lemmas in one screen.
 
 ## Install
 
+bolzakit is installed from a clone of this repository (it is not on PyPI):
+
 ```
-pip install bolzakit                 # core: numpy, scipy, mpmath
-pip install "bolzakit[pari]"         # curve arithmetic via cypari2
-pip install "bolzakit[sym,flint]"    # sympy and python-flint extras
-pip install "bolzakit[cert]"         # certified layer: python-flint and sympy
-pip install "bolzakit[skfem]"        # scikit-fem adapter for bolzakit.sensitivity
+pip install -e .                     # core: numpy, scipy, mpmath
+pip install -e ".[cert]"             # certified layer and the checker: python-flint and sympy
+pip install -e ".[skfem]"            # scikit-fem adapter for bolzakit.sensitivity
+pip install -e ".[pari]"             # curve arithmetic via cypari2
+pip install -e ".[dev,cert,skfem]"   # everything the test suite uses
 ```
 
-You need Python 3.10 or later. The Strohmaier–Uski eigenvalue file is not bundled. It is downloaded from arXiv on first
-use, checked against a fixed sha256 and cached in `~/.cache/bolzakit` (or `$BOLZAKIT_CACHE`).
+You need Python 3.10 or later. The FEniCSx adapter needs a separate FEniCSx installation (conda). The
+Strohmaier–Uski eigenvalue file is not bundled. It is downloaded from arXiv on first use, checked against a fixed
+sha256 and cached in `~/.cache/bolzakit` (or `$BOLZAKIT_CACHE`).
+
+## Verify the certificates
+
+The independent checker `bolzakit_check` imports nothing from `bolzakit`. It re-derives every claim from the numbers
+stored in each certificate, in its own Arb code, so a tampered claim fails even if the sha256 is recomputed. With
+`bolzakit[cert]` installed, run from the repository root:
+
+```
+python -m bolzakit_check proofs/bolza-local-max/certificates/*.json
+```
+
+The exit code is 0 if every file is unconditionally VALID, 2 if none is INVALID but some are only conditionally
+VALID, and 1 if any is INVALID. **On the golden set the expected exit code is 2**, with six conditional files whose
+conditions are discharged by other certificates, by hand:
+- `lp_B_3.3_4.0` is a mode-B eigenvalue count, valid *given* λ₁ ≥ 3.3; `lp_A_3.3` discharges that;
+- `lg_lower_n48` (the Lehmann–Goerisch bound λ₁ ≥ 3.8388757010) is valid *given* λ₄ ≥ 4.0; `lp_A_3.3` and
+  `lp_B_3.3_4.0` discharge that;
+- the four first-order and Ky Fan certificates (`first_order_FA_n192_*`, `kyfan_FB_n96_*`) are valid *given* their
+  λ₁ ball and λ₄ ≥ 4.0. The checker prints both conditions with the dependency id and source of the ball: D15 for the
+  `_lg` files (discharged by `lg_lower_n48` and `rr_p2_n96`), and D1 = SU13 for the optional `_su13` files.
+
+"VALID given stored Gram data" means that the checker trusts the stored element integrals; `--deep` re-integrates a
+sample of elements as a consistency check only. The trust boundary is described in
+[docs/certified.md](docs/certified.md#trust-model) and in the proof package's README.
+
+## Reproduce the proof's computations
+
+```
+python proofs/bolza-local-max/reproduce.py --quick     # about 1–2 min; prints ALL MATCH on success
+python proofs/bolza-local-max/reproduce.py --full      # about 35–50 min on one core; regenerates the certificates
+```
+
+`--quick` runs the checker on every stored certificate, reads the certified value out of each, and re-runs the
+n ≤ 24 analogues. `--full` regenerates the golden set through the bolzakit API. Both print a table of claim, certified
+value, published value, provenance and match, and exit 0 only if every row matches.
+
+## Lean status
+
+The Lean 4 project is in [lean/](lean/) (toolchain `leanprover/lean4:v4.34.1`, with Mathlib):
+- `BolzaKit/Group.lean`, `BolzaKit/GoldenGeodesic.lean` and `BolzaKit/Salem.lean` are complete proofs: the defining
+  relation of the Bolza group in ℤ[ζ₈], the arithmetic step of the golden-geodesic criterion
+  (L_{n(p)} = p²−2 ⇔ p = L_{2^j}), and the Salem-norm identity for the Bolza quartic.
+- `BolzaKit/LocalMax/` is a skeleton of the local-maximum proof. It proves
+  `Bolza.bolza_strict_local_max` from a structure `BolzaInputs` whose fields are the analytic, geometric and
+  computational inputs (each field's docstring cites the PROOF.md lemma it stands for). It checks the logical chain
+  and the final arithmetic of the certificates, **conditional on those inputs**; it does not check the Arb
+  computations, the trace formula or any analysis on the surface. A toy instance shows the hypotheses are jointly
+  satisfiable. Details: [proofs/bolza-local-max/LEAN.md](proofs/bolza-local-max/LEAN.md).
+
+The files contain no `sorry`, `admit` or `native_decide`. The Lean CI workflow (weekly and on demand) builds them with
+`lake build` and gates `#print axioms` to `propext`, `Classical.choice` and `Quot.sound`. `lean/build_local.sh`
+builds the LocalMax files without lake against prebuilt Mathlib oleans.
+
+## Module overview
+
+| Module | What it gives | Typical label |
+|---|---|---|
+| `bolzakit.exact` | the Fuchsian group with matrix entries in ℤ[ζ₈], the automorphism group ≅ GL(2,3), the length spectrum | EXACT, PROVED, NUMERICAL |
+| `bolzakit.geometry` | the octagon, point reduction, distances, disk/upper-half-plane maps | NUMERICAL |
+| `bolzakit.spectral` | FEM eigenvalue clusters, the Strohmaier–Uski eigenvalues (downloaded), the Selberg check, ζ(0), τ bounds | NUMERICAL, QUOTED, PROVED, CERTIFIED |
+| `bolzakit.green` | Green's function, Robin mass and Bergman-kernel constants near the Weierstrass points | NUMERICAL, PROVED |
+| `bolzakit.vortex` | point-vortex rings in the plane, in H² and on the Bolza surface | NUMERICAL, PROVED |
+| `bolzakit.arith` | the curve y² = x⁵ − x, the Salem number of the systole, the golden-geodesic criterion | EXACT, PROVED |
+| `bolzakit.certified` | Arb-ball Rayleigh–Ritz, trace-formula counts, Lehmann–Goerisch, cluster tests, chart, JSON certificates | CERTIFIED |
+| `bolzakit_check` | the independent certificate checker (no `bolzakit` imports) | — |
+| `bolzakit.sensitivity` | repeated-eigenvalue sensitivity of any FE pencil; `optimize.maximize_eigenvalue`; `trim.trim_degenerate_pair`; scikit-fem and FEniCSx adapters | NUMERICAL (discrete pencil) |
+| `bolzakit.provenance` | the label of every labelled function | — |
 
 ## Quick-start
 
@@ -86,27 +183,6 @@ assert bk.automorphisms().order == 48       # = |GL(2,3)|
 print(bk.lengths(max_half_trace=5)[0])      # the systole class: half-trace 1+√2, 24 oriented geodesics
 print(bk.systole())                         # 3.057141838961996
 print(bk.systole(with_provenance=True).label)   # NUMERICAL (float64 of the exact closed form 2·arccosh(1+√2))
-```
-
-## The Bolza surface is a strict local maximum of λ₁ (computer-assisted, conditional on cited inputs)
-
-[proofs/bolza-local-max/](proofs/bolza-local-max/) holds a computer-assisted proof, conditional on cited inputs, that
-λ₁(X) < λ₁(B) for every surface X ≠ B in a neighbourhood of the Bolza surface B in the Teichmüller space of genus 2. The package contains
-the integrated proof (PROOF.md), the paper, the review record, ten golden certificates and `reproduce.py`.
-
-**Status.** The proof is computer-assisted and conditional on the cited inputs listed in PROOF.md §Dependencies,
-including Fortier Bourque–Petri's Lemmas 7.2–7.3 and geodesic data, the Selberg trace formula, the
-Lehmann–Goerisch theorem (quoted from secondary sources), and the trusted software (python-flint/Arb, sympy in the
-producer). The Strohmaier–Uski
-eigenvalue (SU13) is optional: λ₁ ≥ 3.8388757010 is certified in-house, and each SU13-based number has an
-SU13-free twin. No human expert has read the proof yet. Its "second reads" were done by AI reviewers. The checker
-re-derives the certified claims from stored Gram data, but it does not re-check the element assembly or the links
-between certificates, which are made by hand ([trust model](docs/certified.md#trust-model)). The Lean 4 skeleton
-under `lean/BolzaKit/LocalMax` checks the logical chain, conditional on the computational inputs.
-
-```
-python -m bolzakit_check proofs/bolza-local-max/certificates/*.json   # exit 2: all VALID, six conditionally
-python proofs/bolza-local-max/reproduce.py --quick                     # about 1-2 min
 ```
 
 ## For software engineers
@@ -510,15 +586,6 @@ Each reference was checked against its source; see [docs/CITATIONS_CHECK.md](doc
 - [SU13] A. Strohmaier, V. Uski, *An algorithm for the computation of eigenvalues, spectral zeta functions and
   zeta-determinants on hyperbolic surfaces*, Commun. Math. Phys. 317, 827–869 (2013); arXiv:1110.2150.
 
-## Citing
-
-If you use bolzakit, please cite it with the metadata in `CITATION.cff`. If you use the quoted eigenvalues, please
-also cite [SU13].
-
-## Licence
-
-MIT. See [LICENSE](LICENSE).
-
 ## AI-assisted development
 
 bolzakit's code was ported from the math-pursuits research project. The derivations and notes there, and their
@@ -537,3 +604,11 @@ What is in place:
 - the tests check the numbers against independent computations.
 
 The verification policy is in [VERIFICATION.md](VERIFICATION.md).
+## Licence
+
+MIT. See [LICENSE](LICENSE).
+
+## Citing
+
+If you use bolzakit, please cite it with the metadata in `CITATION.cff`. If you use the quoted eigenvalues, please
+also cite [SU13].
