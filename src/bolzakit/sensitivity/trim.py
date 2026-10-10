@@ -8,14 +8,19 @@ A(dt) = sum_l dt_l A_l with the splitting matrices A_l = U^T (dK_l - lam_bar dM_
 iff (D + A)_00 = (D + A)_11 and (D + A)_01 = 0, two linear equations G dt = (g, 0) with
 G = [A_00 - A_11; A_01]. The first step is the linear program
     min sum_l c_l |t_l + dt_l|  subject to  G dt = (g, 0),  lower <= t + dt <= upper
-(a vertex uses at most two trims). Later steps are Newton corrections on the trims the LP selected (least squares on
+(with the default objective="sum" a vertex uses at most two trims). Later steps are Newton corrections on the trims the LP selected (least squares on
 that support, exact re-solve each time); the LP is re-solved only if a correction leaves the bounds or flips the sign
 of a trim. Convergence is quadratic until the split reaches the rounding floor of the eigensolver.
 
 Objective: the trim magnitude sum_l c_l |t_l| (c >= 0), so removal (lower < 0, e.g. ablation) costs like addition. The
 LP is posed over t = p - q with p, q >= 0 and p in [max(lo,0), max(hi,0)], q in [max(-hi,0), max(-lo,0)]; for
 lower >= 0 it is exactly min c^T t. The objective is bounded below by 0, so the LP is never unbounded (negative costs
-are rejected with a ValueError). A vertex still has at most two active sites.
+are rejected with a ValueError). With objective="sum" a vertex still has at most two active sites; objective="peak"
+minimises max_l c_l |t_l| instead (an epigraph LP) and spreads the trim over equivalent sites.
+
+Backtracking: a trial iterate whose split is not below the best so far is rejected and the step halved, up to
+`backtrack` times (TrimRecord.step "halve"). Each trial costs one eigensolve and counts towards n_eigensolves, n_iter
+and max_iter. A ClusterSplitError raised at a trial iterate propagates (it is not treated as a rejected step).
 
 Resolution floor: TrimResult.rel_floor = eps * lambda_max / |lam_bar|, with lambda_max the largest eigenvalue of the
 pencil (K, M) at t = t0 (a dense eigh of the top eigenvalue for small n, otherwise a loose-tolerance ARPACK
@@ -60,7 +65,7 @@ class TrimRecord:
     split: float           # lambda_{i+1} - lambda_i
     rel_split: float       # split / |lam_bar|
     lam_bar: float
-    step: str              # how the NEXT iterate was obtained: "lp", "newton" or "" (last record)
+    step: str              # how the NEXT iterate was obtained: "lp", "newton", "halve" (rejected trial; step halved) or "" (last record)
 
 
 @dataclass(frozen=True)
