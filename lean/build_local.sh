@@ -3,7 +3,7 @@
 # CI still uses `lake build`.  This compiles the 8 LocalMax files with plain `lean` against prebuilt Mathlib oleans.
 #
 #   PKGS=/path/to/copied/packages  ./build_local.sh     # PKGS/<pkg>/lean must hold each package's lib/lean oleans
-#   (default: read <repo>/lean/.lake/packages/*/.lake/build/lib/lean directly; slow over /mnt/c, ~2 h)
+#   (default: read <repo>/lean/.lake/packages/*/.lake/build/lib/lean directly; slow on network or WSL-mounted filesystems, ~2 h)
 # Copying the oleans to a local disk first makes the build take a few minutes.
 # OUT (default ./.local-build) receives our own oleans.  Logs the #print axioms output to $OUT/axioms.log and runs
 # the axiom gate on it.

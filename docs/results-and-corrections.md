@@ -112,7 +112,7 @@ derivation) that a density imperfection `δρ = ρ₀ε cos(4(θ − φ))` split
 `±(c_n/2)εf̄` and the frequency split is `c_nε`. `examples/gyro_trim.py` measures 0.29984 (w/R = 0.05, Nθ = 96;
 `tests/sensitivity/test_trim.py` checks it to 5e-4).
 
-Label: NUMERICAL (discrete pencil; spec §5.10).
+Label: NUMERICAL (discrete pencil).
 
 ## References
 

@@ -48,7 +48,7 @@ eigenvectors U (n × m) and the cluster mean λ̄.
       G'' = Wᵀd²K W + 2(ΨᵀdK W + WᵀdK Ψ) + 2ΨᵀKΨ,  N'' = Wᵀd²M W + 2(ΨᵀdM W + WᵀdM Ψ) + 2ΨᵀMΨ.
 
   This is the exact g''(0). It replaces the formula in the v0.2 plan, which dropped terms that vanish only when the
-  prefix equals the cluster, and so was not an upper bound (Task 12 ruling). With the default correctors the bound
+  prefix equals the cluster, and so was not an upper bound. With the default correctors the bound
   is tight. It stays valid for any trial.
 - A gap check guards every call. `cluster_sensitivity` raises `ClusterSplitError` (a `ValueError`; see
   [Errors](#errors)) if the cluster splits a (near-)degenerate group, that is, if

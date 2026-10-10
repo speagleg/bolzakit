@@ -48,5 +48,5 @@ Pitfall: k=8 splits the n=4 pair, not n=2; and the n=2 pair also couples at seco
 Value: moderate. The first-order rule is textbook-level in this field, so the example validates the tool but is not itself new. Real utility is for non-ring geometries (disk resonator gyros with spokes, wineglass shells, anisotropic silicon) where closed forms fail and people use COMSOL parameter sweeps; a kernel (trim directions that preserve degeneracy, or the complement that cancels the split) and exact second-order cluster-sum are the differentiators. Novelty: mostly packaging plus the kernel/second-order/Ky Fan analysis; I did not find a competing open FE-plus-sensitivity tool, but search was shallow, and Bindel's HiQLab and arXiv:1008.0944 are closest prior art. Suggest: build the ring example, publish as validation, and only then decide on pursuing the disk-gyro design-for-trim application. Priority: worth a day; not a standalone research direction without a design-optimization result.
 
 
-## Correction (2026-10-09, sub-project F spec spike)
-The first-order split rate derived above (eig(A) = ±ω²ε/4) is wrong. A scikit-fem check gives ±(3/10)λε for the 4th-harmonic imperfection (measured 0.29997). See docs/superpowers/specs/2026-10-09-bolzakit-applications-design.md.
+## Correction (2026-10-09)
+The first-order split rate derived above (eig(A) = ±ω²ε/4) is wrong. A scikit-fem check gives ±(3/10)λε for the 4th-harmonic imperfection (measured 0.29997). See [docs/results-and-corrections.md](../results-and-corrections.md) §6 and `examples/gyro_trim.py`.

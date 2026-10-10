@@ -13,7 +13,7 @@ used in bolzakit and the rules the evidence behind them has to meet.
 | NUMERICAL | Strong numerical evidence | High-precision computation, precision-doubling stability, stated precision or error |
 | QUOTED | Value taken from a published source | Exact reference and, for data files, a fixed checksum; the value is not re-derived |
 
-A label is never upgraded relative to the spec §3 table (`docs/superpowers/specs/2026-10-08-bolzakit-design.md`).
+A label is never upgraded relative to the per-function table in [docs/provenance.md](docs/provenance.md).
 
 ## Rule C: citations
 
@@ -88,7 +88,7 @@ used pymoto 2.0.1 (a benchmark-only tool, not a dependency).
 
 | Item | Check | Measured | Where |
 |---|---|---|---|
-| Membrane (spec §9.4) | rates −8π², −2π² (rtol 2e-3); S'' = 30π², Ky Fan prefix 36π² (rel. 5e-3) | unchanged from 0.2 | `tests/sensitivity/test_skfem.py` |
+| Membrane | rates −8π², −2π² (rtol 2e-3); S'' = 30π², Ky Fan prefix 36π² (rel. 5e-3) | unchanged from 0.2 | `tests/sensitivity/test_skfem.py` |
 | Ring rate/λ̄, 4th harmonic (w/R 0.05, Nθ 96) | 3/10 within 5e-4 | 0.29984 | `examples/gyro_trim.py`, `test_trim.py` |
 | Ring trim (a) | split reduced ≥ 1e3, dense check | 6.0e-4 → ≤ rel_floor (1.6e-8), dense check also ≤ rel_floor; `stalled` (the floor), 7 eigensolves | same |
 | Spoked ring trim (b), 5 seeds | `converged`, ≥ 1e3, dense check | before 3.6e-4 to 8.9e-4; after ≤ rel_floor (2.0e-10) on every seed (below the eigensolver's resolution estimate, so no value is quoted); dense LAPACK check ≤ 1.1e-10 (its own floor); 4 eigensolves each | same |

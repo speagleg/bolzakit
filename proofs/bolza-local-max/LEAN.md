@@ -162,8 +162,11 @@ What the Lean theorem does **not** cover:
 
 ## 4. Build
 
-Verified route (read-only with respect to bolzakit). The oleans were copied to a scratch directory for
-speed, because mmap over /mnt/c is very slow:
+In this repository, build with `lake build` (as CI does) or with `lean/build_local.sh`, which compiles the same
+files against prebuilt Mathlib oleans. The record below is the original item-23 build.
+
+Verified route (read-only with respect to bolzakit). The oleans were copied to a local scratch directory for
+speed, because memory-mapping them from a network or WSL-mounted filesystem is very slow:
 
 ```
 cd items/23-bolza-lambda1-extremality/lean
