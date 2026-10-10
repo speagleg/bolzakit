@@ -99,16 +99,43 @@ def test_errors_module_is_stdlib_only():
     assert _mods(SENS / "errors.py") <= {"__future__"}
 
 
-def test_nothing_outside_sensitivity_imports_the_new_layers():
+def _new_layer_refs(f):
+    """Every way file f can reach bolzakit.sensitivity.optimize / .trim: module imports, names imported from
+    bolzakit.sensitivity or bolzakit (`from bolzakit.sensitivity import optimize`, `from bolzakit import sensitivity`
+    followed by `sensitivity.trim`), and attribute chains `<...>.sensitivity.optimize` / `.trim`."""
     new = ("bolzakit.sensitivity.optimize", "bolzakit.sensitivity.trim")
+    tree = ast.parse(f.read_text(encoding="utf-8"))
+    out = [m for _, m in _imports_file(f) if any(_is(m, n) for n in new)]
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and not node.level and node.module in ("bolzakit", "bolzakit.sensitivity"):
+            out += [f"{node.module}.{a.name}" for a in node.names
+                    if any(_is(f"{node.module}.{a.name}", n) for n in new)]
+        if isinstance(node, ast.Attribute) and node.attr in ("optimize", "trim"):
+            v = node.value
+            if (isinstance(v, ast.Name) and v.id == "sensitivity") or (
+                    isinstance(v, ast.Attribute) and v.attr == "sensitivity"):
+                out.append(f"<attribute>.sensitivity.{node.attr}")
+    return out
+
+
+def test_nothing_outside_sensitivity_imports_the_new_layers():
     bad = []
-    for f in (SRC / "bolzakit").rglob("*.py"):
+    for f in list((SRC / "bolzakit").rglob("*.py")) + list((SRC / "bolzakit_check").rglob("*.py")):
         if SENS in f.parents:
             continue
-        bad += [(f, m) for _, m in _imports_file(f) if m.startswith(new)]
-    for f in (SRC / "bolzakit_check").rglob("*.py"):
-        bad += [(f, m) for _, m in _imports_file(f) if m.startswith(new)]
+        bad += [(f, m) for m in _new_layer_refs(f)]
     assert bad == []
+
+
+def test_new_layer_check_sees_package_level_imports(tmp_path):
+    cases = {"a.py": "from bolzakit.sensitivity import optimize\n", "b.py": "from bolzakit import sensitivity\n"
+             "x = sensitivity.trim\n", "c.py": "import bolzakit.sensitivity.trim\n",
+             "d.py": "import bolzakit\ny = bolzakit.sensitivity.optimize\n", "ok.py": "from bolzakit import exact\n"}
+    found = {}
+    for name, code in cases.items():
+        (tmp_path / name).write_text(code, encoding="utf-8")
+        found[name] = bool(_new_layer_refs(tmp_path / name))
+    assert found == {"a.py": True, "b.py": True, "c.py": True, "d.py": True, "ok.py": False}
 
 
 def _core_imports():
@@ -130,7 +157,7 @@ def test_importable_without_torch_and_jax():
 
 
 @pytest.mark.skipif(importlib.util.find_spec("torch") is None and importlib.util.find_spec("jax") is None,
-                    reason="neither extra installed (the CI torch/jax jobs run this)")
+                    reason="neither torch nor jax installed (optional check; no CI job installs them)")
 def test_core_import_leaves_frameworks_unloaded_with_extras_installed():
     r = _run(f'import sys\nimport {_core_imports()}\n'
              'print(sorted(m for m in ("torch", "jax") if m in sys.modules))')

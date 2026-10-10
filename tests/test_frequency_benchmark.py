@@ -53,3 +53,16 @@ def test_budget_stop_raises_only_on_new_design():
         bm.eig(h)                                                      # cached, free
         with pytest.raises(fm._Budget):
             bm.eig(bm.project(1 + 0.1 * np.cos(np.arange(bm.d))))
+
+
+def test_eigensolve_counter_moves_for_core_and_optimiser():
+    # The benchmark counts eigensolves by wrapping the private bolzakit.sensitivity.core._eigs. If core renamed or
+    # bound it differently the published counts would silently go to zero: pin that both paths move the counter.
+    bm = fm.Benchmark(budget=50)
+    h0 = bm.project(1 + 0.05 * np.sin(np.arange(bm.d)))
+    with bm.counting():
+        bm.eig(h0)                                                     # smallest_eigenpairs path (SLSQP, MMA, naive)
+        assert bm.count == 1
+        trace = []
+        bm.ours(h0, trace)                                             # maximize_eigenvalue path
+    assert bm.count > 1 and trace and trace[-1][0] == bm.count

@@ -7,7 +7,7 @@ In the pair's M-orthonormal eigenbasis U the reduced 2x2 model is D + A(dt), D =
 A(dt) = sum_l dt_l A_l with the splitting matrices A_l = U^T (dK_l - lam_bar dM_l) U. The pair is tied to first order
 iff (D + A)_00 = (D + A)_11 and (D + A)_01 = 0, two linear equations G dt = (g, 0) with
 G = [A_00 - A_11; A_01]. The first step is the linear program
-    min c^T (t + dt)  subject to  G dt = (g, 0),  lower <= t + dt <= upper
+    min sum_l c_l |t_l + dt_l|  subject to  G dt = (g, 0),  lower <= t + dt <= upper
 (a vertex uses at most two trims). Later steps are Newton corrections on the trims the LP selected (least squares on
 that support, exact re-solve each time); the LP is re-solved only if a correction leaves the bounds or flips the sign
 of a trim. Convergence is quadratic until the split reaches the rounding floor of the eigensolver.
@@ -19,13 +19,20 @@ are rejected with a ValueError). A vertex still has at most two active sites.
 
 Resolution floor: TrimResult.rel_floor = eps * lambda_max / |lam_bar|, with lambda_max the largest eigenvalue of the
 pencil (K, M) at t = t0 (a dense eigh of the top eigenvalue for small n, otherwise a loose-tolerance ARPACK
-``eigsh(which="LA")`` run, a few Lanczos steps) and lam_bar the best pair's mean. Splits below it cannot be resolved
-by the eigensolver and are reported as such, never as a measured value.
+``eigsh(which="LA")`` run, a few Lanczos steps; if ARPACK fails, a dense eigh for n <= 4000, else the upper bound
+||K||_inf / gamma(M) with gamma(M) > 0 the Gershgorin lower bound on lambda_min(M), else nan) and lam_bar the best
+pair's mean. It is a conservative estimate: an upper estimate of what the eigensolver can resolve, which can be loose
+(on the spoked ring of examples/gyro_trim.py splits fall well below it). The API returns the raw split_after /
+rel_split_after and keeps status "converged" whenever the split met tol, even below rel_floor; a split below
+rel_floor is not resolved by the eigensolver, so reports must quote it as "<= rel_floor", never as a measured value.
 
 Statuses: "converged" (split <= tol * |lam_bar|), "stalled" (two consecutive iterations without halving the best
-split, or the best split is within a factor 2 of rel_floor when the iteration budget ran out: the resolution floor),
-"max_iter", "infeasible" (no trim pattern within the bounds ties the pair to first order; t is the best iterate
-found). The pair must stay isolated (the core gap rule, ClusterSplitError otherwise).
+split; or, when the iteration budget ran out with tol below the floor (rel_floor >= tol), the best split is within a
+factor 2 of rel_floor: the resolution floor), "max_iter" (budget exhausted otherwise), "infeasible" (the LP has no
+solution: no trim pattern within the bounds ties the pair to first order; t is the best iterate found),
+"lp_failed" (HiGHS stopped without a solution for another reason, linprog status 1 iteration limit or 4 numerical
+difficulties; t is the best iterate found). The pair must stay isolated (the core gap rule; ClusterSplitError
+otherwise, with a message that names the pair's own spread when the pair is not nearly degenerate).
 
 NUMERICAL: computed for the discrete pencil (K, M) as given; discretisation error relative to any continuum operator
 is not controlled. Imports only numpy/scipy and bolzakit.sensitivity.
@@ -41,6 +48,7 @@ import scipy.sparse.linalg as spla
 from scipy.optimize import linprog
 
 from bolzakit.sensitivity.core import DISCRETE_CAVEAT, smallest_eigenpairs, splitting_matrices
+from bolzakit.sensitivity.errors import ClusterSplitError
 
 __all__ = ["TrimRecord", "TrimResult", "trim_degenerate_pair"]
 
@@ -66,7 +74,7 @@ class TrimResult:
     eigvals_before: np.ndarray     # the pair at t = t0
     eigvals_after: np.ndarray      # the pair at t
     rel_floor: float               # eigensolver resolution estimate eps * lambda_max / |lam_bar| (see module docstring)
-    status: str                    # "converged", "stalled", "max_iter" or "infeasible"
+    status: str                    # "converged", "stalled", "max_iter", "infeasible" or "lp_failed"
     n_iter: int
     n_eigensolves: int
     history: tuple
@@ -82,15 +90,38 @@ def _lambda_max(K, M):
     """Largest eigenvalue of K x = lambda M x (cheap estimate; used only for the resolution floor)."""
     n = K.shape[0]
     if n <= 400 or not (sp.issparse(K) or sp.issparse(M)):
-        Kd = K.toarray() if sp.issparse(K) else np.asarray(K)
-        Md = M.toarray() if sp.issparse(M) else np.asarray(M)
-        return float(sla.eigh(Kd, Md, eigvals_only=True, subset_by_index=[n - 1, n - 1])[0])
+        return _lambda_max_dense(K, M, n)
     try:
         return float(spla.eigsh(sp.csc_matrix(K), k=1, M=sp.csc_matrix(M), which="LA", tol=1e-3,
                                 return_eigenvectors=False)[0])
-    except Exception:                  # ARPACK did not converge: fall back on a Rayleigh-quotient lower bound
-        x = np.ones(n)
-        return float((x @ (K @ x)) / (x @ (M @ x)))
+    except Exception:                  # ARPACK did not converge: never fall back on a lower bound (floor too small)
+        pass
+    if n <= 4000:
+        return _lambda_max_dense(K, M, n)
+    Kc, Mc = sp.csr_matrix(K), sp.csr_matrix(M)
+    k_norm = float(abs(Kc).sum(axis=1).max())                    # lambda_max(K) <= ||K||_inf
+    d = Mc.diagonal()
+    gamma = float(np.min(d - (np.asarray(abs(Mc).sum(axis=1)).ravel() - np.abs(d))))   # Gershgorin: <= lambda_min(M)
+    return k_norm / gamma if gamma > 0 else float("nan")
+
+
+def _lambda_max_dense(K, M, n):
+    Kd = K.toarray() if sp.issparse(K) else np.asarray(K)
+    Md = M.toarray() if sp.issparse(M) else np.asarray(M)
+    return float(sla.eigh(Kd, Md, eigvals_only=True, subset_by_index=[n - 1, n - 1])[0])
+
+
+def _not_nearly_degenerate(w, i, j, gap_ratio_min, err):
+    """Re-raise the core gap failure with the right cause when the pair's own split, not a close third eigenvalue, is
+    what fails the rule (g_out >= gap_ratio_min |lam_bar| but g_out < 10 g_in)."""
+    lb, g_in = float(w[i:j + 1].mean()), float(w[j] - w[i])
+    g_out = min(float(w[i] - w[i - 1]) if i > 0 else np.inf, float(w[j + 1] - w[j]) if j + 1 < len(w) else np.inf)
+    if g_out >= gap_ratio_min * abs(lb):
+        ratio = g_out / max(gap_ratio_min * abs(lb), 10 * g_in)
+        raise ClusterSplitError(
+            f"pair {(i, j)} is not nearly degenerate: its split {g_in:.3g} is more than a tenth of the distance "
+            f"{g_out:.3g} to the nearest other eigenvalue (gap ratio {ratio:.3g} < 1); trim_degenerate_pair needs an "
+            "isolated, nearly degenerate pair") from err
 
 
 def _strictly_inside(t, lo):
@@ -104,8 +135,9 @@ def trim_degenerate_pair(K, M, dKs, dMs, pair, *, lower=0.0, upper=None, cost=No
     """Smallest-cost trim t (lower <= t <= upper) that ties the split pair (i, i + 1) of K x = lambda M x.
 
     ``dKs`` / ``dMs``: length-L sequences of the per-unit changes of K and M for each candidate trim (dense or
-    sparse); None means that matrix is unchanged by every trim (not both None). ``cost`` (default ones) weights the
-    LP objective c^T t, e.g. 1 for every gram of added mass. Returns a TrimResult; see the module docstring."""
+    sparse); None means that matrix is unchanged by every trim (not both None). ``cost`` (default ones, >= 0) weights
+    the objective sum_l c_l |t_l| (the trim magnitude), e.g. 1 for every gram of added or removed mass. Returns a
+    TrimResult; see the module docstring (rel_floor is a conservative, possibly loose, estimate)."""
     i, j = (int(pair[0]), int(pair[1]))
     if j != i + 1 or i < 0:
         raise ValueError("pair must be (i, i + 1) with i >= 0")
@@ -143,11 +175,13 @@ def trim_degenerate_pair(K, M, dKs, dMs, pair, *, lower=0.0, upper=None, cost=No
     q_bounds = list(zip(np.maximum(-hi, 0.0), np.maximum(-lo, 0.0)))
 
     def solve_lp(t, G, r):
+        """(new t, "") on success; (None, "infeasible") for linprog status 2; (None, "lp_failed") otherwise. Status 3
+        (unbounded) cannot occur: c >= 0 bounds the objective below by 0."""
         res = linprog(np.concatenate([c, c]), A_eq=np.hstack([G, -G]), b_eq=r + G @ t,
                       bounds=p_bounds + q_bounds, method="highs")
-        if res.status == 3:
-            raise ValueError("the trim LP is unbounded (check the bounds and costs)")
-        return None if res.status != 0 else np.asarray(res.x[:L] - res.x[L:], dtype=float)
+        if res.status == 0:
+            return np.asarray(res.x[:L] - res.x[L:], dtype=float), ""
+        return None, ("infeasible" if res.status == 2 else "lp_failed")
 
     t = np.clip(np.zeros(L), lo, hi)
     hist: list = []
@@ -160,7 +194,12 @@ def trim_degenerate_pair(K, M, dKs, dMs, pair, *, lower=0.0, upper=None, cost=No
         Kt, Mt = pencil(t)
         w, V = smallest_eigenpairs(Kt, Mt, min(j + 2, Kt.shape[0]))
         n_eig += 1
-        sm = splitting_matrices(Kt, Mt, dKs, dMs_l, (i, j), eig=(w, V), gap_ratio_min=gap_ratio_min, validate=False)
+        try:
+            sm = splitting_matrices(Kt, Mt, dKs, dMs_l, (i, j), eig=(w, V), gap_ratio_min=gap_ratio_min,
+                                    validate=False)
+        except ClusterSplitError as e:
+            _not_nearly_degenerate(w, i, j, gap_ratio_min, e)
+            raise
         g, lb = float(w[j] - w[i]), float(sm.lam_bar)
         if first is None:
             first = (g, w[i:j + 1].copy())
@@ -190,9 +229,9 @@ def trim_degenerate_pair(K, M, dKs, dMs, pair, *, lower=0.0, upper=None, cost=No
                 if np.all(tn >= lo) and np.all(tn <= hi) and np.all(tn[S] * t[S] > 0):   # in bounds, signs kept
                     step, t_new = "newton", t + dt
             if t_new is None:
-                t_new = solve_lp(t, G, r)
+                t_new, why = solve_lp(t, G, r)
                 if t_new is None:
-                    status = "infeasible"
+                    status = why
             if t_new is not None:
                 hist.append(TrimRecord(step=step, **rec))
                 t = t_new
@@ -202,9 +241,9 @@ def trim_degenerate_pair(K, M, dKs, dMs, pair, *, lower=0.0, upper=None, cost=No
     g, t_best, pair_w = best
     lb_best = float(pair_w.mean())
     rel_floor = float(np.finfo(float).eps * _lambda_max(K, M) / abs(lb_best))
-    if status == "max_iter" and g / abs(lb_best) <= 2.0 * max(tol, rel_floor):
-        status = "stalled"             # out of iterations while at the resolution floor
+    if status == "max_iter" and rel_floor >= tol and g / abs(lb_best) <= 2.0 * rel_floor:
+        status = "stalled"             # out of iterations at the resolution floor (tol is below the floor)
     return TrimResult(t=t_best, cost=float(c @ np.abs(t_best)), split_before=first[0], split_after=g,
                       rel_split_before=first[0] / abs(float(first[1].mean())), rel_split_after=g / abs(lb_best),
-                      eigvals_before=first[1], eigvals_after=pair_w, rel_floor=rel_floor, status=status, n_iter=len(hist) - 1,
-                      n_eigensolves=n_eig, history=tuple(hist))
+                      eigvals_before=first[1], eigvals_after=pair_w, rel_floor=rel_floor, status=status,
+                      n_iter=len(hist) - 1, n_eigensolves=n_eig, history=tuple(hist))

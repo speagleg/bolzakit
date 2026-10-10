@@ -113,9 +113,63 @@ def test_status_max_iter_and_stalled_at_the_resolution_floor():
     Q, _ = np.linalg.qr(rng.standard_normal((6, 6)))
     K = Q @ np.diag([1e-3, 1.0, 1.0 + 2e-3, 3, 50, 1e6]) @ Q.T
     K = (K + K.T) / 2
-    r = trim_degenerate_pair(K, np.eye(6), [_outer(Q[:, 1]), _outer(Q[:, 2]), _outer(Q[:, 1] + Q[:, 2]) / 2], None, (1, 2),
-                              tol=1e-14)
+    sites = [_outer(Q[:, 1]), _outer(Q[:, 2]), _outer(Q[:, 1] + Q[:, 2]) / 2]
+    r = trim_degenerate_pair(K, np.eye(6), sites, None, (1, 2), tol=1e-14)
     assert r.status == "stalled" and r.rel_split_after <= 2 * r.rel_floor and 1e-11 < r.rel_floor < 1e-9
+
+
+def test_max_iter_just_above_tol_is_not_labelled_stalled():
+    # N3: floor < tol < split < 2 tol at the end of the budget is budget exhaustion, not the resolution floor
+    K, M, dMs = _random_mass_problem(0)
+    r1 = trim_degenerate_pair(K, M, None, dMs, (1, 2), max_iter=1)
+    tol = 0.7 * r1.rel_split_after                # same trajectory (tol only decides convergence)
+    r = trim_degenerate_pair(K, M, None, dMs, (1, 2), max_iter=1, tol=tol)
+    assert r.rel_floor < tol < r.rel_split_after < 2 * tol
+    assert r.status == "max_iter" and r.rel_split_after == r1.rel_split_after
+
+
+def test_infeasible_after_progress_keeps_the_best_iterate():
+    # Mass at dof 2 lowers lambda_2 = 2.01 / (1 + t); the first-order LP step t1 = 0.01 / 2.005 undershoots the exact
+    # 0.005. The Newton correction then needs t > upper, and the re-solved LP is infeasible within the bounds.
+    K = np.diag([1.0, 2.0, 2.01, 5.0])
+    t1 = 0.01 / 2.005
+    r = trim_degenerate_pair(K, np.eye(4), None, [_outer(E[2])], (1, 2), upper=0.004995)
+    assert t1 < 0.004995 < 0.005
+    assert r.status == "infeasible" and [h.step for h in r.history] == ["lp", ""] and r.n_eigensolves == 2
+    assert abs(r.t[0] - t1) < 1e-12 and r.rel_split_after < 1e-2 * r.rel_split_before
+
+
+def test_highs_failure_is_lp_failed_not_infeasible(monkeypatch):
+    import types
+    import bolzakit.sensitivity.trim as trim_mod
+    K = np.diag([1.0, 2.0, 2.01, 5.0])
+    for code in (1, 4):                           # iteration limit, numerical difficulties
+        monkeypatch.setattr(trim_mod, "linprog", lambda *a, code=code, **k: types.SimpleNamespace(status=code, x=None))
+        r = trim_degenerate_pair(K, np.eye(4), [_outer(E[1])], None, (1, 2))
+        assert r.status == "lp_failed" and r.t[0] == 0 and r.n_eigensolves == 1
+    monkeypatch.setattr(trim_mod, "linprog", lambda *a, **k: types.SimpleNamespace(status=2, x=None))
+    assert trim_degenerate_pair(K, np.eye(4), [_outer(E[1])], None, (1, 2)).status == "infeasible"
+
+
+def test_lambda_max_fallback_never_underestimates(monkeypatch):
+    # M-2: when ARPACK fails the floor must not come from a lower bound on lambda_max (that would shrink rel_floor)
+    import scipy.sparse as sp
+    import bolzakit.sensitivity.trim as trim_mod
+
+    def boom(*a, **k):
+        raise RuntimeError("ARPACK did not converge")
+    monkeypatch.setattr(trim_mod.spla, "eigsh", boom)
+    for n in (500, 5000):                         # dense fallback; Gershgorin upper bound
+        d = np.linspace(1.0, 1e4, n)
+        K = sp.diags(d).tocsc()
+        M = sp.diags(np.full(n, 2.0)).tocsc() + sp.eye(n, k=1, format="csc") * 0.1 + sp.eye(n, k=-1, format="csc") * 0.1
+        lam = trim_mod._lambda_max(K, M)
+        assert lam >= 1e4 / 2.2 * (1 - 1e-12)     # lambda_max(K, M) >= max(d) / lambda_max(M) >= 1e4 / 2.2
+        if n == 500:
+            ref = sla.eigh(K.toarray(), M.toarray(), eigvals_only=True)[-1]
+            assert abs(lam - ref) <= 1e-10 * ref
+        else:
+            assert lam >= 1e4 / 2.0               # an upper bound: ||K||_inf / gamma(M) = 1e4 / 1.8
 
 
 def test_argument_validation():
@@ -141,6 +195,12 @@ def test_pair_must_be_isolated():
     K = np.diag([1.0, 2.0, 2.01, 2.02])           # lambda_3 is as close as the split itself
     with pytest.raises(ClusterSplitError):
         trim_degenerate_pair(K, np.eye(4), [_outer(E[1])], None, (1, 2))
+    K = np.diag([1.0, 2.0, 2.0005, 2.0006])       # a third eigenvalue within gap_ratio_min |lam_bar|: the core message
+    with pytest.raises(ClusterSplitError, match="splits"):
+        trim_degenerate_pair(K, np.eye(4), [_outer(E[1])], None, (1, 2))
+    K = np.diag([1.0, 2.0, 2.01, 5.0])            # M-8: (2, 3) is not a near-degenerate pair at all
+    with pytest.raises(ClusterSplitError, match="not nearly degenerate"):
+        trim_degenerate_pair(K, np.eye(4), [_outer(E[1])], None, (2, 3))
 
 
 # ------------------------------------------------------------------ FE resonators (examples/gyro_trim.py; skfem)
@@ -170,4 +230,4 @@ def test_spoked_ring_trim_converges_and_beats_antinode_mass():
     for k in ("naive", "damped"):                             # single-site antinode baselines, 40 rounds
         tied = x[f"{k}_rel"][-1] <= x["stop"]
         assert (not tied) or r.cost < x[f"{k}_t"].sum()       # a baseline either fails to tie or costs more mass
-    assert x["damped_rel"][-1] > r.rel_split_after            # seed 1: the damped baseline is still far from tied
+    assert x["damped_rel"][-1] > x["stop"]                    # seed 1: the damped baseline has not tied the pair

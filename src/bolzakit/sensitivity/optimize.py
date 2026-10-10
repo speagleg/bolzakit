@@ -95,6 +95,8 @@ class EigenOptResult:
     caveat: str = DISCRETE_CAVEAT
     mult_rtol: float = float("nan")    # the clustering tolerance in force at the end (after any eps-refinement)
     eps: float = float("nan")          # largest eigenvalue gap inside the active clusters at p (see the driver)
+    fallback_from: str | None = None   # the uncertified stop that ended the run when `status` is the coarse model's
+                                       # (eps-refinement fallback), e.g. "max_iter" = budget exhausted; else None
 
 
 # ----------------------------------------------------------------------------------------------- dual subproblem
@@ -519,6 +521,8 @@ def ascent_direction(A_upper, A_lower=None, *, null_basis=None, bound_signs=None
 # Statuses that certify nothing about the current model; inside an unproductive eps-refinement the driver reports
 # the coarser model instead (see maximize_eigenvalue, "eps-refinement").
 _UNCERTIFIED = ("step_too_small", "subproblem_not_converged", "max_iter")
+
+
 def _window(K, M, sparse, k_low: int, k_up: int, mult_rtol: float, validate: bool):
     """Eigenpairs through the top of the single-linkage cluster based at k_up (plus one), and that cluster's top j.
     Returns w, V, j, s. The scale s = max(|lambda_0|, |lambda_{k_low+1}|, 1e-300) is fixed before the growth."""
@@ -618,7 +622,10 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
     after the first refinement round at the current p, the result reports the coarser model that round replaced
     (its multiplicity, eigenvalues, phi, dual certificate, mult_rtol and eps) with that model's own status:
     "stationary" if the round was triggered at its stationary point, "step_too_small" if by an eps-limited stall
-    (p and the history are unchanged). This matters for a Zeno chain: from a stationary tied model, each split step
+    (p and the history are unchanged). The stop that actually ended the run is then kept in result.fallback_from
+    ("max_iter" when the iteration or eigensolve budget ran out, "step_too_small" or "subproblem_not_converged"), so
+    budget exhaustion stays visible; fallback_from is None whenever status is the run's own stop.
+    This matters for a Zeno chain: from a stationary tied model, each split step
     closes about half of the gap, so the steps shrink geometrically and the trust radius can reach 1e-10 * step0
     while eps is still just above mult_rtol_min * s; reporting the last split model there would give a spurious
     multiplicity and an ascent rate phi that the tie forbids. The result reports the final
@@ -690,13 +697,14 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
             callback(rec)
 
     def finish(status, st, it, ad):
-        rt, ep = rtol, eps_now
+        rt, ep, fb = rtol, eps_now, None
         # An uncertified stop inside an unproductive refinement (no accepted step since the first split at this p)
         # reports the coarser model that the split replaced: p is unchanged, and the split model's verdict (often a
         # trust radius collapsed in a Zeno chain of ever-shorter steps toward the tie) says nothing the coarse one
         # did not. Its status is the coarse model's: "stationary" (a certified eps-stationary point, eps = its
         # internal gap) or "step_too_small" (an eps-limited stall).
         if snap is not None and status in _UNCERTIFIED:
+            fb = status                     # kept visible: e.g. "max_iter" when the budget ran out
             status, st, ad, rt, ep = snap
         w, j = st[3], st[5]
         mult = j - (k + 1 if is_gap else k) + 1
@@ -705,7 +713,7 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
                               Y_upper=ad.Y_upper if ad else np.zeros((0, 0)), Y_lower=ad.Y_lower if ad else None,
                               mu=ad.mu if ad else np.zeros(dim), status=status, n_iter=it,
                               n_eigensolves=counters["eig"], n_screened=counters["screened"], history=tuple(hist),
-                              mult_rtol=rt, eps=ep)
+                              mult_rtol=rt, eps=ep, fallback_from=fb)
 
     def refine_round(st, it, ad, mult, gabs, verdict):
         """One eps-refinement round at the current iterate: shrink rtol below the largest internal gap gabs, extend
