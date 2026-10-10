@@ -12,7 +12,7 @@
   halved toward the last accepted one, up to `backtrack=4` times in a row (history step `"halve"`; `backtrack=0`
   restores the 0.3.0 behaviour). Default-objective runs that never reject a step are unchanged.
 
-## [0.3.0] — unreleased
+## [0.3.0] — 2026-10-10
 
 ### Added
 
