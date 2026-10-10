@@ -1,7 +1,7 @@
 % refs.bib -- every entry is traceable to work/LITERATURE.md or work/NOVELTY.md
 % (or, for three items, to PROOF.md / F1_PROOF.md / CERT_G3.md, which quote them).
-% Author first names are given as initials only where the source files give them;
-% otherwise surname only.  Uncertain details are marked "% CHECK".
+% Bibliographic details (published versions, volumes, pages, first names) were verified on 2026-10-10
+% against arXiv, Crossref and the publishers' pages.
 
 @article{SU13,
   author  = {Strohmaier, A. and Uski, V.},
@@ -13,29 +13,35 @@
   note    = {arXiv:1110.2150}
 }
 
-% CHECK: a published version (proceedings volume) may exist; LITERATURE.md gives only arXiv and the White Rose eprint.
-@misc{Str16,
-  author       = {Strohmaier, A.},
-  title        = {Computation of eigenvalues, spectral zeta functions and zeta-determinants on hyperbolic surfaces},
-  howpublished = {Lecture notes, arXiv:1604.02722; also eprints.whiterose.ac.uk/118148},
-  year         = {2016}
+@incollection{Str16,
+  author    = {Strohmaier, Alexander},
+  title     = {Computation of eigenvalues, spectral zeta functions and zeta-determinants on hyperbolic surfaces},
+  booktitle = {Geometric and Computational Spectral Theory},
+  series    = {Contemp. Math.},
+  volume    = {700},
+  publisher = {Amer. Math. Soc.},
+  year      = {2017},
+  pages     = {177--205},
+  note      = {arXiv:1604.02722}
 }
 
-% CHECK: volume and pages of the Comm. Amer. Math. Soc. version are not recorded in LITERATURE.md.
 @article{KMP,
-  author  = {Kravchuk, P. and Maz{\'a}{\v c}, D. and Pal, S.},
+  author  = {Kravchuk, Petr and Maz{\'a}{\v c}, Dalimil and Pal, Sridip},
   title   = {Automorphic spectra and the conformal bootstrap},
   journal = {Comm. Amer. Math. Soc.},
+  volume  = {4},
   year    = {2024},
-  note    = {arXiv:2111.12716 (v3)}
+  pages   = {1--63},
+  note    = {arXiv:2111.12716}
 }
 
-% CHECK: volume/article number of the JHEP version not recorded in LITERATURE.md.
 @article{Bon22a,
-  author  = {Bonifacio, J.},
+  author  = {Bonifacio, James},
   title   = {Bootstrap bounds on closed hyperbolic manifolds},
   journal = {J. High Energy Phys.},
+  volume  = {02},
   year    = {2022},
+  pages   = {025},
   note    = {arXiv:2107.09674}
 }
 
@@ -74,27 +80,28 @@
   note   = {hdl:2134/36294; arXiv:2108.11825}
 }
 
-% CHECK: first name / initial of the author not recorded in NOVELTY.md.
 @misc{Rad,
-  author       = {Radcliffe},
+  author       = {Radcliffe, Alex},
   title        = {Non-saturation of bootstrap bounds by hyperbolic orbifolds},
   howpublished = {arXiv:2404.14479 (v2, November 2025)},
   year         = {2024}
 }
 
-% CHECK: title not recorded in NOVELTY.md; first names not recorded.
-@misc{HP,
-  author       = {Hide and Petri, B.},
-  title        = {[title to be checked]},
-  howpublished = {arXiv:2412.15111; Compositio Math., 2026},
-  year         = {2024}
+@article{HP,
+  author  = {Hide, William and Petri, Bram},
+  title   = {Limit points of uniform arithmetic bass notes},
+  journal = {Compositio Math.},
+  volume  = {162},
+  year    = {2026},
+  pages   = {1487--1506},
+  note    = {arXiv:2412.15111}
 }
 
-% CHECK: year of the habilitation not recorded in LITERATURE.md.
 @misc{PetriHDR,
-  author       = {Petri, B.},
+  author       = {Petri, Bram},
   title        = {Extremal and random hyperbolic geometry},
-  howpublished = {Habilitation thesis, IMJ-PRG}
+  howpublished = {Habilitation thesis, Institut de Math{\'e}matiques de Jussieu--Paris Rive Gauche},
+  year         = {2024}
 }
 
 @misc{Kal26,
@@ -114,98 +121,121 @@
   pages   = {193--203}
 }
 
-% CHECK: title not recorded in NOVELTY.md (it records the abstract: strict local maximum of the
-% extremal length systole of genus-two surfaces at the Bolza surface); first names of the second
-% and third authors not recorded.
 @article{FBMGVP,
-  author  = {Fortier Bourque, M. and {Mart{\'\i}nez-Granado} and {Vargas Pallete}},
-  title   = {[title to be checked: extremal length systole in genus two]},
+  author  = {Fortier Bourque, Maxime and Mart{\'\i}nez-Granado, D{\'\i}dac and Vargas Pallete, Franco},
+  title   = {The extremal length systole of the {B}olza surface},
   journal = {Ann. Henri Lebesgue},
+  volume  = {7},
   year    = {2024},
+  pages   = {1409--1455},
   note    = {arXiv:2105.03871}
 }
 
-% CHECK: first name of Rafi and year/volume not recorded.
 @article{FBR,
-  author  = {Fortier Bourque, M. and Rafi},
+  author  = {Fortier Bourque, Maxime and Rafi, Kasra},
   title   = {Local maxima of the systole function},
-  journal = {J. Eur. Math. Soc.}
+  journal = {J. Eur. Math. Soc.},
+  volume  = {24},
+  number  = {2},
+  year    = {2022},
+  pages   = {623--668}
 }
 
-% CHECK: title not recorded in NOVELTY.md (quoted from section 3.3: "among flat tori, Lambda_k has a local maximum").
-@misc{KLO,
-  author       = {Kao and Lai and Osting},
-  title        = {[title to be checked]},
-  howpublished = {arXiv:1405.4944}
+@article{KLO,
+  author  = {Kao, Chiu-Yen and Lai, Rongjie and Osting, Braxton},
+  title   = {Maximization of {L}aplace--{B}eltrami eigenvalues on closed {R}iemannian surfaces},
+  journal = {ESAIM Control Optim. Calc. Var.},
+  volume  = {23},
+  number  = {2},
+  year    = {2017},
+  pages   = {685--720},
+  note    = {arXiv:1405.4944}
 }
 
 @misc{GPSX,
-  author       = {Gesteau and Pal, S. and Simmons-Duffin and Xu},
+  author       = {Gesteau, Elliott and Pal, Sridip and Simmons-Duffin, David and Xu, Yixin},
   title        = {Bounds on spectral gaps of hyperbolic spin surfaces},
   howpublished = {arXiv:2311.13330},
   year         = {2023}
 }
 
-% CHECK: title not recorded; NOVELTY.md quotes the abstract (settles the JLNNP conjecture; sharp 16 pi in genus 2).
 @article{NS,
-  author  = {Nayatani, S. and Shoda, T.},
-  title   = {[title to be checked]},
+  author  = {Nayatani, Shin and Shoda, Toshihiro},
+  title   = {Metrics on a closed surface of genus two which maximize the first eigenvalue of the {L}aplacian},
   journal = {C. R. Math. Acad. Sci. Paris},
+  volume  = {357},
+  number  = {1},
   year    = {2019},
+  pages   = {84--98},
   note    = {arXiv:1704.06384}
 }
 
-% CHECK: title not recorded in NOVELTY.md.
-@misc{JLNNP,
-  author       = {Jakobson and Levitin and Nadirashvili and Nigam and Polterovich},
-  title        = {[title to be checked]},
-  howpublished = {arXiv:math/0509398}
+@article{JLNNP,
+  author  = {Jakobson, D. and Levitin, M. and Nadirashvili, N. and Nigam, N. and Polterovich, I.},
+  title   = {How large can the first eigenvalue be on a surface of genus two?},
+  journal = {Int. Math. Res. Not.},
+  number  = {63},
+  year    = {2005},
+  pages   = {3967--3985},
+  note    = {arXiv:math/0509398}
 }
 
 @misc{KPS,
-  author       = {Karpukhin and Petrides and Stern},
+  author       = {Karpukhin, Mikhail and Petrides, Romain and Stern, Daniel},
   title        = {Existence of metrics maximizing the first {L}aplace eigenvalue on closed surfaces},
   howpublished = {arXiv:2505.05293},
   year         = {2025}
 }
 
 @misc{Kar25,
-  author       = {Karpukhin},
+  author       = {Karpukhin, Mikhail},
   title        = {Second variation formula for eigenvalue functionals on surfaces},
   howpublished = {arXiv:2508.10465},
   year         = {2025}
 }
 
 @misc{FN,
-  author       = {Felikson and Natanzon},
+  author       = {Felikson, Anna and Natanzon, Sergey},
   title        = {Moduli via double pants decompositions},
   howpublished = {arXiv:1102.4861 (v1)},
   year         = {2011}
 }
 
-% CHECK: title not recorded in PROOF.md / CERT_P6.md (Remark 3.3 and section 1 are quoted there).
-@misc{Maz,
-  author       = {Mazzoli},
-  title        = {[title to be checked]},
-  howpublished = {arXiv:2101.09380}
+@article{Maz,
+  author  = {Mazzoli, Filippo},
+  title   = {The infimum of the dual volume of convex co-compact hyperbolic 3-manifolds},
+  journal = {Geom. Topol.},
+  volume  = {27},
+  year    = {2023},
+  pages   = {2319--2346},
+  note    = {arXiv:2101.09380}
 }
 
-% CHECK: title not recorded in PROOF.md / CERT_P6.md (section 2 is quoted there).
-@misc{DW,
-  author       = {Daskalopoulos and Wentworth},
-  title        = {[title to be checked]},
-  howpublished = {arXiv:math/0604403}
+@incollection{DW,
+  author    = {Daskalopoulos, Georgios D. and Wentworth, Richard A.},
+  title     = {Harmonic maps and {T}eichm{\"u}ller theory},
+  booktitle = {Handbook of {T}eichm{\"u}ller Theory, Vol. {I}},
+  series    = {IRMA Lect. Math. Theor. Phys.},
+  volume    = {11},
+  publisher = {Eur. Math. Soc.},
+  year      = {2007},
+  pages     = {33--109},
+  note      = {arXiv:math/0604403}
 }
 
-% CHECK: title not recorded in PROOF.md (Lemma 2.1 is quoted there).
-@misc{ESI,
-  author       = {{El Soufi} and Ilias},
-  title        = {[title to be checked]},
-  howpublished = {arXiv:math/0701777}
+@article{ESI,
+  author  = {El Soufi, Ahmad and Ilias, Sa{\"\i}d},
+  title   = {Laplacian eigenvalue functionals and metric deformations on compact manifolds},
+  journal = {J. Geom. Phys.},
+  volume  = {58},
+  number  = {1},
+  year    = {2008},
+  pages   = {89--104},
+  note    = {arXiv:math/0701777}
 }
 
 @misc{Mos,
-  author       = {Moslehian},
+  author       = {Moslehian, Mohammad Sal},
   title        = {Ky {F}an inequalities},
   howpublished = {arXiv:1108.1467}
 }
@@ -230,20 +260,22 @@
   pages   = {31--35}
 }
 
-% CHECK: first name not recorded.
 @misc{Cai26,
-  author       = {Cai},
+  author       = {Cai, Chunhao},
   title        = {Response calculus for spectral simplicity and joint eigenvalue densities},
   howpublished = {arXiv:2608.02459 (v2)},
   year         = {2026}
 }
 
-% CHECK: first name not recorded.
-@misc{Dur,
-  author       = {Duran},
-  title        = {The $\bar\partial$-{R}obin {L}aplacian},
-  howpublished = {arXiv:2507.16895 (v3)},
-  year         = {2025}
+@article{Dur,
+  author  = {Duran, Joaquim},
+  title   = {The $\bar\partial$-{R}obin {L}aplacian},
+  journal = {J. Math. Anal. Appl.},
+  volume  = {558},
+  number  = {1},
+  year    = {2026},
+  pages   = {130411},
+  note    = {arXiv:2507.16895}
 }
 
 % Not read (no accessible copy); cited only as the standard reference, second-hand via Duran.
@@ -254,42 +286,45 @@
   year      = {1995}
 }
 
-% CHECK: full bibliographic data; cited as [Bus10, p. 253] in FBP-K, not read by us.
+% Cited as [Bus10, p. 253] in FBP-K, not read by us.
 @book{Bus10,
-  author    = {Buser},
-  title     = {[title to be checked]},
+  author    = {Buser, Peter},
+  title     = {Geometry and Spectra of Compact {R}iemann Surfaces},
+  publisher = {Birkh{\"a}user},
+  address   = {Boston},
+  series    = {Modern Birkh{\"a}user Classics},
   year      = {2010}
 }
 
-% CHECK: title; cited as [Tro92] via Mazzoli, not read by us.
+% Cited as [Tro92] via Mazzoli, not read by us.
 @book{Tro92,
-  author = {Tromba},
-  title  = {[title to be checked]},
-  year   = {1992}
+  author    = {Tromba, Anthony J.},
+  title     = {Teichm{\"u}ller Theory in {R}iemannian Geometry},
+  publisher = {Birkh{\"a}user},
+  address   = {Basel},
+  year      = {1992}
 }
 
 @article{CG14,
-  author  = {Carstensen and Gedicke},
+  author  = {Carstensen, Carsten and Gedicke, Joscha},
   title   = {Guaranteed lower bounds for eigenvalues},
   journal = {Math. Comp.},
   volume  = {83},
-  year    = {2014}
+  year    = {2014},
+  pages   = {2605--2629}
 }
 
 % Lehmann--Goerisch sources (added 2026-10-09; traceable to work/LB_PLAN.md, work/LB_RESULTS.md, work/review_lb_1.md).
-% CHECK: title and author first names not recorded in the work files (only "Liu--Plum arXiv:2512.23182", Sec. 4.1, Thms 4.1/4.3).
 @misc{LiuPlum,
-  author       = {Liu, X. and Plum, M.},
-  title        = {[title to be checked]},
+  author       = {Liu, Xuefeng and Plum, Michael},
+  title        = {A two-stage finite element approach for high-precision guaranteed lower eigenvalue bounds},
   howpublished = {arXiv:2512.23182},
   year         = {2025}
 }
 
-% CHECK: all fields except authors, year and "Thm 2.1" are from memory, not from the work files
-% (review_lb_1 cites "Behnke--Mertins--Plum--Wieners (2000), Thm 2.1, as reproduced in Vejchodsky arXiv:1801.02561 Sec. 2").
-% Not read directly by us or the reviewer.
+% Cited via Vejchodsky arXiv:1801.02561 Sec. 2 (review_lb_1); not read directly by us or the reviewer.
 @article{BMPW,
-  author  = {Behnke, H. and Mertins, U. and Plum, M. and Wieners, C.},
+  author  = {Behnke, Henning and Mertins, Ulrich and Plum, Michael and Wieners, Christian},
   title   = {Eigenvalue inclusions via domain decomposition},
   journal = {Proc. R. Soc. Lond. A},
   volume  = {456},
@@ -297,10 +332,8 @@
   pages   = {2717--2730}
 }
 
-% CHECK: title, journal, volume, pages and year of the published version are from memory, not from the work files;
-% the work files record only "Vejchodsky arXiv:1801.02561 Sec. 2".
 @article{Vej18,
-  author  = {Vejchodsk{\'y}, T.},
+  author  = {Vejchodsk{\'y}, Tom{\'a}{\v s}},
   title   = {Flux reconstructions in the {L}ehmann--{G}oerisch method for lower bounds on eigenvalues},
   journal = {J. Comput. Appl. Math.},
   volume  = {340},

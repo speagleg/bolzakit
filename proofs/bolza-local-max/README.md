@@ -106,13 +106,13 @@ value above 3.8388757010, and `rr_p2_n96.json` for its upper end. The "certified
 value" column is the upper end of the ball stored in the certificate (rounded up), i.e. what the certificate attests
 and the checker re-derives.
 
-**Known errata in the copied documents.** PROOF.md Lemma 8 (line 495) attributes −9.341154560446736 to the λ ball
-[3.8388757010, 3.8388872830]. For exactly that ball, the in-process value is −9.3411487 (the pin −9.341148662), and
+**Corrected erratum.** PROOF.md Lemmas 5 and 8 used to attribute −3.0383476242423058 and −9.341154560446736 to
+the λ ball [3.8388757010, 3.8388872830]. Those values come from item 23's script ball
+[3.838875701026362, 3.838887283026362] (see above), and PROOF.md now says so. For exactly
+[3.8388757010, 3.8388872830] the in-process Ky Fan value is −9.3411487 (the pin −9.341148662), and
 `kyfan_FB_n96_lg.json` attests the slightly weaker ≤ −9.3411481 (the upper end of its stored enclosure, as in the
-table above).
-The −9.341154560 came from item 23's script ball, which starts at 3.8388757010263 (see above). The proof uses only
-the constant −9.3411, so it is unaffected. This will be corrected upstream in item 23. The copies here are
-unchanged.
+table above). The proof uses only the constants −9.3411 and −3.0383, so it is unaffected. The paper already named
+the script ball and needed no change.
 
 ## Trust model
 

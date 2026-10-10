@@ -10,7 +10,9 @@ recomputed for this document.
 **Update 2026-10-09 (SU13 removed).** The λ₁ lower bound no longer comes from Strohmaier–Uski (SU13). It is now
 CERTIFIED in-house by Lehmann–Goerisch, **λ₁ ≥ 3.8388757010** (Lemma 1(d); LB_RESULTS.md; second-read in
 review_lb_1: ACCEPT, fixes F1–F3 applied). The certified λ₁ ball is now **[3.8388757010, 3.8388872830]**, and
-Lemmas 5 and 8 were re-certified with it (−3.0383476·m(u) and −9.341154560). SU13 (D1) is kept only as an optional
+Lemmas 5 and 8 were re-certified without SU13 (−3.0383476·m(u) and −9.341154560, with the script ball
+[3.838875701026362, 3.838887283026362] of the Note after Lemma 1; with exactly [3.8388757010, 3.8388872830] the
+bolzakit certificates attest −3.0383475·m(u) and −9.3411481). SU13 (D1) is kept only as an optional
 cross-check; the older SU13-based numbers are kept as alternative rows. The weakest inputs are now FBP's quoted
 Lemmas 7.2–7.3 and §7.4 geodesic data, and the Lehmann–Goerisch theorem as quoted from secondary sources (D15).
 
@@ -352,7 +354,9 @@ so tr A ≡ 0.
 **Statement.** Let δ be the alternating-radius tangent: vertex radii R + t(−1)^k + σ(t), with σ′(0) = 0. This is
 tangent to F_A up to scale. There is an exact eigenfunction e = P_E u ∈ E with
 
-  **b_δ(e, e) ≤ −3.0383476242423058·m(u) < 0** (n = 192, SU13-free λ ball [3.8388757010, 3.8388872830]);
+  **b_δ(e, e) ≤ −3.0383476242423058·m(u) < 0** (n = 192, SU13-free λ ball arb("3.83888149202636215", "5.791e-6") =
+  [3.838875701026362, 3.838887283026362], which contains the certified interval of Lemma 1(d); with exactly
+  [3.8388757010, 3.8388872830], `first_order_FA_n192_lg.json` attests ≤ −3.0383475·m(u));
   at n = 96 the bound is −0.9989201873540878·m(u).
 
 | λ₁ ball | n = 96 | n = 192 | script → output |
@@ -370,7 +374,7 @@ So A_oct(δ) ≠ 0. By Lemma 3a, A(σ(δ)) ≠ 0, so A ≠ 0 on T_B (and σ(δ) 
 **Proof.**
 - u = x − (m(x,1)/m(1,1))·1 is exactly m-orthogonal to the constants; x is an untrusted float eigencombination.
   Put w = u − e, which is ⊥ E ⊕ 1 in both m and q.
-- With μ = R(u), λ₄ ≥ 4.0 and λ₁ in the λ ball (SU13-free: [3.8388757010, 3.8388872830]), the gap argument gives
+- With μ = R(u), λ₄ ≥ 4.0 and λ₁ in the λ ball (SU13-free: [3.838875701026362, 3.838887283026362]), the gap argument gives
   m(w) ≤ (μ − λ₁)/(λ₄ − λ₁)·m(u) and q(w) ≤ (μ − λ₁)λ₄/(λ₄ − λ₁)·m(u).
 - b(e,e) = b(u,u) − 2b(u,w) + b(w,w). The cross and quadratic terms are bounded by elementwise relative bounds,
   −β_T a_T ≤ ȧ_T ≤ β_T a_T and |ρ̇_T| ≤ β_{ρ,T}ρ_T, enclosed in Arb over a parameter box ⊇ simplex, with an
@@ -492,9 +496,12 @@ s_mid·w_B = w_B. So w_B ∈ ℝv. **The reflection type matters (LEAN.md):** on
 
 **Statement.** Let x(p) be F_B, with v_B = x′(0). Then
 
-  (Λ∘x)″(0) ≤ g″(0) ≤ **−9.341154560446736** (n = 96, P2, SYM=1, SU13-free λ ball [3.8388757010, 3.8388872830]),
+  (Λ∘x)″(0) ≤ g″(0) ≤ **−9.341154560446736** (n = 96, P2, SYM=1, SU13-free λ ball arb("3.83888149202636215",
+  "5.791e-6") = [3.838875701026362, 3.838887283026362], which contains the certified interval of Lemma 1(d)),
 
 with central value g″(0) = [−14.274 ± 2.13e-4] (SU13-free run; [−14.2742 ± 2.23e-5] in the SU13 run).
+For exactly the ball [3.8388757010, 3.8388872830] the in-process value is −9.341148662, and bolzakit's
+`kyfan_FB_n96_lg.json` attests the slightly weaker ≤ −9.3411481. The proof uses only the constant −9.3411.
 
 | λ₁ ball | certified g″(0) ≤ (n = 96) | script → output |
 |---|---|---|

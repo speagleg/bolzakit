@@ -1,8 +1,8 @@
 # paper/ — drafting notes
 
-Files: `main.tex` (amsart), `refs.bib`, compiled `main.pdf` (23 pages).
+Files: `main.tex` (amsart), `refs.bib`, compiled `main.pdf` (27 pages, rebuilt 2026-10-10).
 Build: `pdflatex main && bibtex main && pdflatex main && pdflatex main`. It compiles with no errors, no undefined
-references and no overfull boxes. BibTeX gives 9 "missing field" warnings, all for entries marked `% CHECK`.
+references and no overfull boxes. BibTeX gives no warnings.
 
 ## 1. Places where the exposition needed more than PROOF.md
 
@@ -53,17 +53,11 @@ references and no overfull boxes. BibTeX gives 9 "missing field" warnings, all f
    invariance of domain, the finite S₄ ⊂ PSL(2,ℂ) being octahedral, and continuity of the mapping-class action.
    These are the same as PROOF.md D8, D11 and D12.
 
-### Bibliography items needing checks (all marked `% CHECK` in refs.bib)
-- **Titles unknown** (shown as "[title to be checked]" in the PDF): Hide–Petri (2412.15111), Fortier Bourque–
-  Martínez-Granado–Vargas Pallete (2105.03871), Kao–Lai–Osting (1405.4944), Nayatani–Shoda (1704.06384), JLNNP
-  (math/0509398), Mazzoli (2101.09380), Daskalopoulos–Wentworth (math/0604403), El Soufi–Ilias (math/0701777),
-  Buser [Bus10], Tromba [Tro92].
-- **First names or initials missing:** Radcliffe, Hide, Cai, Duran, Mazzoli, Felikson, Natanzon, Karpukhin, Kao,
-  Lai, Osting, Gesteau, Simmons-Duffin, Xu, Martínez-Granado, Vargas Pallete, Rafi, Carstensen, Gedicke, Moslehian,
-  JLNNP authors.
-- **Volumes and pages missing:** KMP (Comm. AMS), Bonifacio 2107.09674 (JHEP), FBMGVP (AHL), NS (CRAS), FBR (JEMS,
-  no year), CG14 (pages), the Petri HDR (year).
-- **Possible published version of Str16** (a proceedings volume?). Not recorded in the sources.
+### Bibliography
+- The former `% CHECK` items were resolved on 2026-10-10 against arXiv, Crossref and the publishers' pages: titles,
+  first names, published versions (Str16 in Contemp. Math. 700; Hide–Petri in Compositio 162; KMP, Bonifacio
+  2107.09674, FBMGVP, NS, FBR, KLO, JLNNP, Mazzoli, Daskalopoulos–Wentworth, El Soufi–Ilias, Duran), volumes, pages
+  and the year of the Petri HDR (2024).
 - **Not read by the project** (cited second-hand): Kato, Fan 1949/1950 (1949 seen as a page scan only), Jenni 1984,
   Buser, Tromba, and Chavel (via Cook Thm 1.22). Fischer–Marsden [FM75] is attributed in the text via Mazzoli and
   has no bib entry.
