@@ -516,6 +516,9 @@ def ascent_direction(A_upper, A_lower=None, *, null_basis=None, bound_signs=None
 
 
 # ----------------------------------------------------------------------------------------------- driver helpers
+# Statuses that certify nothing about the current model; inside an unproductive eps-refinement the driver reports
+# the coarser model instead (see maximize_eigenvalue, "eps-refinement").
+_UNCERTIFIED = ("step_too_small", "subproblem_not_converged", "max_iter")
 def _window(K, M, sparse, k_low: int, k_up: int, mult_rtol: float, validate: bool):
     """Eigenpairs through the top of the single-linkage cluster based at k_up (plus one), and that cluster's top j.
     Returns w, V, j, s. The scale s = max(|lambda_0|, |lambda_{k_low+1}|, 1e-300) is fixed before the growth."""
@@ -587,7 +590,8 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
       direction (d = 0, phi = 0); phi_upper bounds phi* but is NOT certified to stat_tol. (A "no_progress" /
       "max_iter" result with phi > 0 still carries a certified ascent direction of rate phi and is stepped along.)
     - "step_too_small": the trust radius fell below 1e-10 * step0 without a strictly improving Armijo step, with no
-      refinement left to do (singleton clusters, or internal gaps <= mult_rtol_min * s). At a smooth maximum
+      refinement left to do (singleton clusters, internal gaps <= mult_rtol_min * s, or an unproductive refinement
+      of a model that had stalled: see eps-refinement below). At a smooth maximum
       (multiplicity 1) this is the normal end: f(p + tau d) - f = O(tau^2) falls below ulp(f) while phi_upper is
       still above stat_tol * s, so p is optimal to rounding. At multiplicity >= 2 it certifies nothing: the tied
       model (internal gap result.eps) stalled; p is the best iterate found, typically accurate to O(eps).
@@ -609,7 +613,15 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
     respects _max_eigensolves. Meanwhile a neighbour whose gap could close within the trust radius (gap <= Delta *
     speed, speeds from the eigenvector derivatives) rejoins its cluster, up to the user's mult_rtol * s, so long
     steps do not zigzag across a crossing; a refinement at a stationary point also caps Delta below the split gap.
-    Once refinement starts, the outer budget grows to max_iter + refine_max_iter. The result reports the final
+    Once refinement starts, the outer budget grows to max_iter + refine_max_iter. A split is kept only if it pays
+    off: if the run stops "step_too_small", "subproblem_not_converged" or "max_iter" before any step is accepted
+    after the first refinement round at the current p, the result reports the coarser model that round replaced
+    (its multiplicity, eigenvalues, phi, dual certificate, mult_rtol and eps) with that model's own status:
+    "stationary" if the round was triggered at its stationary point, "step_too_small" if by an eps-limited stall
+    (p and the history are unchanged). This matters for a Zeno chain: from a stationary tied model, each split step
+    closes about half of the gap, so the steps shrink geometrically and the trust radius can reach 1e-10 * step0
+    while eps is still just above mult_rtol_min * s; reporting the last split model there would give a spurious
+    multiplicity and an ascent rate phi that the tie forbids. The result reports the final
     mult_rtol and eps (the largest gap inside the active clusters at p: the reduced model treats eigenvalues that
     far apart as tied; 0 for simple or exactly repeated eigenvalues). Every threshold is relative to s or to
     speeds of the same units, so the iteration is invariant under K -> a K, M -> b M (bit-identical for powers of
@@ -678,6 +690,14 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
             callback(rec)
 
     def finish(status, st, it, ad):
+        rt, ep = rtol, eps_now
+        # An uncertified stop inside an unproductive refinement (no accepted step since the first split at this p)
+        # reports the coarser model that the split replaced: p is unchanged, and the split model's verdict (often a
+        # trust radius collapsed in a Zeno chain of ever-shorter steps toward the tie) says nothing the coarse one
+        # did not. Its status is the coarse model's: "stationary" (a certified eps-stationary point, eps = its
+        # internal gap) or "step_too_small" (an eps-limited stall).
+        if snap is not None and status in _UNCERTIFIED:
+            status, st, ad, rt, ep = snap
         w, j = st[3], st[5]
         mult = j - (k + 1 if is_gap else k) + 1
         return EigenOptResult(p=p.copy(), value=value(w), eigvals=w[:j + 2].copy(), multiplicity=mult,
@@ -685,14 +705,18 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
                               Y_upper=ad.Y_upper if ad else np.zeros((0, 0)), Y_lower=ad.Y_lower if ad else None,
                               mu=ad.mu if ad else np.zeros(dim), status=status, n_iter=it,
                               n_eigensolves=counters["eig"], n_screened=counters["screened"], history=tuple(hist),
-                              mult_rtol=rtol, eps=eps_now)
+                              mult_rtol=rt, eps=ep)
 
-    def refine_round(st, it, ad, mult, gabs):
+    def refine_round(st, it, ad, mult, gabs, verdict):
         """One eps-refinement round at the current iterate: shrink rtol below the largest internal gap gabs, extend
-        the budget, record it. Returns a finished result if the eigensolve cap forbids the re-evaluation."""
-        nonlocal rtol, limit
+        the budget, record it. Returns a finished result if the eigensolve cap forbids the re-evaluation. verdict is
+        the coarse model's own status here ("stationary" or "step_too_small"); the first round since the last
+        accepted step saves it with the coarse state, for finish to fall back to if the split never pays off."""
+        nonlocal rtol, limit, snap
         if _max_eigensolves is not None and counters["eig"] >= _max_eigensolves:
             return finish("max_iter", st, it, ad)
+        if snap is None:
+            snap = (verdict, st, ad, rtol, eps_now)
         limit = max_iter + refine_max_iter
         rtol = max(min(0.5 * gabs / st[6], 0.1 * rtol), mult_rtol_min)
         log(IterRecord(it, value(st[3]), mult, ad.phi, ad.phi_upper, 0.0, False, False, ad.rates, refined=True))
@@ -701,6 +725,7 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
     st = evaluate(p, (K0, M0))
     ad = None
     eps_now = float("nan")
+    snap = None        # coarse-model fallback (verdict, st, ad, rtol, eps), set by refine_round, cleared on acceptance
     limit = max_iter
     it = 0
     while it < limit:
@@ -787,7 +812,7 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
                 # trust radius too, so that no trust-region link re-forms across the largest gap)
                 if links:
                     Delta = min(Delta, 0.5 * eps_now / max(sp_ for _, sp_ in links))
-                done = refine_round(st, it, ad, up[1] - up[0] + 1, eps_now)
+                done = refine_round(st, it, ad, up[1] - up[0] + 1, eps_now, "stationary")
                 if done is not None:
                     return done
                 st = evaluate(p, (K, M))
@@ -817,7 +842,7 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
             # eps-limited stall: no step within the radius can close the spread inside the clusters, so the tied
             # model is invalid at this scale (it stalls at a small phi > stat_tol): refine instead of shrinking on
             if refine and eps_now > mult_rtol_min * s and (Delta * sigma < eps_now or Delta < 1e-10 * D0):
-                done = refine_round(st, it, ad, mult, eps_now)
+                done = refine_round(st, it, ad, mult, eps_now, "step_too_small")
                 if done is not None:
                     return done
                 refined = True
@@ -854,6 +879,7 @@ def maximize_eigenvalue(pencil: ParametricPencil, p0, objective, *, lower=None, 
                 elif fq - f < 0.25 * tau * phi:          # poor agreement: shrink (avoids a zigzag at fixed tau)
                     Delta = min(Delta, tau / 2)
                 p, st = q, st_q
+                snap = None                         # the refinement (if any) paid off: commit to it
             else:
                 Delta = tau / 2
         if refined:

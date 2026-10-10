@@ -717,3 +717,38 @@ def test_refinement_respects_eigensolve_cap_and_is_recorded():
     refined = [h for h in res.history if h.refined]
     assert refined and refined[0].it == 0 and refined[0].tau == 0.0 and not refined[0].accepted
     assert len(seen) == len(res.history) and all(a is b for a, b in zip(seen, res.history))
+
+
+def _near_triple_pencil(seed):
+    """Dense 5x5 pencil Q diag(a, a, b, 10, 20) Q^T with a = 1 + ga.p - |p|^2 (an exact pair) and b = 1 + gb.p - 2|p|^2,
+    p in [-1, 1]^2: lambda_0 = min(a, b) is concave and its maximum is a triple eigenvalue a = b."""
+    rng = np.random.default_rng(seed)
+    Q = np.linalg.qr(rng.standard_normal((5, 5)))[0]
+    ga, gb = rng.standard_normal(2), rng.standard_normal(2)
+    diag = lambda p: np.r_[1 + ga @ p - p @ p, 1 + ga @ p - p @ p, 1 + gb @ p - 2 * p @ p, 10.0, 20.0]
+    ddiag = lambda p: [np.r_[ga[l] - 2 * p[l], ga[l] - 2 * p[l], gb[l] - 4 * p[l], 0.0, 0.0] for l in range(2)]
+    pen = ParametricPencil(K=lambda p: (Q * diag(p)) @ Q.T, M=lambda p: np.eye(5),
+                           dK=lambda p: [(Q * v) @ Q.T for v in ddiag(p)])
+    return pen, ga, gb
+
+
+@pytest.mark.parametrize("seed", [2, 3, 10])
+def test_unproductive_refinement_reports_coarse_triple_FU(seed):
+    # Plate-with-post symmetric-start defect (T7 follow-up). The tied triple model is stationary with internal gap
+    # eps > mult_rtol_min * s, so it is refined; each split step closes about half the gap, and this Zeno chain ends
+    # when the trust radius reaches 1e-10 * step0 with the gap still ~1e-11 relative. The driver used to report that
+    # last split model: step_too_small, multiplicity 1, phi ~ 1 (an ascent rate the tie forbids). The final split
+    # yields no accepted step, so the result must fall back to the coarse model: stationary, multiplicity 3.
+    from scipy.optimize import minimize
+    pen, ga, gb = _near_triple_pencil(seed)
+    res = maximize_eigenvalue(pen, np.zeros(2), LowestEigenvalue(0), lower=-1.0, upper=1.0, max_iter=300)
+    assert any(h.refined for h in res.history)
+    assert res.status == "stationary" and res.multiplicity == 3, (res.status, res.multiplicity, res.phi)
+    assert res.phi == 0.0 and res.phi_upper <= 1e-8 * max(1.0, abs(res.value))
+    w = res.eigvals
+    assert w[2] - w[0] <= 1e-9 * abs(w[0]) and w[3] - w[2] > 1.0 and res.eps <= 1e-9 * abs(w[0])
+    ref = minimize(lambda x: -x[2], np.zeros(3), method="SLSQP", bounds=[(-1, 1)] * 2 + [(None, None)],
+                   constraints=[{"type": "ineq", "fun": lambda x: 1 + ga @ x[:2] - x[:2] @ x[:2] - x[2]},
+                                {"type": "ineq", "fun": lambda x: 1 + gb @ x[:2] - 2 * x[:2] @ x[:2] - x[2]}],
+                   options={"ftol": 1e-14, "maxiter": 500})
+    assert abs(res.value - ref.x[2]) <= 1e-8, (res.value, ref.x[2])
