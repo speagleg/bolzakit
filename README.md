@@ -174,6 +174,36 @@ correct. [examples/membrane_repeated_frequency.py](examples/membrane_repeated_fr
 adapter on a stretched membrane and checks the results against the exact values. There is also a FEniCSx adapter
 with exact UFL derivatives ([docs/sensitivity.md](docs/sensitivity.md)).
 
+**Use case: trimming a split mode pair.** A ring gyroscope or any other degenerate-mode resonator needs its mode
+pair at one frequency, and fabrication splits it. `trim_degenerate_pair` takes the FE model and the per-unit effect of
+candidate trims (point masses, ablation, stiffness patches) and returns the cheapest trim (least Σ c|t|, so ablation
+costs like addition) that ties the pair: a linear program on the splitting matrices, then Newton re-solves.
+[examples/gyro_trim.py](examples/gyro_trim.py) checks it with an independent dense eigensolve. On a ring on 8 spokes
+(no analytic rule) it tied every one of 5 random seeds in 4 eigensolves, from relative splits of 3.6e-4 to 8.9e-4 to
+at most 1.1e-12. Iterated antinode trimming tied 4 of the 5 seeds, using 1.2–5.6× our mass and 13–29 eigensolves,
+and its 0.5-damped variant tied none within 40 rounds. On a plain ring both reach the resolution floor (≤ 1.6e-8);
+there the damped baseline matched our mass (1.00×) but needed 19 eigensolves to our 7
+([docs/sensitivity-trim.md](docs/sensitivity-trim.md)):
+
+```python
+import numpy as np
+from bolzakit.sensitivity.trim import trim_degenerate_pair
+K, E = np.diag([1.0, 2.0, 2.01, 5.0]), np.eye(4)      # lambda_1, lambda_2 split by 0.5 %
+r = trim_degenerate_pair(K, np.eye(4), [np.outer(E[1], E[1]), np.outer(E[2], E[2])], None, (1, 2))
+print(r.status, r.t)                                  # converged [0.01 0.  ]: stiffen dof 1 by 0.01
+assert r.status == "converged" and np.allclose(r.t, [0.01, 0.0])
+```
+
+**Use case: maximising a repeated frequency.** `bolzakit.sensitivity.optimize.maximize_eigenvalue` raises the lowest
+eigenvalue (or a gap) of a parametrised pencil with steepest ascent that is correct at multiple eigenvalues.
+[benchmarks/frequency_maximisation.py](benchmarks/frequency_maximisation.py) compares it with the standard bound
+formulation (SLSQP, trust-constr, MMA) on a plate whose optimum has a repeated fundamental frequency. On that
+benchmark SLSQP beat it on success rate and cost: SLSQP came within 0.1 % of the best value found within the
+200-eigensolve budget (not the optimum) from 3 of 5 starts in a median of 40 eigensolves, ours from 1 of 5 in 169.
+Ours wins only on monotone progress (0 objective decreases, against 138 for SLSQP) and on its certified bound
+`phi_upper` on the ascent rate. It is a first-order method, so ill-conditioned smooth maxima can end at `max_iter`.
+The table is in [docs/sensitivity-optimize.md](docs/sensitivity-optimize.md).
+
 ## Use cases
 
 Every Python snippet in this README, including those in the audience sections above, runs as written:
@@ -414,6 +444,8 @@ Details and sources are in [docs/results-and-corrections.md](docs/results-and-co
 - **Smaller results.** The length-spectrum multiplicities round to integers with residual ≤ 1.1e-8. The Weierstrass
   charts of radius 0.45 cover the surface (covering radius 0.4056). The m = 3 mode of a 7-ring at a Weierstrass point
   splits by about 1000·ξ⁴.
+- **Ring mode-pair split coefficient 3/10, not 1/4.** Research note 02 derived split rates ±ω²ε/4 for a 4th-harmonic
+  density imperfection of a thin ring; the correct rates are ±(3/10)λ̄ε (measured 0.29984 to 0.29997).
 
 ## Limitations
 
@@ -449,7 +481,8 @@ More detail is in [docs/limitations.md](docs/limitations.md).
 
 [quick-start](docs/quickstart.md) · [exact group](docs/exact.md) · [geometry](docs/geometry.md) ·
 [spectral](docs/spectral.md) · [certified layer and checker](docs/certified.md) ·
-[repeated-eigenvalue sensitivity](docs/sensitivity.md) · [Green's function](docs/green.md) · [vortex](docs/vortex.md) ·
+[repeated-eigenvalue sensitivity](docs/sensitivity.md) ([optimisation](docs/sensitivity-optimize.md),
+[trimming](docs/sensitivity-trim.md)) · [Green's function](docs/green.md) · [vortex](docs/vortex.md) ·
 [arithmetic](docs/arith.md) · [results and corrections](docs/results-and-corrections.md) ·
 [limitations](docs/limitations.md) · [provenance table](docs/provenance.md) ·
 [citation checks](docs/CITATIONS_CHECK.md)

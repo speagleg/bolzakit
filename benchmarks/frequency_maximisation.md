@@ -4,9 +4,9 @@ Label: NUMERICAL (discrete problem). Reported as measured, whoever wins.
 
 Plate + central post, 512 dofs, 25 thickness zones (unequal areas, 0.03125 to 0.046875; volume weighted by a_z). Budget 200 eigensolves per run, 5 starts (start 0 uniform, the rest random feasible). Bound formulation: beta / lambda_0(start) in [0.5, 2] for SLSQP, trust-constr and MMA. Versions: scipy 1.18.1, numpy 2.5.3, scikit-fem 12.0.2, pymoto 2.0.1.
 
-Every method reports its best feasible evaluated design within the budget; 'reached' counts eigensolves until the running best is within 0.1 % (99.9 %) or 1 % (99 %) of the best final value over methods from that start. 'decreases' counts decreases between successive accepted iterates (ours: accepted steps; SLSQP and trust-constr: callback iterates, where a merit-function method may decrease lambda_0 legitimately; MMA and naive: every iterate, all accepted).
+Every method reports its best feasible evaluated design within the budget (the 'best λ₀/π⁴ within budget' column). 'Best from a start' is the maximum of those values over methods: the best value found within the 200-eigensolve budget, not the optimum. 'reached' counts eigensolves until the running best is within 0.1 % (99.9 %) or 1 % (99 %) of the best from that start. Feasibility for the best-design record: volume residual ≤ 1e-9 relative, except MMA, whose volume tolerance is 1e-3 relative (pyMOTO MMA takes the volume as an inequality, ≤). 'decreases' counts decreases between successive accepted iterates (ours: accepted steps; SLSQP and trust-constr: callback iterates, where a merit-function method may decrease lambda_0 legitimately; MMA and naive: every iterate, all accepted).
 
-| start | method | final λ₀/π⁴ | mult | eigensolves to 99 % | to 99.9 % | decreases | volume residual | stop |
+| start | method | best λ₀/π⁴ within budget | mult | eigensolves to 99 % | to 99.9 % | decreases | volume residual | stop |
 |---|---|---|---|---|---|---|---|---|
 | 0 | ours | 1.9615 | 3 | — | — | 0 | 0e+00 | stationary |
 | 0 | SLSQP bound | 1.9615 | 3 | — | — | 35 | 1e-10 | budget |
@@ -35,13 +35,15 @@ Every method reports its best feasible evaluated design within the budget; 'reac
 | 4 | naive fixed-step | 1.8881 | 1 | — | — | 85 | 1e-16 | budget |
 
 ```
-summary over starts (reached = within 0.1 % of the best value found from that start):
+summary over starts (reached = within 0.1 % of the best value found within budget from that start):
   ours                 reached 1/5; median eigensolves to reach  169.0; decreases    0; max volume residual 2.2e-16; max bound violation 0.0e+00
   SLSQP bound          reached 3/5; median eigensolves to reach   40.0; decreases  138; max volume residual 1.0e-10; max bound violation 0.0e+00
   trust-constr bound   reached 1/5; median eigensolves to reach  194.0; decreases    9; max volume residual 6.7e-16; max bound violation 0.0e+00
   MMA bound (pyMOTO)   reached 1/5; median eigensolves to reach  199.0; decreases  400; max volume residual 6.4e-05; max bound violation 0.0e+00
   naive fixed-step     reached 0/5; median eigensolves to reach    nan; decreases  435; max volume residual 1.1e-16; max bound violation 0.0e+00
 ```
+
+Reach counts are relative to the best value found within budget from each start, not to the optimum. From start 3 the best within budget, MMA's 2.0415, is a point mid-way along its trajectory when the budget ran out; 2.052 is reachable from there, since SLSQP started from that design reaches 2.05205 (a review check after this run, not part of the table).
 
 Stop codes: `budget` = eigensolve budget exhausted; `converged` / `failed` = solver's own termination. Full solver messages:
 - SLSQP bound: Optimization terminated successfully

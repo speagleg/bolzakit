@@ -101,6 +101,19 @@ describes.
 
 Label: NUMERICAL.
 
+## 6. Ring mode-pair split coefficient: 3/10, not 1/4 (research note 02)
+
+**The note's statement.** `docs/research/02-degenerate-mode-resonators.md` §4 derived (flagged as an unverified own
+derivation) that a density imperfection `δρ = ρ₀ε cos(4(θ − φ))` splits the n = 2 pair of a thin ring at rates
+`±ω²ε/4`.
+
+**The correction.** The inextensional thin-ring model gives `A = −λ̄εc_n[[cos kφ, sin kφ], [sin kφ, −cos kφ]]` for
+`k = 2n`, with `c_n = (n² − 1)/(2(n² + 1))`, so the rates are `±(3/10)λ̄ε` for n = 2; each branch frequency moves by
+`±(c_n/2)εf̄` and the frequency split is `c_nε`. `examples/gyro_trim.py` measures 0.29984 (w/R = 0.05, Nθ = 96;
+`tests/sensitivity/test_trim.py` checks it to 5e-4), and the spec spike measured 0.29997 at w/R = 0.02, Nθ = 128.
+
+Label: NUMERICAL (discrete pencil; spec §5.10).
+
 ## References
 
 - [Laf12] V. Lafforgue, *La conjecture de Baum–Connes à coefficients pour les groupes hyperboliques*, J. Noncommut.

@@ -8,7 +8,7 @@ NUMERICAL. Adapters assemble the matrices from scikit-fem or FEniCSx forms.
 Contents: [Why clusters](#why-individual-repeated-eigenvalues-are-not-differentiable-while-cluster-sums-are) ·
 [Formulas](#formulas) · [Near-degenerate clusters](#near-degenerate-clusters) ·
 [Discrete vs continuum](#the-discrete-vs-continuum-caveat) · [Membrane example](#the-membrane-example) ·
-[Adapters](#adapters) · [API](#api)
+[Adapters](#adapters) · [0.3.0 additions](#splitting-matrices-optimisation-and-trimming-030) · [API](#api)
 
 ## Why individual repeated eigenvalues are not differentiable, while cluster sums are
 
@@ -111,6 +111,17 @@ Dirichlet dofs removed.
 - **Your own code.** `from_callables(Kfun, Mfun, p0, v, cluster, h=1e-4)` takes the derivatives by central finite
   differences of any K(p), M(p) along v and emits a `UserWarning`. `directional(...)` takes callables that return
   dK(v), dM(v), and so on.
+
+## Splitting matrices, optimisation and trimming (0.3.0)
+
+- `smallest_eigenpairs(K, M, count)`, `splitting_matrices(K, M, dKs, dMs, cluster, ...)` (one `A_l` per design
+  parameter, so `A(v) = Σ v_l A_l` for any direction v) and `ritz_upper_bounds(K, M, W)` (Poincaré separation upper
+  bounds on the discrete eigenvalues) extend the core to many design parameters.
+- [Optimisation](sensitivity-optimize.md): `ascent_direction` and `maximize_eigenvalue` (steepest ascent of `λ_k` or
+  of a gap at a multiple eigenvalue), with a benchmark against the standard bound formulation (which SLSQP won on
+  success rate and eigensolve count).
+- [Trimming](sensitivity-trim.md): `trim_degenerate_pair`, the inverse problem of tying a split mode pair with the
+  cheapest trim, validated in `examples/gyro_trim.py` on a ring and on a ring with 8 spokes.
 
 ## API
 

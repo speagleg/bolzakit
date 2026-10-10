@@ -14,6 +14,19 @@
 - `bolzakit.sensitivity.optimize.ascent_direction`: the steepest-ascent unit direction for lambda_min(A_upper(d))
   (optionally minus lambda_max(A_lower(d)), for a gap) from splitting-matrix stacks, with optional null-space and
   bound constraints and a certified duality-gap bound on the optimal rate.
+- `bolzakit.sensitivity.optimize.maximize_eigenvalue`: multiple-eigenvalue steepest ascent for `LowestEigenvalue(k)`
+  and `Gap(k)` with bounds and linear equality constraints (Armijo trust region, Poincaré screen, ε-refinement).
+  First order: ill-conditioned smooth maxima can end at `max_iter`.
+- `bolzakit.sensitivity.trim.trim_degenerate_pair`: the cheapest trim (minimal sum_l c_l |t_l|, so ablation costs
+  like addition; LP on the splitting matrices, then Newton re-solves) that ties a split degenerate mode pair, with a
+  resolution-floor estimate `rel_floor`; `examples/gyro_trim.py` (ring and 8-spoke ring, with an
+  iterated-antinode baseline).
+- `benchmarks/frequency_maximisation.py`: fundamental-frequency maximisation of a post-supported plate against the
+  bound formulation (SLSQP, trust-constr, pyMOTO MMA) and naive ascent; results in `docs/sensitivity-optimize.md`.
+
+### Corrected
+
+- Research note 02's ring split coefficient: the rates are ±(3/10)λ̄ε, not ±ω²ε/4.
 
 ## [0.2.0] - 2026-10-09
 
